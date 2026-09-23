@@ -38,6 +38,13 @@ if ! command -v xattr >/dev/null 2>&1; then
 fi
 
 echo "→ 在 macOS 上原生编译 .app（避免 Linux 交叉编译的 dylib 路径问题）"
+
+# 前端产物如果不存在（git clone 不会带 dist/），先构建
+if [ ! -f dist/index.html ]; then
+  echo "→ 未检测到 dist/index.html，先构建前端产物"
+  deno task build:frontend
+fi
+
 deno desktop -A --no-check --target aarch64-apple-darwin \
   -o ai-presales-mac main.ts
 
