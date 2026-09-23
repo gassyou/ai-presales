@@ -13,10 +13,8 @@
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-1.5 text-slate-800">
         <div class="h-2 w-2 rounded-full bg-accent" />
-        <span class="font-semibold">提案协同 / Presales Co-pilot</span>
+        <span class="font-semibold">AI 售前智能平台</span>
       </div>
-      <span class="text-slate-300">/</span>
-      <span class="text-slate-500">{{ pageTitle }}</span>
     </div>
 
     <div class="flex items-center gap-2">
