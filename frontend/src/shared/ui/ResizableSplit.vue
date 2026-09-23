@@ -118,8 +118,12 @@ function onMouseDown(e: MouseEvent): void {
 
   function onMove(ev: MouseEvent): void {
     const delta = ev.clientX - startX;
-    // 左面板往左拖 = 缩小；右面板往左拖 = 缩小（delta 同号）
-    updateWidth(startWidth + delta);
+    // 两边宽度变化语义相对 handle 的屏幕移动方向是对称的：
+    //   left handle 向右拖（delta>0）= 把左面板拉宽 → width += delta
+    //   right handle 向右拖（delta>0）= 把右面板挤窄 → width -= delta
+    // 右面板因此需要取反，与左面板保持"handle 与内容同向 = 扩、异向 = 收"的对称关系。
+    const signed = props.side === "left" ? delta : -delta;
+    updateWidth(startWidth + signed);
   }
   function onUp(): void {
     window.removeEventListener("mousemove", onMove);
@@ -140,7 +144,9 @@ function onTouchStart(e: TouchEvent): void {
     const t = ev.touches[0];
     if (!t) return;
     const delta = t.clientX - startX;
-    updateWidth(startWidth + delta);
+    // 与 onMouseDown 一致：右面板 delta 取反，保持左右对称。
+    const signed = props.side === "left" ? delta : -delta;
+    updateWidth(startWidth + signed);
   }
   function onEnd(): void {
     window.removeEventListener("touchmove", onMove);
@@ -152,12 +158,16 @@ function onTouchStart(e: TouchEvent): void {
 
 function onKeyDown(e: KeyboardEvent): void {
   const STEP = 8;
+  // 与拖动语义一致：
+  //   left 面板 ArrowRight = 拉宽（width+），ArrowLeft = 收窄（width-）
+  //   right 面板 ArrowRight = 收窄（width-），ArrowLeft = 拉宽（width+）
+  const sign = props.side === "left" ? 1 : -1;
   if (e.key === "ArrowLeft") {
     e.preventDefault();
-    updateWidth(props.width - (props.side === "left" ? STEP : -STEP));
+    updateWidth(props.width - STEP * sign);
   } else if (e.key === "ArrowRight") {
     e.preventDefault();
-    updateWidth(props.width + (props.side === "left" ? STEP : -STEP));
+    updateWidth(props.width + STEP * sign);
   } else if (e.key === "Home") {
     e.preventDefault();
     updateWidth(props.min);
