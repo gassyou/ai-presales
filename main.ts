@@ -108,13 +108,21 @@ function resolveDistRoot(): string {
   const cwdDist = join(cwd, "dist");
   if (looksLikeDistRoot(cwdDist)) return cwdDist;
 
-  // 2. 可执行文件同级 dist（编译产物 + 同目录 dist/ 的标准发行方式）
+  // 2. 可执行文件同级 dist（用户在 dist 目录里直接启动 binary；或 binary 与 dist 平级）
   try {
     const exeDir = dirname(Deno.execPath());
     const exeDist = join(exeDir, "dist");
     if (looksLikeDistRoot(exeDist)) return exeDist;
-    // exeDir 本身就是 dist（用户在 dist 目录里直接启动 binary，没有再嵌套一层）
     if (looksLikeDistRoot(exeDir)) return exeDir;
+
+    // 2.5 .app bundle 自包含：execPath = .../Foo.app/Contents/MacOS/<bin>
+    //     前端 dist 已被打包进 .../Contents/Resources/dist
+    const resourcesDir = join(exeDir, "..", "Resources");
+    const resourcesDist = join(resourcesDir, "dist");
+    if (looksLikeDistRoot(resourcesDist)) return resourcesDist;
+
+    // 2.6 兼容旧包结构：execPath = .../Foo.app/Contents/MacOS/dist/<bin>
+    //     这种情况下 dist 与 binary 平级，exeDist 已在上方覆盖
   } catch (_) { /* not found */ }
   // 最终回退：cwd/dist（即便不存在也返回，静态服务会兜底）
   return cwdDist;

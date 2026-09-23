@@ -49,11 +49,11 @@ deno desktop -A --no-check --target aarch64-apple-darwin \
   -o ai-presales-mac main.ts
 
 echo ""
-echo "→ 修复 Mach-O 可执行权限"
+echo "→ 修复 Mach-O 可执行权限 + 嵌入前端 dist"
 ./scripts/post-build-mac.sh ai-presales-mac.app
 
 echo ""
-echo "→ ad-hoc 签名（绕过 Gatekeeper / dyld 校验）"
+echo "→ ad-hoc 签名（绕过 Gatekeeper / dyld 校验；在嵌入 dist 之后签，确保 Resources 全覆盖）"
 codesign --force --deep --sign - ai-presales-mac.app
 
 echo ""

@@ -36,6 +36,36 @@ echo "✅ 修复后权限："
 ls -la "$MACOS_DIR/"
 
 echo ""
+echo "→ 把前端 dist/ 嵌入 .app/Contents/Resources/dist（让 .app 自包含）"
+RESOURCES_DIR="$APP_PATH/Contents/Resources"
+APP_DIST="$RESOURCES_DIR/dist"
+SOURCE_DIST="$(cd "$(dirname "$APP_PATH")/.." 2>/dev/null && pwd)/dist"
+
+# 兜底：直接拿当前工作目录下的 dist（脚本通常是跨目录调用的）
+if [ ! -d "$SOURCE_DIST" ]; then
+  SOURCE_DIST="$(pwd)/dist"
+fi
+if [ ! -d "$SOURCE_DIST" ] && [ -d "$(pwd)/../dist" ]; then
+  SOURCE_DIST="$(pwd)/../dist"
+fi
+
+if [ ! -d "$SOURCE_DIST" ] || [ ! -f "$SOURCE_DIST/index.html" ]; then
+  echo "❌ 找不到前端 dist/（期待 dist/index.html 存在）"
+  echo "   当前脚本目录: $(pwd)"
+  echo "   尝试过的源路径: $APP_PATH 上级/dist, $(pwd)/dist"
+  echo "   先跑 deno task build:frontend 构建前端。"
+  exit 1
+fi
+
+mkdir -p "$RESOURCES_DIR"
+# 用 ditto 保留资源分支（macOS 上更稳）；--noclobber 失败忽略
+rm -rf "$APP_DIST"
+mkdir -p "$APP_DIST"
+cp -R "$SOURCE_DIST"/. "$APP_DIST"/
+echo "✅ dist 已嵌入: $APP_DIST"
+ls -la "$APP_DIST/"
+
+echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " 下一步（拷贝到 Mac 上后执行）："
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
