@@ -1,96 +1,113 @@
 <!--
   FunctionListTable.vue
   =====================
-  功能清单列表视图（阶段 7.4b）。
+  功能清单列表视图（阶段 7.4b + Element Plus 迁移）。
   - 每行：分类 / 模块 / 功能名 / 详细 / 备注 / CP select / 范围内 checkbox / 工时 / 金额 / 删
   - 点击单元格编辑（contenteditable + @blur）
-  - CP / 范围内用 <select> / <checkbox> 直接触发 update
+  - CP / 范围内用 <el-select> / <el-checkbox> 直接触发 update
+  - Element Plus el-table 的 #default slot 不带业务类型，所以 editable cell 通过
+    scoped helper "typed" cast 一次；用 prop 显示纯文本字段，避免对每个字段都 cast。
 -->
 <template>
-  <div class="overflow-x-auto rounded border border-border">
-    <table class="w-full text-xs">
-      <thead class="bg-surface-alt/60 text-slate-700">
-        <tr>
-          <th class="px-2 py-2 text-left">分类</th>
-          <th class="px-2 py-2 text-left">模块</th>
-          <th class="px-2 py-2 text-left">功能名</th>
-          <th class="px-2 py-2 text-left">详细</th>
-          <th class="px-2 py-2 text-left">备注</th>
-          <th class="px-2 py-2 text-right">CP</th>
-          <th class="px-2 py-2 text-center">范围内</th>
-          <th class="px-2 py-2 text-right">工时(h)</th>
-          <th class="px-2 py-2 text-right">金额</th>
-          <th class="px-2 py-2 text-right">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="it in items"
-          :key="it.id"
-          class="border-t border-border hover:bg-surface-alt/30"
+  <el-table
+    :data="items"
+    size="small"
+    border
+    stripe
+    class="rounded"
+    empty-text="暂无数据"
+  >
+    <el-table-column label="分类" min-width="120">
+      <template #default="{ row }">
+        <span
+          class="block max-w-[120px] truncate"
+          :title="typed(row).category"
+          contenteditable
+          @blur="onEdit(typed(row), 'category', ($event.target as HTMLElement).innerText.trim())"
+        >{{ typed(row).category }}</span>
+      </template>
+    </el-table-column>
+    <el-table-column label="模块" min-width="120">
+      <template #default="{ row }">
+        <span
+          class="block max-w-[120px] truncate"
+          :title="typed(row).module"
+          contenteditable
+          @blur="onEdit(typed(row), 'module', ($event.target as HTMLElement).innerText.trim())"
+        >{{ typed(row).module }}</span>
+      </template>
+    </el-table-column>
+    <el-table-column label="功能名" min-width="160">
+      <template #default="{ row }">
+        <span
+          class="block max-w-[160px] truncate font-medium text-slate-900"
+          :title="typed(row).name"
+          contenteditable
+          @blur="onEdit(typed(row), 'name', ($event.target as HTMLElement).innerText.trim())"
+        >{{ typed(row).name }}</span>
+      </template>
+    </el-table-column>
+    <el-table-column label="详细" min-width="200">
+      <template #default="{ row }">
+        <span
+          class="block max-w-[200px] truncate text-slate-600"
+          :title="typed(row).detail"
+          contenteditable
+          @blur="onEdit(typed(row), 'detail', ($event.target as HTMLElement).innerText.trim())"
+        >{{ typed(row).detail }}</span>
+      </template>
+    </el-table-column>
+    <el-table-column label="备注" min-width="140">
+      <template #default="{ row }">
+        <span
+          class="block max-w-[140px] truncate text-slate-600"
+          :title="typed(row).remarks"
+          contenteditable
+          @blur="onEdit(typed(row), 'remarks', ($event.target as HTMLElement).innerText.trim())"
+        >{{ typed(row).remarks }}</span>
+      </template>
+    </el-table-column>
+    <el-table-column label="CP" width="80" align="right">
+      <template #default="{ row }">
+        <el-select
+          :model-value="typed(row).cp"
+          size="small"
+          class="!w-16"
+          @change="(v) => emit('changeCp', typed(row), Number(v))"
         >
-          <td class="px-2 py-1">
-            <span class="block max-w-[120px] truncate" :title="it.category" @blur="onEdit(it, 'category', ($event.target as HTMLElement).innerText.trim())" contenteditable>{{ it.category }}</span>
-          </td>
-          <td class="px-2 py-1">
-            <span class="block max-w-[120px] truncate" :title="it.module" @blur="onEdit(it, 'module', ($event.target as HTMLElement).innerText.trim())" contenteditable>{{ it.module }}</span>
-          </td>
-          <td class="px-2 py-1">
-            <span class="block max-w-[160px] truncate font-medium text-slate-900" :title="it.name" @blur="onEdit(it, 'name', ($event.target as HTMLElement).innerText.trim())" contenteditable>{{ it.name }}</span>
-          </td>
-          <td class="px-2 py-1">
-            <span class="block max-w-[200px] truncate text-slate-600" :title="it.detail" @blur="onEdit(it, 'detail', ($event.target as HTMLElement).innerText.trim())" contenteditable>{{ it.detail }}</span>
-          </td>
-          <td class="px-2 py-1">
-            <span class="block max-w-[140px] truncate text-slate-600" :title="it.remarks" @blur="onEdit(it, 'remarks', ($event.target as HTMLElement).innerText.trim())" contenteditable>{{ it.remarks }}</span>
-          </td>
-          <td class="px-2 py-1 text-right">
-            <select
-              :value="it.cp"
-              class="rounded border border-border bg-white px-1 py-0.5 text-right text-xs text-slate-800"
-              @change="(e) => emit('changeCp', it, Number((e.target as HTMLSelectElement).value))"
-            >
-              <option :value="0">—</option>
-              <option v-for="cp in CP_VALUES" :key="cp" :value="cp">{{ cp }}</option>
-            </select>
-          </td>
-          <td class="px-2 py-1 text-center">
-            <input
-              type="checkbox"
-              :checked="it.inScope"
-              @change="emit('toggleScope', it)"
-            />
-          </td>
-          <td class="px-2 py-1 text-right text-slate-700">
-            {{ it.effortHours.toFixed(1) }}
-          </td>
-          <td class="px-2 py-1 text-right text-slate-700">
-            ¥{{ Math.round(it.amount).toLocaleString() }}
-          </td>
-          <td class="px-2 py-1 text-right">
-            <button
-              class="text-accent hover:underline"
-              @click="emit('edit', it)"
-            >编辑</button>
-            <button
-              class="ml-2 text-red-300 hover:underline"
-              @click="emit('delete', it.id)"
-            >删</button>
-          </td>
-        </tr>
-        <tr v-if="items.length === 0">
-          <td colspan="10" class="px-2 py-3 text-center text-slate-500">暂无数据</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+          <el-option label="—" :value="0" />
+          <el-option v-for="cp in CP_VALUES" :key="cp" :label="String(cp)" :value="cp" />
+        </el-select>
+      </template>
+    </el-table-column>
+    <el-table-column label="范围内" width="80" align="center">
+      <template #default="{ row }">
+        <el-checkbox
+          :model-value="typed(row).inScope"
+          @change="emit('toggleScope', typed(row))"
+        />
+      </template>
+    </el-table-column>
+    <el-table-column label="工时(h)" width="90" align="right">
+      <template #default="{ row }">{{ typed(row).effortHours.toFixed(1) }}</template>
+    </el-table-column>
+    <el-table-column label="金额" width="110" align="right">
+      <template #default="{ row }">¥{{ Math.round(typed(row).amount).toLocaleString() }}</template>
+    </el-table-column>
+    <el-table-column label="操作" width="120" align="right">
+      <template #default="{ row }">
+        <el-button link type="primary" size="small" @click="emit('edit', typed(row))">编辑</el-button>
+        <el-button link type="danger" size="small" @click="emit('delete', typed(row).id)">删</el-button>
+      </template>
+    </el-table-column>
+  </el-table>
 </template>
 
 <script setup lang="ts">
 import { CP_VALUES } from "../api/structured-modules.api.ts";
 import type { FunctionListDTO } from "../api/structured-modules.api.ts";
 
-const props = defineProps<{ items: FunctionListDTO[] }>();
+defineProps<{ items: FunctionListDTO[] }>();
 const emit = defineEmits<{
   (e: "edit", it: FunctionListDTO): void;
   (e: "delete", id: string): void;
@@ -99,7 +116,11 @@ const emit = defineEmits<{
   (e: "cellEdit", it: FunctionListDTO, field: "category" | "module" | "name" | "detail" | "remarks", value: string): void;
 }>();
 
-async function onEdit(it: FunctionListDTO, field: "category" | "module" | "name" | "detail" | "remarks", value: string): Promise<void> {
+// el-table 的 #default slot 默认 row 类型是 DefaultRow（无业务字段）。
+// 用 helper cast 一下，template 里每个表达式都走它。
+const typed = (row: unknown): FunctionListDTO => row as FunctionListDTO;
+
+function onEdit(it: FunctionListDTO, field: "category" | "module" | "name" | "detail" | "remarks", value: string): void {
   if ((it as unknown as Record<string, string>)[field] === value) return;
   if (field === "name" && value.length === 0) return; // 不允许清空 name
   emit("cellEdit", it, field, value);

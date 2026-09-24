@@ -1,5 +1,5 @@
 <!--
-  LLMProfilesTab.vue —— 阶段 7.4h
+  LLMProfilesTab.vue —— 阶段 7.4h + Element Plus 迁移
 
   LLM profile 列表编辑：增 / 删 / 改默认 / 改字段 / 一次性保存。
   - apiKey 默认 type=password，提供"显示/隐藏"切换；保存后清空输入框
@@ -11,15 +11,20 @@
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">模型配置 (LLM profiles)</h2>
       <div class="flex gap-2">
-        <button class="btn-secondary" @click="addProfile">+ 新增 profile</button>
-        <button class="btn-primary" :disabled="!dirty || saving" @click="onSave">
+        <el-button @click="addProfile">+ 新增 profile</el-button>
+        <el-button
+          type="primary"
+          :disabled="!dirty || saving"
+          :loading="saving"
+          @click="onSave"
+        >
           {{ saving ? "保存中…" : "保存" }}
-        </button>
+        </el-button>
       </div>
     </header>
 
-    <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
-    <p v-if="conflictMsg" class="text-xs text-amber-700">{{ conflictMsg }}</p>
+    <el-alert v-if="store.error" :title="store.error" type="error" :closable="false" show-icon />
+    <el-alert v-if="conflictMsg" :title="conflictMsg" type="warning" :closable="false" show-icon />
 
     <div v-if="!form" class="text-xs text-slate-600">加载中…</div>
     <div v-else class="flex flex-col gap-2">
@@ -29,99 +34,80 @@
         class="rounded border border-border p-3"
       >
         <div class="mb-2 flex items-center justify-between gap-2">
-          <input
+          <el-input
             v-model="p.name"
             placeholder="profile 名 (字母开头，字母数字_-)"
-            class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+            size="small"
+            class="!w-64"
           />
           <div class="flex items-center gap-2 text-xs text-slate-600">
-            <label class="flex items-center gap-1">
-              <input
-                type="radio"
-                :checked="form.defaultProfile === p.name"
-                :disabled="!p.name"
-                @change="onSetDefault(p.name)"
-              />
-              <span>默认</span>
-            </label>
-            <button
-              class="text-red-400 hover:text-red-300"
+            <el-radio
+              :model-value="form.defaultProfile === p.name"
+              :disabled="!p.name"
+              @change="onSetDefault(p.name)"
+            >
+              默认
+            </el-radio>
+            <el-button
+              link
+              type="danger"
               :disabled="form.profiles.length <= 1"
               @click="removeProfile(idx)"
-            >删除</button>
+            >删除</el-button>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>Provider</span>
-            <select
-              v-model="p.provider"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            >
-              <option value="anthropic">anthropic</option>
-              <option value="openai">openai</option>
-            </select>
-          </label>
+        <div class="flex flex-col gap-2">
+          <el-form-item label="Provider" class="!mb-0">
+            <el-select v-model="p.provider" size="small">
+              <el-option label="anthropic" value="anthropic" />
+              <el-option label="openai" value="openai" />
+            </el-select>
+          </el-form-item>
 
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>Base URL（可省）</span>
-            <input
-              v-model="p.baseUrl"
-              placeholder="https://api.example.com"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            />
-          </label>
+          <el-form-item label="Base URL（可省）" class="!mb-0">
+            <el-input v-model="p.baseUrl" placeholder="https://api.example.com" size="small" />
+          </el-form-item>
 
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>Model</span>
-            <input
-              v-model="p.model"
-              placeholder="claude-sonnet-4.5 / gpt-4o"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            />
-          </label>
+          <el-form-item label="Model" class="!mb-0">
+            <el-input v-model="p.model" placeholder="claude-sonnet-4.5 / gpt-4o" size="small" />
+          </el-form-item>
 
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>API Key</span>
+          <el-form-item label="API Key" class="!mb-0">
             <div class="flex gap-1">
-              <input
-                :type="showKeys[p.name] ? 'text' : 'password'"
+              <el-input
                 v-model="p.apiKey"
+                :type="showKeys[p.name] ? 'text' : 'password'"
                 placeholder="sk-..."
-                class="flex-1 rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+                size="small"
+                show-password
               />
-              <button
-                class="rounded bg-surface-sunken px-2 text-xs text-slate-700 hover:bg-slate-600"
-                @click="toggleShow(p.name)"
-              >
+              <el-button size="small" @click="toggleShow(p.name)">
                 {{ showKeys[p.name] ? "隐藏" : "显示" }}
-              </button>
+              </el-button>
             </div>
-          </label>
+          </el-form-item>
 
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>Temperature (0-2)</span>
-            <input
-              v-model.number="p.temperature"
-              type="number"
-              min="0"
-              max="2"
-              step="0.1"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+          <el-form-item label="Temperature (0-2)" class="!mb-0">
+            <el-input-number
+              v-model="p.temperature"
+              :min="0"
+              :max="2"
+              :step="0.1"
+              size="small"
+              controls-position="right"
             />
-          </label>
+          </el-form-item>
 
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>Max tokens</span>
-            <input
-              v-model.number="p.maxTokens"
-              type="number"
-              min="1"
-              step="1"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+          <el-form-item label="Max tokens" class="!mb-0">
+            <el-input-number
+              v-model="p.maxTokens"
+              :min="1"
+              :step="1"
+              size="small"
+              controls-position="right"
             />
-          </label>
+          </el-form-item>
         </div>
       </div>
     </div>

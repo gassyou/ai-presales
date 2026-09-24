@@ -11,105 +11,88 @@
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">向量模型配置 (Embedding)</h2>
       <div class="flex gap-2">
-        <button class="btn-primary" :disabled="!dirty || saving" @click="onSave">
+        <el-button
+          type="primary"
+          :disabled="!dirty || saving"
+          :loading="saving"
+          @click="onSave"
+        >
           {{ saving ? "保存中…" : "保存" }}
-        </button>
+        </el-button>
       </div>
     </header>
 
-    <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
-    <p v-if="conflictMsg" class="text-xs text-amber-700">{{ conflictMsg }}</p>
+    <el-alert v-if="store.error" :title="store.error" type="error" :closable="false" show-icon />
+    <el-alert v-if="conflictMsg" :title="conflictMsg" type="warning" :closable="false" show-icon />
 
     <div v-if="!form" class="text-xs text-slate-600">加载中…</div>
     <div v-else class="flex flex-col gap-2">
       <div class="rounded border border-border p-3">
-        <div class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-          <label class="flex flex-col gap-1 text-xs text-slate-600">
-            <span>Provider</span>
-            <select
+        <div class="flex flex-col gap-2">
+          <el-form-item label="Provider" class="!mb-0">
+            <el-select
               v-model="form.provider"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+              size="small"
               @change="onProviderChange"
             >
-              <option value="openai">openai</option>
-              <option value="ollama">ollama</option>
-              <option value="dashscope">dashscope</option>
-              <option value="mock">mock（占位，不产生真实向量）</option>
-            </select>
-          </label>
+              <el-option label="openai" value="openai" />
+              <el-option label="ollama" value="ollama" />
+              <el-option label="dashscope" value="dashscope" />
+              <el-option label="mock（占位，不产生真实向量）" value="mock" />
+            </el-select>
+          </el-form-item>
 
-          <label
-            v-if="form.provider !== 'mock'"
-            class="flex flex-col gap-1 text-xs text-slate-600"
-          >
-            <span>Model</span>
-            <input
-              v-model="form.model"
-              :placeholder="modelPlaceholder"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+          <el-form-item v-if="form.provider !== 'mock'" label="Model" class="!mb-0">
+            <el-input v-model="form.model" :placeholder="modelPlaceholder" size="small" />
+          </el-form-item>
+
+          <el-form-item v-if="form.provider !== 'mock'" label="Dimension" class="!mb-0">
+            <el-input-number
+              v-model="form.dimension"
+              :min="0"
+              :max="4096"
+              size="small"
+              controls-position="right"
             />
-          </label>
+          </el-form-item>
 
-          <label
-            v-if="form.provider !== 'mock'"
-            class="flex flex-col gap-1 text-xs text-slate-600"
-          >
-            <span>Dimension</span>
-            <input
-              v-model.number="form.dimension"
-              type="number"
-              min="0"
-              max="4096"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            />
-          </label>
-
-          <label
+          <el-form-item
             v-if="form.provider === 'openai' || form.provider === 'ollama'"
-            class="flex flex-col gap-1 text-xs text-slate-600 md:col-span-2"
+            label="Base URL"
+            class="!mb-0"
           >
-            <span>Base URL</span>
-            <input
-              v-model="form.baseUrl"
-              :placeholder="baseUrlPlaceholder"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            />
-          </label>
+            <el-input v-model="form.baseUrl" :placeholder="baseUrlPlaceholder" size="small" />
+          </el-form-item>
 
-          <label
+          <el-form-item
             v-if="form.provider === 'openai' || form.provider === 'dashscope'"
-            class="flex flex-col gap-1 text-xs text-slate-600"
+            label="API Key"
+            class="!mb-0"
           >
-            <span>API Key</span>
-            <div class="flex gap-1">
-              <input
+            <div class="flex w-full gap-1">
+              <el-input
                 v-model="form.apiKey"
                 :type="showKey ? 'text' : 'password'"
                 placeholder="sk-..."
-                class="flex-1 rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+                size="small"
+                show-password
               />
-              <button
-                class="rounded bg-surface-sunken px-2 py-1 text-xs text-slate-700 hover:bg-slate-600"
-                @click="showKey = !showKey"
-              >
+              <el-button size="small" @click="showKey = !showKey">
                 {{ showKey ? "隐藏" : "显示" }}
-              </button>
+              </el-button>
             </div>
-          </label>
+          </el-form-item>
 
-          <label
+          <el-form-item
             v-if="form.provider === 'dashscope'"
-            class="flex flex-col gap-1 text-xs text-slate-600"
+            label="Text Type"
+            class="!mb-0"
           >
-            <span>Text Type</span>
-            <select
-              v-model="form.textType"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            >
-              <option value="document">document</option>
-              <option value="query">query</option>
-            </select>
-          </label>
+            <el-select v-model="form.textType" size="small">
+              <el-option label="document" value="document" />
+              <el-option label="query" value="query" />
+            </el-select>
+          </el-form-item>
         </div>
       </div>
 

@@ -25,18 +25,18 @@
         调查任务（{{ tasks.length }}）
       </h2>
       <div class="flex gap-2">
-        <button
-          class="rounded border border-border px-2 py-1 text-xs text-slate-700 hover:bg-surface-alt"
+        <el-button
+          size="small"
           @click="showBatchDialog = true"
         >
           一键批量
-        </button>
-        <button
-          class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
+        </el-button>
+        <el-button
+          size="small"
           @click="showCreate = true"
         >
           + 新建调查
-        </button>
+        </el-button>
       </div>
     </header>
 
@@ -68,47 +68,47 @@
             </div>
           </div>
           <div class="flex shrink-0 flex-col gap-1">
-            <button
+            <el-button
               v-if="effectiveStatus(t) === 'idle'"
-              class="rounded border border-accent px-2 py-0.5 text-emerald-700 hover:bg-accent-soft"
+              size="small"
               @click="onStart(t.id)"
             >
               执行
-            </button>
-            <button
+            </el-button>
+            <el-button
               v-if="effectiveStatus(t) === 'running'"
-              class="rounded border border-amber-600 px-2 py-0.5 text-amber-700 hover:bg-amber-50"
+              size="small"
               @click="onStop(t.id)"
             >
               终止
-            </button>
-            <button
+            </el-button>
+            <el-button
               v-if="effectiveStatus(t) === 'completed' && t.resultContent"
-              class="rounded border border-border px-2 py-0.5 text-slate-700 hover:bg-surface-alt"
+              size="small"
               @click="togglePreview(t.id)"
             >
               {{ previewOpen === t.id ? "收起" : "预览" }}
-            </button>
-            <button
+            </el-button>
+            <el-button
               v-if="t.adoptionStatus !== 'adopted'"
-              class="rounded border border-accent/50 px-2 py-0.5 text-accent hover:bg-accent/10"
+              size="small"
               @click="onAdopt(t.id)"
             >
               采用
-            </button>
-            <button
+            </el-button>
+            <el-button
               v-if="t.adoptionStatus !== 'unadopted'"
-              class="rounded border border-border px-2 py-0.5 text-slate-600 hover:bg-surface-alt"
+              size="small"
               @click="onUnadopt(t.id)"
             >
               不采用
-            </button>
-            <button
-              class="rounded border border-border px-2 py-0.5 text-slate-500 hover:bg-surface-alt"
+            </el-button>
+            <el-button
+              size="small"
               @click="onDelete(t.id)"
             >
               删除
-            </button>
+            </el-button>
           </div>
         </div>
         <pre
@@ -121,112 +121,71 @@
     <p v-else class="text-xs text-slate-500">暂无调查任务。点击右上角新建或一键批量。</p>
 
     <!-- 新建对话框 -->
-    <div
-      v-if="showCreate"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
-      @click.self="showCreate = false"
+    <el-dialog
+      v-model="showCreate"
+      title="新建调查任务"
+      width="480px"
+      :close-on-click-modal="false"
+      @close="showCreate = false"
     >
-      <form class="card flex w-full max-w-md flex-col gap-3" @submit.prevent="onCreate">
-        <h3 class="text-sm font-medium text-slate-800">新建调查任务</h3>
+      <form class="flex flex-col gap-3" @submit.prevent="onCreate">
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           任务名称
-          <input
-            v-model="form.title"
-            required
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
-          />
+          <el-input v-model="form.title" required />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           主题提示
-          <input
+          <el-input
             v-model="form.topicHint"
             placeholder="如：客户背景信息、行业背景"
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
           />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           详细调查内容
-          <textarea
+          <el-input
             v-model="form.content"
-            rows="4"
+            type="textarea"
+            :rows="4"
             placeholder="需要 AI 调查的要点"
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
           />
         </label>
-        <div class="flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded border border-border px-3 py-1 text-xs text-slate-600 hover:bg-surface-alt"
-            @click="showCreate = false"
-          >
-            取消
-          </button>
-          <button
-            type="submit"
-            class="rounded border border-accent/50 bg-accent/10 px-3 py-1 text-xs text-accent hover:bg-accent/20"
-          >
-            创建
-          </button>
-        </div>
       </form>
-    </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="showCreate = false">取消</el-button>
+          <el-button type="primary" @click="onCreate">创建</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- 批量生成对话框 -->
-    <div
-      v-if="showBatchDialog"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
-      @click.self="showBatchDialog = false"
+    <el-dialog
+      v-model="showBatchDialog"
+      title="AI 一键批量生成"
+      width="560px"
+      :close-on-click-modal="false"
+      @close="showBatchDialog = false"
     >
-      <div class="card flex w-full max-w-lg flex-col gap-3">
-        <h3 class="text-sm font-medium text-slate-800">AI 一键批量生成</h3>
+      <div class="flex flex-col gap-3">
         <p class="text-xs text-slate-600">
           基于常见调查主题示例勾选要生成的任务；也可手动增删。
         </p>
         <ul class="max-h-72 space-y-1 overflow-auto rounded border border-border p-2 text-xs text-slate-700">
           <li v-for="(topic, i) in batchTopics" :key="i" class="flex items-center gap-2">
-            <input
-              v-model="batchSelected[i]"
-              type="checkbox"
-              class="accent-accent"
-            />
-            <input
-              v-model="batchTopics[i]"
-              class="flex-1 rounded bg-white px-2 py-0.5 text-slate-800"
-            />
-            <button
-              type="button"
-              class="rounded px-1 text-slate-500 hover:text-slate-700"
-              @click="removeBatchTopic(i)"
-            >
-              ×
-            </button>
+            <el-checkbox v-model="batchSelected[i]" />
+            <el-input v-model="batchTopics[i]" class="flex-1" />
+            <el-button link type="danger" size="small" @click="removeBatchTopic(i)">×</el-button>
           </li>
         </ul>
-        <button
-          type="button"
-          class="self-start rounded border border-border px-2 py-0.5 text-xs text-slate-700 hover:bg-surface-alt"
-          @click="addBatchTopic"
-        >
-          + 添加一行
-        </button>
-        <div class="flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded border border-border px-3 py-1 text-xs text-slate-600 hover:bg-surface-alt"
-            @click="showBatchDialog = false"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            class="rounded border border-accent/50 bg-accent/10 px-3 py-1 text-xs text-accent hover:bg-accent/20"
-            @click="onBatchGenerate"
-          >
-            生成
-          </button>
-        </div>
+        <el-button class="self-start" size="small" @click="addBatchTopic">+ 添加一行</el-button>
       </div>
-    </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="showBatchDialog = false">取消</el-button>
+          <el-button type="primary" @click="onBatchGenerate">生成</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -326,7 +285,15 @@ async function onUnadopt(id: string): Promise<void> {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除？相关调查结果也会一并清除。")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？相关调查结果也会一并清除。", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   await store.deleteTask(id, props.projectId);
 }
 

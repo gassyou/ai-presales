@@ -12,10 +12,7 @@
   <section class="card flex flex-col gap-3">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">交付物清单</h2>
-      <button
-        class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-        @click="openCreate"
-      >新建交付物</button>
+      <el-button size="small" @click="openCreate">新建交付物</el-button>
     </header>
 
     <p v-if="store.deliverableError" class="text-xs text-red-300">{{ store.deliverableError }}</p>
@@ -39,71 +36,65 @@
               <span v-if="it.dueDate" class="ml-2">📅 {{ it.dueDate }}</span>
             </p>
           </div>
-          <select
-            :value="it.status"
-            class="rounded border border-border bg-surface-alt px-1 py-0.5 text-[11px] text-slate-800"
-            @change="onStatusChange(it.id, ($event.target as HTMLSelectElement).value as DeliverableStatus)"
+          <el-select
+            :model-value="it.status"
+            size="small"
+            @update:model-value="(v) => onStatusChange(it.id, v as DeliverableStatus)"
           >
-            <option value="not_started">未开始</option>
-            <option value="in_progress">进行中</option>
-            <option value="completed">已完成</option>
-            <option value="cancelled">已取消</option>
-          </select>
+            <el-option value="not_started" label="未开始" />
+            <el-option value="in_progress" label="进行中" />
+            <el-option value="completed" label="已完成" />
+            <el-option value="cancelled" label="已取消" />
+          </el-select>
         </div>
         <div class="mt-2 flex items-center justify-between text-[11px]">
           <span :class="statusClass(it.status)">{{ statusLabel(it.status) }}</span>
           <div class="flex gap-2">
-            <button class="text-accent hover:underline" @click="openEdit(it)">编辑</button>
-            <button class="text-red-400 hover:underline" @click="onDelete(it.id)">删</button>
+            <el-button link type="primary" size="small" @click="openEdit(it)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="onDelete(it.id)">删</el-button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 编辑抽屉 -->
-    <div
-      v-if="editing"
-      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
-      @click.self="cancelEdit"
+    <el-dialog
+      :model-value="editing !== null"
+      :title="editing && editing.id ? '编辑交付物' : '新建交付物'"
+      width="480px"
+      :close-on-click-modal="false"
+      @update:model-value="(v) => !v && cancelEdit()"
     >
-      <div class="w-full max-w-md rounded border border-border bg-white p-4 shadow-xl">
-        <h3 class="mb-3 text-sm font-medium text-slate-800">
-          {{ editing.id ? "编辑交付物" : "新建交付物" }}
-        </h3>
+      <template v-if="editing">
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">名称</span>
-          <input
-            v-model="editing.title"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-          />
+          <el-input v-model="editing.title" class="mt-1" />
         </label>
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">类型</span>
-          <select v-model="editing.type" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800">
-            <option>文档</option>
-            <option>软件</option>
-            <option>服务</option>
-            <option>培训</option>
-          </select>
+          <el-select v-model="editing.type" class="mt-1">
+            <el-option label="文档" value="文档" />
+            <el-option label="软件" value="软件" />
+            <el-option label="服务" value="服务" />
+            <el-option label="培训" value="培训" />
+          </el-select>
         </label>
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">负责人</span>
-          <input v-model="editing.owner" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" />
+          <el-input v-model="editing.owner" class="mt-1" />
         </label>
         <label class="mb-3 block">
           <span class="text-xs text-slate-600">交付日期</span>
-          <input v-model="editing.dueDate" type="date" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" />
+          <el-input v-model="editing.dueDate" type="date" class="mt-1" />
         </label>
+      </template>
+      <template #footer>
         <div class="flex justify-end gap-2">
-          <button class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt" @click="cancelEdit">取消</button>
-          <button
-            class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10"
-            :disabled="saving"
-            @click="onSave"
-          >{{ saving ? "保存中…" : "保存" }}</button>
+          <el-button @click="cancelEdit">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="onSave">{{ saving ? "保存中…" : "保存" }}</el-button>
         </div>
-      </div>
-    </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -175,7 +166,15 @@ async function onSave(): Promise<void> {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   await store.deleteDeliverable(props.projectId, id);
 }
 

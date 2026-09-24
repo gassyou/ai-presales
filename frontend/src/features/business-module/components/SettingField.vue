@@ -9,20 +9,20 @@
       <span class="text-xs text-slate-700">{{ label }}</span>
       <span class="text-[10px] text-slate-500">{{ unit }}</span>
     </div>
-    <input
-      type="number"
-      :value="modelValue"
-      :min="min"
-      :max="max"
-      :step="step"
-      class="mt-1 w-full rounded border border-border bg-surface-alt px-2 py-1 text-xs text-slate-800"
-      @input="onInput"
+    <el-input-number
+      :model-value="modelValue"
+      :min="min as number | undefined"
+      :max="max as number | undefined"
+      :step="step as number | undefined"
+      class="mt-1"
+      size="small"
+      @update:model-value="(v) => onValueChange(v as number)"
     />
   </label>
 </template>
 
 <script setup lang="ts">
-withDefaults(
+const props = withDefaults(
   defineProps<{
     label: string;
     unit: string;
@@ -37,8 +37,8 @@ const emit = defineEmits<{
   (e: "update:modelValue", v: number): void;
 }>();
 
-function onInput(e: Event): void {
-  const v = Number((e.target as HTMLInputElement).value);
-  emit("update:modelValue", Number.isFinite(v) ? v : 0);
+function onValueChange(v: number | undefined): void {
+  const num = typeof v === "number" ? v : Number(v ?? 0);
+  emit("update:modelValue", Number.isFinite(num) ? num : 0);
 }
 </script>

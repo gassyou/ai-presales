@@ -1,25 +1,18 @@
 <!--
   EmailViewDialog.vue
   ==================
-  邮件只读查看弹窗（阶段 7.4e）。
+  邮件只读查看弹窗（阶段 7.4e + Element Plus 迁移）。
 
   形态：半屏 modal + 元数据条 + TO/CC + 正文 + 附件列表（可下载）。
 -->
 <template>
-  <div
-    v-if="email"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-canvas/70 p-4"
-    @click.self="emit('close')"
+  <el-dialog
+    :model-value="true"
+    :title="email.subject || '（无主题）'"
+    width="640"
+    @update:model-value="(v) => !v && emit('close')"
   >
-    <div class="flex max-h-[80vh] w-full max-w-2xl flex-col gap-3 rounded border border-border bg-white p-4">
-      <header class="flex items-center justify-between border-b border-border pb-2">
-        <h3 class="text-sm font-medium text-slate-800">{{ email.subject || "（无主题）" }}</h3>
-        <button
-          class="rounded text-slate-600 hover:bg-surface-alt hover:text-slate-800 px-2"
-          @click="emit('close')"
-        >关闭</button>
-      </header>
-
+    <div class="flex flex-col gap-3">
       <div class="flex flex-col gap-1 text-xs text-slate-600">
         <div>
           <span class="text-slate-500">收件人：</span>
@@ -29,16 +22,16 @@
           <span class="text-slate-500">抄送：</span>
           <span>{{ email.cc.map((a) => a.name ? `${a.name} <${a.email}>` : a.email).join(", ") }}</span>
         </div>
-        <div>
+        <div class="flex items-center gap-2">
           <span class="text-slate-500">状态：</span>
-          <span :class="statusClass">{{ statusLabel }}</span>
-          <span v-if="email.sentAt" class="ml-2 text-slate-500">· 发送于 {{ formatTime(email.sentAt) }}</span>
+          <el-tag :type="statusTagType" size="small" effect="light">{{ statusLabel }}</el-tag>
+          <span v-if="email.sentAt" class="text-slate-500">· 发送于 {{ formatTime(email.sentAt) }}</span>
         </div>
       </div>
 
-      <pre class="min-h-0 flex-1 overflow-auto rounded border border-border bg-canvas p-3 font-mono text-xs whitespace-pre-wrap text-slate-800">{{ email.body }}</pre>
+      <pre class="max-h-96 overflow-auto rounded border border-border bg-canvas p-3 font-mono text-xs whitespace-pre-wrap text-slate-800">{{ email.body }}</pre>
 
-      <footer class="flex flex-col gap-1 border-t border-border pt-2 text-xs">
+      <div class="flex flex-col gap-1 border-t border-border pt-2 text-xs">
         <span class="text-slate-600">附件（{{ attachments.length }}）</span>
         <div v-if="loadingAttachments" class="text-slate-500">加载中…</div>
         <ul v-else-if="attachments.length > 0" class="flex flex-wrap gap-2">
@@ -49,16 +42,13 @@
           >
             <span class="text-slate-700">{{ a.filename }}</span>
             <span class="text-slate-500">{{ formatSize(a.size) }}</span>
-            <button
-              class="rounded border border-border px-1.5 py-0.5 text-slate-600 hover:bg-surface-alt"
-              @click="download(a)"
-            >下载</button>
+            <el-button size="small" link @click="download(a)">下载</el-button>
           </li>
         </ul>
         <div v-else class="text-slate-500">无附件</div>
-      </footer>
+      </div>
     </div>
-  </div>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -85,11 +75,11 @@ const STATUS_LABEL: Record<EmailDTO["status"], string> = {
 };
 
 const statusLabel = computed(() => STATUS_LABEL[props.email.status]);
-const statusClass = computed(() => {
+const statusTagType = computed<"info" | "success" | "danger">(() => {
   switch (props.email.status) {
-    case "sent": return "rounded bg-accent-soft px-1 text-emerald-700";
-    case "failed": return "rounded bg-red-900/40 px-1 text-red-300";
-    default: return "rounded bg-surface-sunken px-1 text-slate-700";
+    case "sent": return "success";
+    case "failed": return "danger";
+    default: return "info";
   }
 });
 

@@ -1,7 +1,7 @@
 {
   "name": "ai-presales",
   "version": "0.1.0",
-  "description": "AI 提案协助桌面应用",
+  "description": "AI 售前智能平台",
   "license": "UNLICENSED",
   "nodeModulesDir": "auto",
 
@@ -9,9 +9,11 @@
     "dev": "deno run -A --watch dev.ts",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "deno run -A --watch dev.ts",
-    "build:frontend": "cd frontend && npm install && npm run build",
-    "build:mac": "deno desktop -A --no-check --target aarch64-apple-darwin -o dist/ai-presales-mac main.ts && ./scripts/post-build-mac.sh dist/ai-presales-mac.app",
-    "build:mac-x64": "deno desktop -A --no-check --target x86_64-apple-darwin -o dist/ai-presales-mac-x64 main.ts && ./scripts/post-build-mac.sh dist/ai-presales-mac-x64.app",
+    "build:frontend": "npm --prefix frontend install && npm --prefix frontend run build",
+    "build:mac": "deno desktop -A --no-check --target aarch64-apple-darwin -o build/ai-presales-mac main.ts && ./scripts/post-build-mac.sh build/ai-presales-mac.app",
+    "build:mac-x64": "deno desktop -A --no-check --target x86_64-apple-darwin -o build/ai-presales-mac-x64 main.ts && ./scripts/post-build-mac.sh build/ai-presales-mac-x64.app",
+    "build:mac-app": "deno task build:frontend && deno desktop -A --no-check --target aarch64-apple-darwin -o build/ai-presales-mac main.ts && ./scripts/post-build-mac.sh build/ai-presales-mac.app && codesign --force --deep --sign - build/ai-presales-mac.app",
+    "launch:mac": "deno task build:mac-app && xattr -dr com.apple.quarantine build/ai-presales-mac.app && open build/ai-presales-mac.app",
     "build:linux": "deno desktop -A --no-check -o dist/ai-presales main.ts",
     "serve:dist": "deno run -A main.ts",
     "start": "deno task build:frontend && deno task serve:dist",

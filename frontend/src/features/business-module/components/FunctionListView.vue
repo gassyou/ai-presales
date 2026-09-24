@@ -13,28 +13,14 @@
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">功能清单</h2>
       <div class="flex flex-wrap gap-2">
-        <div class="flex rounded border border-border text-xs">
-          <button
-            v-for="m in ['table', 'mindmap', 'cards'] as const"
-            :key="m"
-            :class="viewMode === m ? 'bg-accent/20 text-accent' : 'text-slate-600 hover:bg-surface-alt'"
-            class="px-2 py-1 first:rounded-l last:rounded-r"
-            @click="viewMode = m"
-          >{{ VIEW_LABEL[m] }}</button>
-        </div>
-        <button
-          class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-          @click="openCreate"
-        >新建功能</button>
-        <button
-          class="rounded border border-border px-2 py-1 text-xs text-slate-600 hover:bg-surface-alt disabled:opacity-50"
-          :disabled="aiGenerating"
-          @click="onAiGenerate"
-        >{{ aiGenerating ? "生成中…" : "AI 生成" }}</button>
-        <button
-          class="rounded border border-border px-2 py-1 text-xs text-slate-600 hover:bg-surface-alt"
-          @click="onExportCsv"
-        >导出 CSV</button>
+        <el-radio-group v-model="viewMode" size="small">
+          <el-radio-button value="table">列表</el-radio-button>
+          <el-radio-button value="mindmap">脑图</el-radio-button>
+          <el-radio-button value="cards">卡片</el-radio-button>
+        </el-radio-group>
+        <el-button size="small" @click="openCreate">新建功能</el-button>
+        <el-button size="small" :disabled="aiGenerating" @click="onAiGenerate">{{ aiGenerating ? "生成中…" : "AI 生成" }}</el-button>
+        <el-button size="small" @click="onExportCsv">导出 CSV</el-button>
       </div>
     </header>
 
@@ -52,21 +38,9 @@
 
     <!-- 过滤栏 -->
     <div class="flex flex-wrap gap-2 text-xs">
-      <input
-        v-model="filterCategory"
-        class="rounded border border-border bg-surface-alt px-2 py-1 text-slate-800"
-        placeholder="分类筛选"
-      />
-      <input
-        v-model="filterModule"
-        class="rounded border border-border bg-surface-alt px-2 py-1 text-slate-800"
-        placeholder="模块筛选"
-      />
-      <input
-        v-model="filterName"
-        class="rounded border border-border bg-surface-alt px-2 py-1 text-slate-800"
-        placeholder="功能名筛选"
-      />
+      <el-input v-model="filterCategory" placeholder="分类筛选" size="small" />
+      <el-input v-model="filterModule" placeholder="模块筛选" size="small" />
+      <el-input v-model="filterName" placeholder="功能名筛选" size="small" />
     </div>
 
     <div v-if="items.length === 0" class="rounded border border-border bg-white/50 p-4 text-xs text-slate-600">
@@ -98,60 +72,54 @@
     />
 
     <!-- 新建 / 编辑抽屉 -->
-    <div
-      v-if="editing"
-      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
-      @click.self="cancelEdit"
+    <el-dialog
+      :model-value="editing !== null"
+      :title="editing && editing.id ? '编辑功能' : '新建功能'"
+      width="640px"
+      :close-on-click-modal="false"
+      @update:model-value="(v) => !v && cancelEdit()"
     >
-      <div class="w-full max-w-xl rounded border border-border bg-white p-4 shadow-xl">
-        <h3 class="mb-3 text-sm font-medium text-slate-800">
-          {{ editing.id ? "编辑功能" : "新建功能" }}
-        </h3>
+      <template v-if="editing">
         <div class="grid grid-cols-2 gap-2">
           <label class="block">
             <span class="text-xs text-slate-600">分类</span>
-            <input v-model="editing.category" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" placeholder="订单" />
+            <el-input v-model="editing.category" placeholder="订单" class="mt-1" />
           </label>
           <label class="block">
             <span class="text-xs text-slate-600">模块</span>
-            <input v-model="editing.module" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" placeholder="下单" />
+            <el-input v-model="editing.module" placeholder="下单" class="mt-1" />
           </label>
         </div>
         <label class="mt-2 block">
           <span class="text-xs text-slate-600">功能名 *</span>
-          <input v-model="editing.name" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" />
+          <el-input v-model="editing.name" class="mt-1" />
         </label>
         <label class="mt-2 block">
           <span class="text-xs text-slate-600">功能详细</span>
-          <textarea v-model="editing.detail" rows="3" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" />
+          <el-input v-model="editing.detail" type="textarea" :rows="3" class="mt-1" />
         </label>
         <label class="mt-2 block">
           <span class="text-xs text-slate-600">备注</span>
-          <textarea v-model="editing.remarks" rows="2" class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800" />
+          <el-input v-model="editing.remarks" type="textarea" :rows="2" class="mt-1" />
         </label>
         <div class="mt-2 flex items-center gap-3">
           <label class="block">
             <span class="text-xs text-slate-600">CP</span>
-            <select v-model.number="editing.cp" class="mt-1 rounded border border-border bg-surface-alt p-2 text-xs text-slate-800">
-              <option :value="0">未设</option>
-              <option v-for="cp in CP_VALUES" :key="cp" :value="cp">{{ cp }}</option>
-            </select>
+            <el-select v-model="editing.cp" class="mt-1">
+              <el-option :value="0" label="未设" />
+              <el-option v-for="cp in CP_VALUES" :key="cp" :value="cp" :label="String(cp)" />
+            </el-select>
           </label>
-          <label class="mt-3 flex items-center gap-1 text-xs text-slate-700">
-            <input v-model="editing.inScope" type="checkbox" />
-            项目范围内
-          </label>
+          <el-checkbox v-model="editing.inScope" class="mt-3">项目范围内</el-checkbox>
         </div>
-        <div class="mt-3 flex justify-end gap-2">
-          <button class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt" @click="cancelEdit">取消</button>
-          <button
-            class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10"
-            :disabled="saving"
-            @click="onSave"
-          >{{ saving ? "保存中…" : "保存" }}</button>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="cancelEdit">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="onSave">{{ saving ? "保存中…" : "保存" }}</el-button>
         </div>
-      </div>
-    </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -264,7 +232,15 @@ async function onSave(): Promise<void> {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   await store.deleteFunction(props.projectId, id);
 }
 
@@ -293,7 +269,7 @@ async function onAiGenerate(): Promise<void> {
     await structuredModulesApi.batchFromSubAgent(props.projectId, { prompt, count: 6 });
     await store.loadFunctions(props.projectId);
   } catch (e) {
-    window.alert(`AI 生成失败：${e instanceof Error ? e.message : String(e)}`);
+    ElMessage.error(`AI 生成失败：${e instanceof Error ? e.message : String(e)}`);
   } finally {
     aiGenerating.value = false;
   }

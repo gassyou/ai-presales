@@ -13,30 +13,35 @@
           <span v-if="store.loading" class="ml-2 text-slate-600">加载中…</span>
         </p>
       </div>
-      <button class="btn-primary" @click="openCreate">+ 新建项目</button>
+      <el-button type="primary" @click="openCreate">+ 新建项目</el-button>
     </header>
 
     <div class="flex items-center gap-2">
-      <input
+      <el-input
         v-model="search"
-        type="search"
         placeholder="搜索项目名称 / 客户 / 编号…"
-        class="w-72 rounded border border-border bg-white/60 px-3 py-1.5 text-sm focus:border-accent focus:outline-none"
+        class="!w-72"
+        clearable
         @input="onSearch"
       />
-      <select
+      <el-select
         v-model="statusFilter"
-        class="rounded border border-border bg-white/60 px-2 py-1.5 text-sm"
+        placeholder="全部状态"
+        class="!w-32"
         @change="onFilter"
       >
-        <option value="">全部状态</option>
-        <option v-for="s in statuses" :key="s" :value="s">{{ s }}</option>
-      </select>
+        <el-option label="全部状态" value="" />
+        <el-option v-for="s in statuses" :key="s" :label="s" :value="s" />
+      </el-select>
     </div>
 
-    <div v-if="store.error" class="rounded border border-red-700 bg-red-900/20 px-4 py-2 text-sm text-red-300">
-      加载失败：{{ store.error }}
-    </div>
+    <el-alert
+      v-if="store.error"
+      type="error"
+      :title="`加载失败：${store.error}`"
+      :closable="false"
+      show-icon
+    />
 
     <div v-if="store.items.length === 0 && !store.loading" class="card text-center text-sm text-slate-500">
       还没有项目。点击右上角"+ 新建项目"开始。
@@ -102,8 +107,9 @@ async function onCreateSubmit(input: { name: string; clientName: string }): Prom
   try {
     await store.create(input);
     creating.value = false;
+    ElMessage.success("项目已创建");
   } catch (e) {
-    alert(e instanceof Error ? e.message : String(e));
+    ElMessage.error(e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -114,11 +120,20 @@ function onSelect(id: string): void {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除该项目？此操作不可恢复。")) return;
+  try {
+    await ElMessageBox.confirm("确认删除该项目？此操作不可恢复。", "删除项目", {
+      type: "warning",
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return; // 用户取消
+  }
   try {
     await store.remove(id);
+    ElMessage.success("项目已删除");
   } catch (e) {
-    alert(e instanceof Error ? e.message : String(e));
+    ElMessage.error(e instanceof Error ? e.message : String(e));
   }
 }
 

@@ -338,8 +338,8 @@ function goBack(): void {
 }
 
 function openAiChat(): void {
+  // AI 常驻右侧 dock —— 仅绑定当前项目，dock header 自动反映
   aiStore.setCurrentProject(project.value);
-  void router.push({ name: "ai" });
 }
 
 function formatDate(iso: string): string {

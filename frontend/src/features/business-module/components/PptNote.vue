@@ -20,10 +20,11 @@
         title="拖拽排序"
       >⠿</span>
       <span class="rounded bg-accent/20 px-1 text-[10px] text-accent">#{{ page.ordinal + 1 }}</span>
-      <input
+      <el-input
         v-if="editingTitle"
         v-model="titleDraft"
-        class="flex-1 rounded border border-border-strong bg-white px-1 py-0.5 text-xs text-slate-900"
+        size="small"
+        class="flex-1"
         @blur="commitTitle"
         @keydown.enter="commitTitle"
         @keydown.esc="editingTitle = false"
@@ -34,15 +35,18 @@
         :title="page.title"
         @dblclick="startEditTitle"
       >{{ page.title || "（未命名）" }}</span>
-      <button
-        class="rounded px-1 text-slate-500 hover:bg-red-900/30 hover:text-red-300"
+      <el-button
+        link
+        type="danger"
+        size="small"
         title="删除"
         @click="onDelete"
-      >✕</button>
+      >✕</el-button>
     </div>
-    <textarea
+    <el-input
       v-model="promptDraft"
-      class="flex-1 resize-none rounded border border-transparent bg-white/50 p-1 text-[11px] text-slate-800 hover:border-border-strong focus:border-accent/50"
+      type="textarea"
+      class="flex-1"
       :placeholder="'该页 AI 提示词…'"
       @blur="commitPrompt"
     />
@@ -81,8 +85,16 @@ function commitPrompt(): void {
   }
 }
 
-function onDelete(): void {
-  if (!confirm(`确认删除便签「${props.page.title || "(未命名)"}」？`)) return;
+async function onDelete(): Promise<void> {
+  try {
+    await ElMessageBox.confirm(`确认删除便签「${props.page.title || "(未命名)"}」？`, "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   emit("delete", props.page.id);
 }
 </script>

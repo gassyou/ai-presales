@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Element Plus 主题色 —— 与 Tailwind 的 accent（emerald #059669）对齐 */
+:root {
+  --el-color-primary: #059669;
+  --el-color-primary-light-3: #34a37a;
+  --el-color-primary-light-5: #6cba9a;
+  --el-color-primary-light-7: #a3d4bd;
+  --el-color-primary-light-9: #ecfdf5;
+  --el-color-primary-dark-2: #047857;
+  --el-border-radius-base: 6px;
+  --el-form-label-position: top;
+  --el-font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    sans-serif;
+}
+
 @layer base {
   html,
   body {
@@ -27,58 +47,12 @@
 }
 
 @layer components {
-  /* 按钮：Notion 风（细圆角、平淡边框、hover 用 surface-sunken） */
-  .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm
-           font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30
-           disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-  .btn-primary {
-    @apply bg-accent text-white hover:bg-accent-subtle focus:ring-accent/40;
-  }
-  .btn-ghost {
-    @apply bg-transparent text-slate-700 hover:bg-surface-sunken;
-  }
-  .btn-outline {
-    @apply border border-border text-slate-700 hover:bg-surface-alt;
-  }
-  .btn-danger {
-    @apply bg-rose-600 text-white hover:bg-rose-700;
-  }
-
-  /* 输入 */
-  .input {
-    @apply w-full rounded-md border border-border bg-white px-2.5 py-1.5 text-sm
-           text-slate-900 placeholder-slate-400 focus:border-accent focus:outline-none
-           focus:ring-2 focus:ring-accent/30;
-  }
-
-  /* 卡片：白底 + 细边框 + 极弱阴影 */
+  /* 卡片：白底 + 细边框 + 极弱阴影（保留：settings tab 仍在用） */
   .card {
     @apply rounded-lg border border-border bg-white p-3 shadow-card;
   }
 
-  /* 标签：浅色商务色板 */
-  .tag {
-    @apply inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium;
-  }
-  .tag-info {
-    @apply bg-sky-50 text-sky-700;
-  }
-  .tag-success {
-    @apply bg-accent-soft text-accent-ink;
-  }
-  .tag-warn {
-    @apply bg-amber-50 text-amber-700;
-  }
-  .tag-error {
-    @apply bg-rose-50 text-rose-700;
-  }
-  .tag-muted {
-    @apply bg-surface-sunken text-slate-600;
-  }
-
-  /* 分隔条：拖动条专用 */
+  /* 分隔条：拖动条专用（保留：ResizableSplit 仍依赖） */
   .splitter {
     @apply relative w-px shrink-0 cursor-col-resize bg-border
            transition-colors hover:bg-accent

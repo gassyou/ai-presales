@@ -13,25 +13,12 @@
   <section class="flex flex-col gap-3">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex gap-1">
-        <button
-          :class="tab === 'contacts'
-            ? 'bg-accent/20 text-accent'
-            : 'text-slate-600 hover:bg-surface-alt'"
-          class="rounded px-3 py-1 text-xs"
-          @click="setTab('contacts')"
-        >联系人（{{ contacts.length }}）</button>
-        <button
-          :class="tab === 'team'
-            ? 'bg-accent/20 text-accent'
-            : 'text-slate-600 hover:bg-surface-alt'"
-          class="rounded px-3 py-1 text-xs"
-          @click="setTab('team')"
-        >团队成员（{{ members.length }}）</button>
+        <el-radio-group v-model="tab" size="small">
+          <el-radio-button value="contacts">联系人（{{ contacts.length }}）</el-radio-button>
+          <el-radio-button value="team">团队成员（{{ members.length }}）</el-radio-button>
+        </el-radio-group>
       </div>
-      <button
-        class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-        @click="openCreate"
-      >+ 新增{{ tab === "contacts" ? "联系人" : "团队成员" }}</button>
+      <el-button size="small" @click="openCreate">+ 新增{{ tab === "contacts" ? "联系人" : "团队成员" }}</el-button>
     </header>
 
     <p v-if="error" class="text-xs text-red-300">{{ error }}</p>
@@ -49,19 +36,13 @@
         <span v-if="c.phone" class="text-slate-500">· {{ c.phone }}</span>
         <span v-if="c.isPrimary" class="rounded bg-accent/20 px-1 text-accent">主联系人</span>
         <div class="ml-auto flex gap-1">
-          <button
+          <el-button
             v-if="!c.isPrimary"
-            class="rounded border border-border px-1.5 py-0.5 text-slate-600 hover:bg-surface-alt"
+            size="small"
             @click="setPrimary(c.id)"
-          >设为主联系人</button>
-          <button
-            class="rounded border border-border px-1.5 py-0.5 text-slate-600 hover:bg-surface-alt"
-            @click="openEditContact(c)"
-          >编辑</button>
-          <button
-            class="rounded border border-red-900/50 px-1.5 py-0.5 text-red-300 hover:bg-red-900/30"
-            @click="removeContact(c.id)"
-          >删除</button>
+          >设为主联系人</el-button>
+          <el-button size="small" @click="openEditContact(c)">编辑</el-button>
+          <el-button size="small" type="danger" plain @click="removeContact(c.id)">删除</el-button>
         </div>
       </li>
       <li
@@ -81,14 +62,8 @@
         <span v-if="m.email" class="text-slate-500">· {{ m.email }}</span>
         <span v-if="m.phone" class="text-slate-500">· {{ m.phone }}</span>
         <div class="ml-auto flex gap-1">
-          <button
-            class="rounded border border-border px-1.5 py-0.5 text-slate-600 hover:bg-surface-alt"
-            @click="openEditMember(m)"
-          >编辑</button>
-          <button
-            class="rounded border border-red-900/50 px-1.5 py-0.5 text-red-300 hover:bg-red-900/30"
-            @click="removeMember(m.id)"
-          >删除</button>
+          <el-button size="small" @click="openEditMember(m)">编辑</el-button>
+          <el-button size="small" type="danger" plain @click="removeMember(m.id)">删除</el-button>
         </div>
       </li>
       <li
@@ -98,63 +73,44 @@
     </ul>
 
     <!-- create/edit modal -->
-    <div
-      v-if="modal"
-      class="fixed inset-0 z-40 flex items-center justify-center bg-canvas/70 p-4"
-      @click.self="closeModal"
+    <el-dialog
+      :model-value="modal !== null"
+      :title="modalTitle"
+      width="480px"
+      :close-on-click-modal="false"
+      @update:model-value="(v) => !v && closeModal()"
     >
-      <div class="flex w-full max-w-md flex-col gap-3 rounded border border-border bg-white p-4">
-        <h3 class="text-sm font-medium text-slate-800">{{ modalTitle }}</h3>
-        <label class="text-xs text-slate-600">
-          姓名 *
-          <input
-            v-model="modal.name"
-            class="mt-1 w-full rounded border border-border bg-canvas px-2 py-1 text-sm text-slate-800"
-            placeholder="姓名"
-          />
-        </label>
-        <label v-if="tab === 'contacts'" class="text-xs text-slate-600">
-          职位
-          <input
-            v-model="modal.title"
-            class="mt-1 w-full rounded border border-border bg-canvas px-2 py-1 text-sm text-slate-800"
-            placeholder="CTO / 业务负责人…"
-          />
-        </label>
-        <label class="text-xs text-slate-600">
-          邮箱
-          <input
-            v-model="modal.email"
-            class="mt-1 w-full rounded border border-border bg-canvas px-2 py-1 text-sm text-slate-800"
-            placeholder="name@example.com"
-          />
-        </label>
-        <label class="text-xs text-slate-600">
-          电话
-          <input
-            v-model="modal.phone"
-            class="mt-1 w-full rounded border border-border bg-canvas px-2 py-1 text-sm text-slate-800"
-            placeholder="13800000000"
-          />
-        </label>
-        <label v-if="tab === 'contacts'" class="flex items-center gap-2 text-xs text-slate-600">
-          <input v-model="modal.isPrimary" type="checkbox" />
-          设为主联系人
-        </label>
-        <p v-if="modalError" class="text-xs text-red-300">{{ modalError }}</p>
-        <div class="flex justify-end gap-2">
-          <button
-            class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt"
-            @click="closeModal"
-          >取消</button>
-          <button
-            class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10"
-            :disabled="modalSaving"
-            @click="submitModal"
-          >{{ modalSaving ? "保存中…" : "保存" }}</button>
+      <template v-if="modal">
+        <div class="flex w-full flex-col gap-3">
+          <label class="text-xs text-slate-600">
+            姓名 *
+            <el-input v-model="modal.name" placeholder="姓名" class="mt-1" />
+          </label>
+          <label v-if="tab === 'contacts'" class="text-xs text-slate-600">
+            职位
+            <el-input v-model="modal.title" placeholder="CTO / 业务负责人…" class="mt-1" />
+          </label>
+          <label class="text-xs text-slate-600">
+            邮箱
+            <el-input v-model="modal.email" placeholder="name@example.com" class="mt-1" />
+          </label>
+          <label class="text-xs text-slate-600">
+            电话
+            <el-input v-model="modal.phone" placeholder="13800000000" class="mt-1" />
+          </label>
+          <label v-if="tab === 'contacts'" class="flex items-center gap-2 text-xs text-slate-600">
+            <el-checkbox v-model="modal.isPrimary">设为主联系人</el-checkbox>
+          </label>
+          <p v-if="modalError" class="text-xs text-red-300">{{ modalError }}</p>
         </div>
-      </div>
-    </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="closeModal">取消</el-button>
+          <el-button type="primary" :loading="modalSaving" @click="submitModal">{{ modalSaving ? "保存中…" : "保存" }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -326,7 +282,15 @@ async function setPrimary(id: string): Promise<void> {
 }
 
 async function removeContact(id: string): Promise<void> {
-  if (!confirm("确认删除该联系人？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除该联系人？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   try {
     await contactsApi.delete(props.projectId, id);
     await load();
@@ -337,7 +301,15 @@ async function removeContact(id: string): Promise<void> {
 }
 
 async function removeMember(id: string): Promise<void> {
-  if (!confirm("确认删除该团队成员？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除该团队成员？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   try {
     await teamMembersApi.delete(props.projectId, id);
     await load();

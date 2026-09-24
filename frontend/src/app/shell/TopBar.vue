@@ -3,8 +3,8 @@
   ==========
   工作台顶部栏（浅色商务风）
   - 左侧：品牌标语
-  - 中间：当前路径面包屑
-  - 右侧：API 健康状态指示
+  - 中间：版本号
+  - 右侧：菜单（路由跳转）+ API 健康状态指示
 -->
 <template>
   <header
@@ -18,31 +18,52 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <span
+      <span class="text-xs text-slate-400">v{{ health?.version ?? "0.0.0" }}</span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <nav class="flex items-center gap-1">
+        <router-link
+          v-for="item in navItems"
+          :key="item.name"
+          :to="{ name: item.routeName }"
+          class="rounded-md px-2.5 py-1 text-slate-700 transition-colors hover:bg-surface-sunken"
+          active-class="bg-accent-soft text-accent-ink font-medium"
+        >
+          {{ item.label }}
+        </router-link>
+      </nav>
+
+      <el-tag
         v-if="health"
-        :class="[
-          'tag',
-          health.checks.db === 'ok' || health.checks.db === 'skipped'
-            ? 'tag-success'
-            : 'tag-error',
-        ]"
+        :type="health.checks.db === 'ok' || health.checks.db === 'skipped' ? 'success' : 'danger'"
+        size="small"
+        effect="light"
         :title="healthTitle"
       >
-        <span class="h-1.5 w-1.5 rounded-full bg-current" />
+        <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />
         {{ healthLabel }}
-      </span>
-      <span class="text-xs text-slate-400">v{{ health?.version ?? "0.0.0" }}</span>
+      </el-tag>
+      <el-tag v-else size="small" effect="light" type="info">离线</el-tag>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
 import { fetchHealth, type HealthInfo } from "@frontend/shared/api/health.api";
 
-const route = useRoute();
-const pageTitle = computed(() => (route.name as string | undefined) ?? "工作台");
+interface NavItem {
+  name: string;
+  label: string;
+  routeName: string;
+}
+
+const navItems: NavItem[] = [
+  { name: "dashboard", label: "仪表盘", routeName: "dashboard" },
+  { name: "projects", label: "项目列表", routeName: "projects" },
+  { name: "settings", label: "系统设置", routeName: "settings" },
+];
 
 const health = ref<HealthInfo | null>(null);
 

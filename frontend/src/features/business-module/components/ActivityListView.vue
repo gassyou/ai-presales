@@ -56,19 +56,14 @@
           </div>
         </div>
         <div class="flex shrink-0 flex-col gap-1">
-          <button
-            class="rounded border border-border px-2 py-0.5 text-slate-600 hover:bg-surface-alt"
-            @click="onDelete(it.id)"
-          >
-            删除
-          </button>
-          <button
+          <el-button size="small" @click="onDelete(it.id)">删除</el-button>
+          <el-button
             v-if="it.status !== 'adopted'"
-            class="rounded border border-accent px-2 py-0.5 text-emerald-700 hover:bg-accent-soft"
+            size="small"
             @click="onAdopt(it.id)"
           >
             标记完成
-          </button>
+          </el-button>
         </div>
       </li>
     </ul>
@@ -76,65 +71,37 @@
     <p v-else class="text-xs text-slate-500">暂无活动。点击右上角新建。</p>
 
     <!-- 新建对话框 -->
-    <div
-      v-if="showCreate"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
-      @click.self="showCreate = false"
+    <el-dialog
+      v-model="showCreate"
+      title="新建活动"
+      width="480px"
+      :close-on-click-modal="false"
     >
-      <form
-        class="card flex w-full max-w-md flex-col gap-3"
-        @submit.prevent="onCreate"
-      >
-        <h3 class="text-sm font-medium text-slate-800">新建活动</h3>
+      <form class="flex flex-col gap-3" @submit.prevent="onCreate">
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           活动名称
-          <input
-            v-model="form.title"
-            required
-            maxlength="200"
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
-          />
+          <el-input v-model="form.title" required maxlength="200" />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           计划日期
-          <input
-            v-model="form.planDate"
-            type="date"
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
-          />
+          <el-input v-model="form.planDate" type="date" />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           客户主负责人
-          <input
-            v-model="form.clientContactName"
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
-          />
+          <el-input v-model="form.clientContactName" />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           活动内容
-          <textarea
-            v-model="form.content"
-            rows="3"
-            class="rounded border border-border bg-white px-2 py-1 text-slate-800"
-          />
+          <el-input v-model="form.content" type="textarea" :rows="3" />
         </label>
-        <div class="flex justify-end gap-2">
-          <button
-            type="button"
-            class="rounded border border-border px-3 py-1 text-xs text-slate-600 hover:bg-surface-alt"
-            @click="showCreate = false"
-          >
-            取消
-          </button>
-          <button
-            type="submit"
-            class="rounded border border-accent/50 bg-accent/10 px-3 py-1 text-xs text-accent hover:bg-accent/20"
-          >
-            创建
-          </button>
-        </div>
       </form>
-    </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="showCreate = false">取消</el-button>
+          <el-button type="primary" @click="onCreate">创建</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -197,7 +164,15 @@ async function onCreate(): Promise<void> {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   await store.deleteItem(id, props.projectId, "activity");
 }
 

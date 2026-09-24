@@ -5,16 +5,20 @@
   默认 "（无）" = 直接调 chat，不走 sub-agent。
 -->
 <template>
-  <select
+  <el-select
     v-model="model"
-    class="rounded border border-border bg-white px-2 py-1 text-xs text-slate-800 focus:border-accent focus:outline-none"
+    size="small"
     :disabled="loading"
+    placeholder="（不使用 sub-agent）"
   >
-    <option value="">（不使用 sub-agent）</option>
-    <option v-for="a in agents" :key="a.name" :value="a.name">
-      {{ a.displayName }}
-    </option>
-  </select>
+    <el-option value="" label="（不使用 sub-agent）" />
+    <el-option
+      v-for="a in agents"
+      :key="a.name"
+      :value="a.name"
+      :label="a.displayName"
+    />
+  </el-select>
 </template>
 
 <script setup lang="ts">

@@ -12,10 +12,7 @@
   <section class="card flex flex-col gap-3">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">核心系统用例</h2>
-      <button
-        class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-        @click="openCreate"
-      >新建用例</button>
+      <el-button size="small" @click="openCreate">新建用例</el-button>
     </header>
 
     <p v-if="store.useCaseError" class="text-xs text-red-300">{{ store.useCaseError }}</p>
@@ -41,67 +38,46 @@
             {{ it.businessRules || "—" }}
           </td>
           <td class="py-2 text-right">
-            <button class="text-accent hover:underline" @click="openEdit(it)">编辑</button>
-            <button class="ml-2 text-red-400 hover:underline" @click="onDelete(it.id)">删</button>
+            <el-button link type="primary" size="small" @click="openEdit(it)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="onDelete(it.id)">删</el-button>
           </td>
         </tr>
       </tbody>
     </table>
 
     <!-- 编辑抽屉 -->
-    <div
-      v-if="editing"
-      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
-      @click.self="cancelEdit"
+    <el-dialog
+      :model-value="editing !== null"
+      :title="editing && editing.id ? '编辑用例' : '新建用例'"
+      width="600px"
+      :close-on-click-modal="false"
+      @update:model-value="(v) => !v && cancelEdit()"
     >
-      <div class="w-full max-w-xl rounded border border-border bg-white p-4 shadow-xl">
-        <h3 class="mb-3 text-sm font-medium text-slate-800">
-          {{ editing.id ? "编辑用例" : "新建用例" }}
-        </h3>
+      <template v-if="editing">
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">标题</span>
-          <input
-            v-model="editing.title"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-            placeholder="订单创建"
-          />
+          <el-input v-model="editing.title" placeholder="订单创建" class="mt-1" />
         </label>
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">用例编号</span>
-          <input
-            v-model="editing.caseId"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-            placeholder="UC-001"
-          />
+          <el-input v-model="editing.caseId" placeholder="UC-001" class="mt-1" />
         </label>
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">业务规则</span>
-          <textarea
-            v-model="editing.businessRules"
-            rows="3"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-            placeholder="需校验用户实名..."
-          />
+          <el-input v-model="editing.businessRules" type="textarea" :rows="3" placeholder="需校验用户实名..." class="mt-1" />
         </label>
         <label class="mb-3 block">
           <span class="text-xs text-slate-600">详细描述（Markdown）</span>
-          <textarea
-            v-model="editing.detail"
-            rows="6"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 font-mono text-xs text-slate-800"
-            placeholder="前置 / 步骤 / 后置..."
-          />
+          <el-input v-model="editing.detail" type="textarea" :rows="6" class="!font-mono" placeholder="前置 / 步骤 / 后置..." />
         </label>
+      </template>
+      <template #footer>
         <div class="flex justify-end gap-2">
-          <button class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt" @click="cancelEdit">取消</button>
-          <button
-            class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10"
-            :disabled="saving"
-            @click="onSave"
-          >{{ saving ? "保存中…" : "保存" }}</button>
+          <el-button @click="cancelEdit">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="onSave">{{ saving ? "保存中…" : "保存" }}</el-button>
         </div>
-      </div>
-    </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -167,7 +143,15 @@ async function onSave(): Promise<void> {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   await store.deleteUseCase(props.projectId, id);
 }
 </script>

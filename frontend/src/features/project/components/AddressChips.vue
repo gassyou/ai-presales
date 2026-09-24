@@ -15,18 +15,20 @@
     >
       <span class="text-slate-700">{{ a.name || a.email }}</span>
       <span v-if="a.name" class="text-slate-500">&lt;{{ a.email }}&gt;</span>
-      <button
+      <el-button
         v-if="!disabled"
-        class="text-slate-500 hover:text-red-300"
+        link
+        type="danger"
+        size="small"
         @click="remove(i)"
-      >×</button>
+      >×</el-button>
     </span>
-    <input
+    <el-input
       v-model="draft"
       type="email"
       :placeholder="placeholder"
       :disabled="disabled"
-      class="min-w-[120px] flex-1 bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-600"
+      class="!min-w-[120px] flex-1"
       @keydown.enter.prevent="commit"
       @keydown.delete="onBackspace"
     />
@@ -76,7 +78,7 @@ function remove(i: number): void {
   emit("update:modelValue", next);
 }
 
-function onBackspace(e: KeyboardEvent): void {
+function onBackspace(e: Event | KeyboardEvent): void {
   if (draft.value.length === 0 && props.modelValue.length > 0) {
     e.preventDefault();
     remove(props.modelValue.length - 1);

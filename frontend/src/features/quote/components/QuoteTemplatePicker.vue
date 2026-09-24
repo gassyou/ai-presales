@@ -8,16 +8,19 @@
 <template>
   <div class="flex items-center gap-2 text-xs">
     <label class="text-slate-600">模板：</label>
-    <select
-      :value="modelValue ?? ''"
-      class="rounded border border-border bg-surface-alt px-2 py-1 text-slate-800"
-      @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value || undefined)"
+    <el-select
+      :model-value="modelValue ?? ''"
+      size="small"
+      @update:model-value="(v) => $emit('update:modelValue', v || undefined)"
     >
-      <option value="">（使用内置默认）</option>
-      <option v-for="t in templates" :key="t.id" :value="t.id">
-        {{ t.projectId === null ? "[内置] " : "" }}{{ t.originalFilename }}
-      </option>
-    </select>
+      <el-option value="" label="（使用内置默认）" />
+      <el-option
+        v-for="t in templates"
+        :key="t.id"
+        :value="t.id"
+        :label="`${t.projectId === null ? '[内置] ' : ''}${t.originalFilename}`"
+      />
+    </el-select>
     <input
       ref="fileInput"
       type="file"
@@ -25,10 +28,7 @@
       class="hidden"
       @change="onUpload"
     />
-    <button
-      class="rounded bg-surface-sunken px-2 py-1 text-slate-800 hover:bg-slate-600"
-      @click="triggerUpload"
-    >+ 上传</button>
+    <el-button size="small" @click="triggerUpload">+ 上传</el-button>
   </div>
 </template>
 

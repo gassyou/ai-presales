@@ -1,7 +1,7 @@
 <!--
   PptAiGenerateDialog.vue
   ======================
-  AI 生成 PPT 弹窗（阶段 7.4c）。
+  AI 生成 PPT 弹窗（阶段 7.4c + Element Plus 迁移）。
 
   工作流：
     - 用户填需求（textarea）+ 可选选择 profile
@@ -10,49 +10,54 @@
     - 「停止」→ abort signal
 -->
 <template>
-  <div
-    class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
-    @click.self="onClose"
+  <el-dialog
+    :model-value="true"
+    title="AI 生成 PPT"
+    width="520"
+    :close-on-click-modal="false"
+    :show-close="!running"
+    @update:model-value="(v) => !v && onClose()"
   >
-    <div class="w-full max-w-lg rounded border border-border bg-white p-4 shadow-xl">
-      <h3 class="mb-3 text-sm font-medium text-slate-800">AI 生成 PPT</h3>
-      <p class="mb-2 text-xs text-slate-600">
-        描述你的提案主题 / 客户 / 受众 / 时长等。AI 会按 8~15 页逐页生成设计提示词。
-      </p>
-      <textarea
-        v-model="userInput"
-        rows="5"
-        class="w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-        placeholder="例：为 XX 制造业数字化转型提案设计 10 页 PPT，受众为客户 CIO + IT 负责人"
-        :disabled="running"
-      />
+    <p class="mb-2 text-xs text-slate-600">
+      描述你的提案主题 / 客户 / 受众 / 时长等。AI 会按 8~15 页逐页生成设计提示词。
+    </p>
+    <el-input
+      v-model="userInput"
+      type="textarea"
+      :rows="5"
+      placeholder="例：为 XX 制造业数字化转型提案设计 10 页 PPT，受众为客户 CIO + IT 负责人"
+      :disabled="running"
+    />
 
-      <div v-if="running" class="mt-3 flex items-center gap-2 text-xs text-accent">
-        <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-accent"></span>
-        正在生成… 已新增 {{ lastCount }} 页
-      </div>
-
-      <p v-if="error" class="mt-2 text-xs text-red-300">{{ error }}</p>
-
-      <div class="mt-3 flex justify-end gap-2">
-        <button
-          class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt"
-          @click="onClose"
-        >关闭</button>
-        <button
-          v-if="!running"
-          class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10"
-          :disabled="userInput.trim().length === 0"
-          @click="onStart"
-        >开始生成</button>
-        <button
-          v-else
-          class="rounded border border-red-700/50 px-3 py-1 text-xs text-red-300 hover:bg-red-900/30"
-          @click="onAbort"
-        >停止</button>
-      </div>
+    <div v-if="running" class="mt-3 flex items-center gap-2 text-xs text-accent">
+      <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-accent"></span>
+      正在生成… 已新增 {{ lastCount }} 页
     </div>
-  </div>
+
+    <el-alert
+      v-if="error"
+      :title="error"
+      type="error"
+      :closable="false"
+      show-icon
+      class="!mt-2"
+    />
+
+    <template #footer>
+      <el-button @click="onClose">关闭</el-button>
+      <el-button
+        v-if="!running"
+        type="primary"
+        :disabled="userInput.trim().length === 0"
+        @click="onStart"
+      >开始生成</el-button>
+      <el-button
+        v-else
+        type="danger"
+        @click="onAbort"
+      >停止</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">

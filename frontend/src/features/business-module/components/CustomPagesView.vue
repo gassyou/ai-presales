@@ -14,19 +14,18 @@
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">自定义页面</h2>
       <div class="flex flex-wrap items-center gap-2">
-        <input
+        <el-input
           v-model="newTitle"
-          rows="1"
-          class="rounded border border-border bg-white px-2 py-1 text-xs text-slate-800"
+          size="small"
           placeholder="页面名称…"
           :disabled="creating"
           @keydown.enter="onCreate"
         />
-        <button
-          class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
+        <el-button
+          size="small"
           :disabled="creating || newTitle.trim().length === 0"
           @click="onCreate"
-        >{{ creating ? "创建中…" : "+ 新建页面" }}</button>
+        >{{ creating ? "创建中…" : "+ 新建页面" }}</el-button>
       </div>
     </header>
 

@@ -21,50 +21,43 @@
         </span>
       </h2>
       <div class="flex flex-wrap gap-2">
-        <div class="flex rounded border border-border text-xs">
-          <button
-            :class="mode === 'edit' ? 'bg-accent/20 text-accent' : 'text-slate-600 hover:bg-surface-alt'"
-            class="rounded-l px-2 py-1"
-            @click="mode = 'edit'"
-          >编辑</button>
-          <button
-            :class="mode === 'preview' ? 'bg-accent/20 text-accent' : 'text-slate-600 hover:bg-surface-alt'"
-            class="rounded-r px-2 py-1"
-            @click="mode = 'preview'"
-          >预览</button>
-        </div>
-        <button
-          class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
+        <el-radio-group v-model="mode" size="small">
+          <el-radio-button value="edit">编辑</el-radio-button>
+          <el-radio-button value="preview">预览</el-radio-button>
+        </el-radio-group>
+        <el-button
+          size="small"
           :disabled="generating"
           @click="onGenerate"
         >
           {{ generating ? "生成中…" : "AI 生成" }}
-        </button>
-        <button
+        </el-button>
+        <el-button
           v-if="item && item.content"
-          class="rounded border border-border px-2 py-1 text-xs text-slate-700 hover:bg-surface-alt"
+          size="small"
           @click="onDownload"
-        >下载</button>
-        <button
+        >下载</el-button>
+        <el-button
           v-if="item && item.status !== 'adopted'"
-          class="rounded border border-accent px-2 py-1 text-xs text-emerald-700 hover:bg-accent-soft"
+          size="small"
           @click="onAdopt(true)"
-        >采用</button>
-        <button
+        >采用</el-button>
+        <el-button
           v-if="item && item.status === 'adopted'"
-          class="rounded border border-border px-2 py-1 text-xs text-slate-600 hover:bg-surface-alt"
+          size="small"
           @click="onAdopt(false)"
-        >不采用</button>
+        >不采用</el-button>
       </div>
     </header>
 
     <p v-if="error" class="text-xs text-red-300">{{ error }}</p>
 
-    <textarea
+    <el-input
       v-if="mode === 'edit'"
       v-model="draft"
-      rows="14"
-      class="w-full rounded border border-border bg-white p-2 font-mono text-xs text-slate-800"
+      type="textarea"
+      :rows="14"
+      class="!font-mono"
       :placeholder="`编辑 ${title}…`"
       @input="onDraftChange"
     />

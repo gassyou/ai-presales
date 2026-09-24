@@ -60,80 +60,52 @@
           <td class="py-2 font-mono text-slate-600">{{ it.weight.toFixed(2) }}</td>
           <td class="py-2 text-slate-600 line-clamp-2 max-w-[300px]">{{ it.comment || "—" }}</td>
           <td class="py-2 text-right">
-            <button class="text-accent hover:underline" @click="openEdit(it)">编辑</button>
-            <button class="ml-2 text-red-400 hover:underline" @click="onDelete(it.id)">删</button>
+            <el-button link type="primary" size="small" @click="openEdit(it)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="onDelete(it.id)">删</el-button>
           </td>
         </tr>
       </tbody>
     </table>
 
     <!-- 编辑抽屉 -->
-    <div
-      v-if="editing"
-      class="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4"
-      @click.self="cancelEdit"
+    <el-dialog
+      :model-value="editing !== null"
+      :title="editing && editing.id ? '编辑评估项' : '添加评估项'"
+      width="480px"
+      :close-on-click-modal="false"
+      @update:model-value="(v) => !v && cancelEdit()"
     >
-      <div class="w-full max-w-md rounded border border-border bg-white p-4 shadow-xl">
-        <h3 class="mb-3 text-sm font-medium text-slate-800">
-          {{ editing.id ? "编辑评估项" : "添加评估项" }}
-        </h3>
+      <template v-if="editing">
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">维度（业务价值/技术可行性/...）</span>
-          <input
-            v-model="editing.dimension"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-            placeholder="业务价值"
-          />
+          <el-input v-model="editing.dimension" placeholder="业务价值" class="mt-1" />
         </label>
         <label class="mb-2 block">
           <span class="text-xs text-slate-600">标题（内部标识）</span>
-          <input
-            v-model="editing.title"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-          />
+          <el-input v-model="editing.title" class="mt-1" />
         </label>
         <div class="mb-2 grid grid-cols-2 gap-2">
           <label class="block">
             <span class="text-xs text-slate-600">评分（0-10）</span>
-            <input
-              v-model.number="editing.score"
-              type="number"
-              min="0"
-              max="10"
-              step="0.5"
-              class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-            />
+            <el-input-number v-model="editing.score" :min="0" :max="10" :step="0.5" class="mt-1" />
           </label>
           <label class="block">
             <span class="text-xs text-slate-600">权重（0-1）</span>
-            <input
-              v-model.number="editing.weight"
-              type="number"
-              min="0"
-              max="1"
-              step="0.1"
-              class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-            />
+            <el-input-number v-model="editing.weight" :min="0" :max="1" :step="0.1" class="mt-1" />
           </label>
         </div>
         <label class="mb-3 block">
           <span class="text-xs text-slate-600">评语</span>
-          <textarea
-            v-model="editing.comment"
-            rows="3"
-            class="mt-1 w-full rounded border border-border bg-surface-alt p-2 text-xs text-slate-800"
-          />
+          <el-input v-model="editing.comment" type="textarea" :rows="3" class="mt-1" />
         </label>
+      </template>
+      <template #footer>
         <div class="flex justify-end gap-2">
-          <button class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt" @click="cancelEdit">取消</button>
-          <button
-            class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10"
-            :disabled="saving"
-            @click="onSave"
-          >{{ saving ? "保存中…" : "保存" }}</button>
+          <el-button @click="cancelEdit">取消</el-button>
+          <el-button type="primary" :loading="saving" @click="onSave">{{ saving ? "保存中…" : "保存" }}</el-button>
         </div>
-      </div>
-    </div>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -203,7 +175,15 @@ async function onSave(): Promise<void> {
 }
 
 async function onDelete(id: string): Promise<void> {
-  if (!confirm("确认删除？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   await store.deleteReview(props.projectId, id);
 }
 </script>

@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vite build && vue-tsc --noEmit",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.14.6",
     "pinia": "^2.2.0",
+    "unplugin-auto-import": "^21.1.0",
+    "unplugin-vue-components": "^32.1.0",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0",
     "vue3-mindmap": "^0.5.12",

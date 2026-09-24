@@ -26,43 +26,28 @@
         </span>
       </h2>
       <div class="flex flex-wrap gap-2">
-        <button
-          class="rounded border border-border px-2 py-1 text-xs text-slate-700 hover:bg-surface-alt"
-          @click="openOutlineEditor"
-        >
+        <el-button size="small" @click="openOutlineEditor">
           {{ outline ? "编辑脑图" : "创建脑图大纲" }}
-        </button>
-        <button
+        </el-button>
+        <el-button
           v-if="outline"
-          class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
+          size="small"
           :disabled="!outline.mindmap"
           @click="onBatchFromMindmap"
         >
           从脑图生成问题
-        </button>
-        <button
+        </el-button>
+        <el-button
           v-if="questions.length > 0"
-          class="rounded border border-border px-2 py-1 text-xs text-slate-700 hover:bg-surface-alt"
+          size="small"
           @click="onDownload"
         >
           下载 Word
-        </button>
-        <div class="flex rounded border border-border text-xs">
-          <button
-            :class="viewMode === 'sticky' ? 'bg-accent/20 text-accent' : 'text-slate-600 hover:bg-surface-alt'"
-            class="rounded-l px-2 py-1"
-            @click="viewMode = 'sticky'"
-          >
-            便签贴式
-          </button>
-          <button
-            :class="viewMode === 'answer' ? 'bg-accent/20 text-accent' : 'text-slate-600 hover:bg-surface-alt'"
-            class="rounded-r px-2 py-1"
-            @click="viewMode = 'answer'"
-          >
-            回答模式
-          </button>
-        </div>
+        </el-button>
+        <el-radio-group v-model="viewMode" size="small">
+          <el-radio-button value="sticky">便签贴式</el-radio-button>
+          <el-radio-button value="answer">回答模式</el-radio-button>
+        </el-radio-group>
       </div>
     </header>
 
@@ -90,12 +75,7 @@
               答：{{ q.answer }}
             </div>
             <div class="mt-2 flex justify-end">
-              <button
-                class="rounded px-1 text-slate-500 hover:text-red-400"
-                @click="onDeleteQuestion(q.id)"
-              >
-                删除
-              </button>
+              <el-button link type="danger" size="small" @click="onDeleteQuestion(q.id)">删除</el-button>
             </div>
           </li>
         </ul>
@@ -103,13 +83,14 @@
       <p v-if="questions.length === 0" class="text-xs text-slate-500">
         还没有问题。点击"从脑图生成问题"批量生成占位问题，或手动添加。
       </p>
-      <button
+      <el-button
         v-if="outline"
-        class="self-start rounded border border-border px-2 py-1 text-xs text-slate-700 hover:bg-surface-alt"
+        class="self-start"
+        size="small"
         @click="onAddManualQuestion"
       >
         + 手动添加问题
-      </button>
+      </el-button>
     </div>
 
     <!-- 视图：回答模式（双栏） -->
@@ -119,12 +100,13 @@
         <div class="flex items-center justify-between text-xs text-slate-600">
           <span>问题列表（{{ questions.length }}）</span>
           <div class="flex gap-1">
-            <button
+            <el-button
               v-if="outline"
-              class="rounded px-1 hover:text-slate-800"
+              link
+              size="small"
               title="添加"
               @click="onAddManualQuestion"
-            >＋</button>
+            >＋</el-button>
           </div>
         </div>
         <ul class="max-h-[480px] overflow-auto rounded border border-border">
@@ -140,16 +122,19 @@
             <div class="flex items-start justify-between gap-2">
               <span class="line-clamp-2 flex-1">{{ i + 1 }}. {{ q.title }}</span>
               <div class="flex shrink-0 gap-1">
-                <button
-                  class="rounded px-1 text-slate-500 hover:text-slate-700"
+                <el-button
+                  link
+                  size="small"
                   title="复制"
                   @click.stop="onCopyQuestion(q.id)"
-                >⎘</button>
-                <button
-                  class="rounded px-1 text-slate-500 hover:text-red-400"
+                >⎘</el-button>
+                <el-button
+                  link
+                  type="danger"
+                  size="small"
                   title="删除"
                   @click.stop="onDeleteQuestion(q.id)"
-                >✕</button>
+                >✕</el-button>
               </div>
             </div>
           </li>
@@ -162,19 +147,19 @@
         <div v-if="selected" class="flex flex-col gap-3">
           <div class="flex flex-col gap-1 text-xs">
             <label class="text-slate-500">问题显示区</label>
-            <textarea
+            <el-input
               v-model="selected.title"
-              rows="3"
-              class="rounded border border-border bg-white px-2 py-1 text-slate-800"
+              type="textarea"
+              :rows="3"
               @change="onUpdateTitle(selected)"
             />
           </div>
           <div class="flex flex-col gap-1 text-xs">
             <label class="text-slate-500">回答输入区</label>
-            <textarea
+            <el-input
               v-model="answerDraft"
-              rows="6"
-              class="rounded border border-border bg-white px-2 py-1 text-slate-800"
+              type="textarea"
+              :rows="6"
               placeholder="光标默认在此输入回答…"
               @input="onAnswerDraftChange"
             />
@@ -192,16 +177,14 @@
     </div>
 
     <!-- 大纲编辑器抽屉 -->
-    <div
-      v-if="showOutlineEditor"
-      class="fixed inset-0 z-50 flex justify-end bg-slate-900/40"
-      @click.self="closeOutlineEditor"
+    <el-drawer
+      v-model="showOutlineEditor"
+      title="编辑脑图大纲"
+      direction="rtl"
+      size="600px"
+      :close-on-click-modal="false"
     >
-      <div class="flex h-full w-full max-w-xl flex-col gap-3 overflow-auto bg-canvas p-4">
-        <header class="flex items-center justify-between">
-          <h3 class="text-sm font-medium text-slate-800">编辑脑图大纲</h3>
-          <button class="text-slate-500 hover:text-slate-700" @click="closeOutlineEditor">✕</button>
-        </header>
+      <div class="flex flex-col gap-3">
         <p class="text-xs text-slate-500">
           双击节点改名 · 右键节点弹出菜单（＋子 / ⎁兄弟 / ←→ 调层级 / ✕删除 / 复制粘贴）·
           拖拽节点调整层级 · 右上角撤销重做 / 缩放 / 居中
@@ -212,29 +195,14 @@
           @update:nodes="onOutlineNodesChange"
         />
         <div v-else>
-          <button
-            class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-            @click="initOutlineDraft"
-          >
-            + 创建根节点
-          </button>
+          <el-button size="small" @click="initOutlineDraft">+ 创建根节点</el-button>
         </div>
         <div class="flex justify-end gap-2 border-t border-border pt-3">
-          <button
-            class="rounded border border-border px-3 py-1 text-xs text-slate-600 hover:bg-surface-alt"
-            @click="closeOutlineEditor"
-          >
-            取消
-          </button>
-          <button
-            class="rounded border border-accent/50 bg-accent/10 px-3 py-1 text-xs text-accent hover:bg-accent/20"
-            @click="saveOutlineDraft"
-          >
-            保存大纲
-          </button>
+          <el-button @click="closeOutlineEditor">取消</el-button>
+          <el-button type="primary" @click="saveOutlineDraft">保存大纲</el-button>
         </div>
       </div>
-    </div>
+    </el-drawer>
   </section>
 </template>
 
@@ -385,7 +353,15 @@ async function onAddManualQuestion(): Promise<void> {
 }
 
 async function onDeleteQuestion(qid: string): Promise<void> {
-  if (!confirm("确认删除？")) return;
+  try {
+    await ElMessageBox.confirm("确认删除？", "提示", {
+      type: "warning",
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
   try {
     await surveyQuestionnaireApi.deleteQuestion(props.projectId, qid);
     questions.value = questions.value.filter((q) => q.id !== qid);

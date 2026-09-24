@@ -31,6 +31,10 @@ cd frontend && npm run dev   # Vite dev server（5173）
 deno task check        # TS 检查
 deno test --no-check -A # 全套测试（490+）
 cd frontend && npm run build # 前端 build
+
+# 一键打包 macOS 应用（仅在 macOS 上可用）
+deno task launch:mac      # 构建 + ad-hoc 签名 + 启动
+deno task build:mac-app   # 仅构建 + 签名（不启动）
 ```
 
 ## 路线图（Roadmap）

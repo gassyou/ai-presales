@@ -13,17 +13,22 @@
   <section class="card flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">AI 工具配置</h2>
-      <button class="btn-primary" :disabled="!dirty || saving" @click="onSave">
+      <el-button
+        type="primary"
+        :disabled="!dirty || saving"
+        :loading="saving"
+        @click="onSave"
+      >
         {{ saving ? "保存中…" : "保存" }}
-      </button>
+      </el-button>
     </header>
 
-    <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
-    <p v-if="validationError" class="text-xs text-amber-700">{{ validationError }}</p>
-    <p v-if="conflictMsg" class="text-xs text-amber-700">{{ conflictMsg }}</p>
+    <el-alert v-if="store.error" :title="store.error" type="error" :closable="false" show-icon />
+    <el-alert v-if="validationError" :title="validationError" type="warning" :closable="false" show-icon />
+    <el-alert v-if="conflictMsg" :title="conflictMsg" type="warning" :closable="false" show-icon />
 
     <div v-if="!form" class="text-xs text-slate-600">加载中…</div>
-    <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2">
+    <div v-else class="flex flex-col gap-3">
       <div
         v-for="t in TOOL_SCHEMAS"
         :key="t.name"
@@ -41,7 +46,7 @@
           无可配置项
         </div>
         <div v-else class="flex flex-col gap-2">
-          <label
+          <div
             v-for="f in t.fields"
             :key="f.key"
             class="flex flex-col gap-1 text-xs text-slate-600"
@@ -50,26 +55,29 @@
               <span>{{ f.label }}</span>
               <code class="text-slate-600">{{ f.key }}</code>
             </div>
-            <input
+            <el-input-number
               v-if="f.type === 'number'"
-              v-model.number="form[t.name][f.key]"
+              :model-value="form[t.name][f.key] as number"
               :min="f.min"
               :max="f.max"
               :step="f.step ?? 1"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+              size="small"
+              controls-position="right"
+              @update:model-value="(v) => (form![t.name][f.key] = v as number)"
             />
-            <input
+            <el-switch
               v-else-if="f.type === 'boolean'"
-              type="checkbox"
-              v-model="form[t.name][f.key]"
+              :model-value="form[t.name][f.key] as boolean"
+              @update:model-value="(v) => (form![t.name][f.key] = v as boolean)"
             />
-            <input
+            <el-input
               v-else
-              v-model="form[t.name][f.key]"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+              :model-value="form[t.name][f.key] as string"
+              size="small"
+              @update:model-value="(v) => (form![t.name][f.key] = v as string)"
             />
             <span class="text-slate-600">{{ f.hint }}</span>
-          </label>
+          </div>
         </div>
       </div>
     </div>

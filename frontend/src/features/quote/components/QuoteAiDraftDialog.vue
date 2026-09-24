@@ -1,32 +1,26 @@
 <!--
   QuoteAiDraftDialog.vue
   =======================
-  报价单 AI 生成弹窗（阶段 7.4f）。
-  - 用户输入补充说明（客户关注点 / 优惠 / 备注）
-  - 生成：先调 draft（proposal-drafter sub-agent 起草 markdown），再触发 generate（生成 .xlsx）
-  - 完成后给下载按钮
-  阶段 7.5（M9）：去掉占位 setTimeout(800)；真调 LLM
+  报价单 AI 生成弹窗（阶段 7.4f + Element Plus 迁移）。
 -->
 <template>
-  <div
-    v-if="open"
-    class="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40"
-    @click.self="$emit('close')"
+  <el-dialog
+    :model-value="open"
+    title="生成报价单"
+    width="540"
+    @update:model-value="(v) => !v && emit('close')"
   >
-    <div class="w-[520px] rounded-lg border border-border bg-white p-5 shadow-xl">
-      <h3 class="mb-3 text-sm font-semibold text-slate-900">生成报价单</h3>
-
-      <label class="mb-2 block text-xs text-slate-700">
-        <span>补充说明（可选）</span>
-        <textarea
+    <div class="flex flex-col gap-3">
+      <el-form-item label="补充说明（可选）" class="!mb-0">
+        <el-input
           v-model="userInput"
-          rows="4"
-          class="mt-1 w-full rounded border border-border bg-surface-alt px-2 py-1 text-sm text-slate-900"
+          type="textarea"
+          :rows="4"
           placeholder="例如：客户关注点 / 优惠幅度 / 备注信息"
         />
-      </label>
+      </el-form-item>
 
-      <div class="mb-3">
+      <div>
         <QuoteTemplatePicker
           :templates="templates"
           :model-value="templateId"
@@ -36,32 +30,46 @@
         <p v-if="uploadError" class="mt-1 text-xs text-rose-700">{{ uploadError }}</p>
       </div>
 
-      <div v-if="error" class="mb-3 rounded border border-rose-700 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-        {{ error }}
-      </div>
+      <el-alert
+        v-if="error"
+        :title="error"
+        type="error"
+        :closable="false"
+        show-icon
+      />
 
-      <div v-if="lastResult" class="mb-3 rounded border border-emerald-700 bg-accent-soft px-3 py-2 text-xs text-emerald-700">
-        已生成：{{ lastResult.filename }}
-        <a
-          :href="downloadHref"
-          class="ml-2 rounded bg-emerald-700 px-2 py-0.5 text-emerald-100 hover:bg-emerald-600"
-          download
-        >下载</a>
-      </div>
-
-      <div class="flex justify-end gap-2 text-xs">
-        <button
-          class="rounded bg-surface-sunken px-3 py-1 text-slate-800 hover:bg-slate-600"
-          @click="$emit('close')"
-        >关闭</button>
-        <button
-          class="rounded bg-sky-700 px-3 py-1 text-sky-100 hover:bg-sky-600 disabled:opacity-50"
-          :disabled="busy"
-          @click="onGenerate"
-        >{{ busy ? "生成中…" : "生成并下载" }}</button>
-      </div>
+      <el-alert
+        v-if="lastResult"
+        :title="`已生成：${lastResult.filename}`"
+        type="success"
+        :closable="false"
+        show-icon
+      >
+        <template #default>
+          <div class="flex items-center justify-between">
+            <span>已生成：{{ lastResult.filename }}</span>
+            <el-link
+              :href="downloadHref"
+              type="primary"
+              :underline="false"
+              download
+            >下载</el-link>
+          </div>
+        </template>
+      </el-alert>
     </div>
-  </div>
+
+    <template #footer>
+      <el-button @click="emit('close')">关闭</el-button>
+      <el-button
+        type="primary"
+        :loading="busy"
+        @click="onGenerate"
+      >
+        {{ busy ? "生成中…" : "生成并下载" }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">

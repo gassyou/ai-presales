@@ -1,10 +1,7 @@
 <!--
-  SettingsView.vue —— 阶段 7.4h；阶段 7.7 加 Embedding tab
+  SettingsView.vue —— 阶段 7.4h；阶段 7.7 加 Embedding tab；Element Plus 迁移版
 
   系统设置页：5 个 tab（Models / Embedding / Mail / Tools / Agents）。
-  - 进入页面时 loadAll() 一次性拉全集
-  - 每个 tab 独立保存（不同 store slice）
-  - 顶栏小字提示"明文存储，仅限本机单用户场景"
 -->
 <template>
   <div class="mx-auto flex h-full max-w-6xl flex-col gap-4 p-6">
@@ -16,30 +13,28 @@
           改完保存后即时生效，无需重启服务。
         </p>
       </div>
-      <button class="btn-secondary" :disabled="loading" @click="onReload">
+      <el-button :disabled="loading" :loading="loading" @click="onReload">
         {{ loading ? "刷新中…" : "刷新" }}
-      </button>
+      </el-button>
     </header>
 
-    <nav class="flex gap-1 border-b border-border">
-      <button
-        v-for="t in tabs"
-        :key="t.id"
-        class="rounded-t px-4 py-2 text-xs transition-colors"
-        :class="active === t.id
-          ? 'border-b-2 border-accent text-accent'
-          : 'text-slate-600 hover:text-slate-800'"
-        @click="active = t.id"
-      >
-        {{ t.label }}
-      </button>
-    </nav>
-
-    <LLMProfilesTab v-if="active === 'llm'" />
-    <EmbeddingConfigTab v-else-if="active === 'embedding'" />
-    <MailAccountsTab v-else-if="active === 'mail'" />
-    <ToolConfigsTab v-else-if="active === 'tools'" />
-    <AgentSpecsTab v-else-if="active === 'agents'" />
+    <el-tabs v-model="active">
+      <el-tab-pane label="模型配置" name="llm">
+        <LLMProfilesTab />
+      </el-tab-pane>
+      <el-tab-pane label="向量模型" name="embedding">
+        <EmbeddingConfigTab />
+      </el-tab-pane>
+      <el-tab-pane label="邮件账号" name="mail">
+        <MailAccountsTab />
+      </el-tab-pane>
+      <el-tab-pane label="工具配置" name="tools">
+        <ToolConfigsTab />
+      </el-tab-pane>
+      <el-tab-pane label="Sub-agent" name="agents">
+        <AgentSpecsTab />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -54,15 +49,7 @@ import AgentSpecsTab from "./components/AgentSpecsTab.vue";
 
 const store = useSettingsStore();
 
-const tabs = [
-  { id: "llm", label: "模型配置" },
-  { id: "embedding", label: "向量模型" },
-  { id: "mail", label: "邮件账号" },
-  { id: "tools", label: "工具配置" },
-  { id: "agents", label: "Sub-agent" },
-] as const;
-
-type TabId = typeof tabs[number]["id"];
+type TabId = "llm" | "embedding" | "mail" | "tools" | "agents";
 const active = ref<TabId>("llm");
 
 const loading = computed(() => store.loading === "all");

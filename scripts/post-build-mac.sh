@@ -12,7 +12,7 @@
 # ----------------------------------------------------------------------------
 set -euo pipefail
 
-APP_PATH="${1:-dist/ai-presales-mac.app}"
+APP_PATH="${1:-build/ai-presales-mac.app}"
 
 if [ ! -d "$APP_PATH" ]; then
   echo "❌ 找不到 app bundle: $APP_PATH"

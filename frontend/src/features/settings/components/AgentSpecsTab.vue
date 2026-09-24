@@ -9,14 +9,19 @@
   <section class="card flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">Sub-agent 配置</h2>
-      <button class="btn-primary" :disabled="!dirty || saving" @click="onSave">
+      <el-button
+        type="primary"
+        :disabled="!dirty || saving"
+        :loading="saving"
+        @click="onSave"
+      >
         {{ saving ? "保存中…" : "保存" }}
-      </button>
+      </el-button>
     </header>
 
-    <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
-    <p v-if="validationError" class="text-xs text-amber-700">{{ validationError }}</p>
-    <p v-if="conflictMsg" class="text-xs text-amber-700">{{ conflictMsg }}</p>
+    <el-alert v-if="store.error" :title="store.error" type="error" :closable="false" show-icon />
+    <el-alert v-if="validationError" :title="validationError" type="warning" :closable="false" show-icon />
+    <el-alert v-if="conflictMsg" :title="conflictMsg" type="warning" :closable="false" show-icon />
 
     <div v-if="!form" class="text-xs text-slate-600">加载中…</div>
     <div v-else class="flex flex-col gap-3">
@@ -28,50 +33,50 @@
         <div class="mb-2 flex items-center justify-between gap-2">
           <div class="flex items-baseline gap-2">
             <code class="text-xs text-slate-500">{{ s.name }}</code>
-            <input
+            <el-input
               v-model="s.displayName"
               placeholder="显示名"
-              class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+              size="small"
+              class="!w-64"
             />
           </div>
         </div>
 
-        <label class="mb-2 flex flex-col gap-1 text-xs text-slate-600">
-          <span>描述</span>
-          <input
-            v-model="s.description"
-            class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-          />
-        </label>
+        <el-form-item label="描述" class="!mb-2">
+          <el-input v-model="s.description" size="small" />
+        </el-form-item>
 
-        <label class="mb-2 flex flex-col gap-1 text-xs text-slate-600">
-          <span>可用工具（逗号分隔）</span>
-          <input
-            :value="s.toolNames.join(', ')"
+        <el-form-item label="可用工具（逗号分隔）" class="!mb-2">
+          <el-input
+            :model-value="s.toolNames.join(', ')"
             placeholder="list_files, read_file, ..."
-            class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
-            @input="onToolsInput(s, ($event.target as HTMLInputElement).value)"
+            size="small"
+            @update:model-value="(v: string | number) => onToolsInput(s, String(v))"
           />
-          <span class="text-slate-600">已知工具：{{ knownToolsText }}</span>
-        </label>
+          <template #extra>
+            <span class="text-xs text-slate-500">已知工具：{{ knownToolsText }}</span>
+          </template>
+        </el-form-item>
 
-        <label class="mb-2 flex flex-col gap-1 text-xs text-slate-600">
-          <span>Profile hint（默认 LLM profile 名）</span>
-          <input
+        <el-form-item label="Profile hint（默认 LLM profile 名）" class="!mb-2">
+          <el-input
             v-model="s.profileHint"
             placeholder="default / fast / deep"
-            class="rounded bg-surface-alt px-2 py-1 text-xs text-slate-800"
+            size="small"
           />
-        </label>
+        </el-form-item>
 
-        <label class="flex flex-col gap-1 text-xs text-slate-600">
-          <span>系统提示词（{{ s.systemPrompt.length }} 字）</span>
-          <textarea
+        <el-form-item class="!mb-0">
+          <template #label>
+            <span>系统提示词（{{ s.systemPrompt.length }} 字）</span>
+          </template>
+          <el-input
             v-model="s.systemPrompt"
-            rows="6"
-            class="rounded bg-surface-alt px-2 py-1 font-mono text-xs text-slate-800"
-          ></textarea>
-        </label>
+            type="textarea"
+            :rows="6"
+            class="!font-mono"
+          />
+        </el-form-item>
       </div>
     </div>
   </section>

@@ -1,7 +1,7 @@
 <!--
   EmailComposerDialog.vue
   =======================
-  邮件撰写弹窗（阶段 7.4e）。
+  邮件撰写弹窗（阶段 7.4e + Element Plus 迁移）。
 
   形态：
     - 半屏 modal（覆盖 80% 高度，保留工作台上下文）
@@ -17,87 +17,81 @@
     3. 「发送」：create → uploadAttachments → send
 -->
 <template>
-  <div
-    v-if="open"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-canvas/70 p-4"
-    @click.self="onClose"
+  <el-dialog
+    :model-value="open"
+    title="发送邮件"
+    width="800"
+    :close-on-click-modal="false"
+    :close-on-press-escape="!sending"
+    :show-close="!sending"
+    @update:model-value="onModelUpdate"
   >
-    <div class="flex h-[80vh] w-full max-w-3xl flex-col gap-3 rounded border border-border bg-white p-4">
-      <header class="flex items-center justify-between border-b border-border pb-2">
-        <h3 class="text-sm font-medium text-slate-800">
-          发送邮件 — 项目 {{ projectId.slice(0, 8) }}
-        </h3>
-        <button
-          class="rounded text-slate-600 hover:bg-surface-alt hover:text-slate-800 px-2"
-          @click="onClose"
-        >关闭</button>
-      </header>
-
+    <div class="flex flex-col gap-3">
       <p v-if="error" class="rounded border border-red-900 bg-red-900/30 px-3 py-1 text-xs text-red-300">
         {{ error }}
       </p>
 
-      <label class="text-xs text-slate-600">
-        主题
-        <input
+      <el-form-item label="主题" class="!mb-0">
+        <el-input
           v-model="subject"
-          class="mt-1 w-full rounded border border-border bg-canvas px-2 py-1 text-sm text-slate-800"
           placeholder="邮件主题（≤ 20 字）"
           :disabled="sending"
         />
-      </label>
+      </el-form-item>
 
-      <div class="text-xs text-slate-600">
-        收件人 (TO)
+      <el-form-item label="收件人 (TO)" class="!mb-0">
         <AddressChips
           v-model="to"
-          class="mt-1"
           :disabled="sending"
           placeholder="按 Enter 添加邮箱…"
         />
-      </div>
+      </el-form-item>
 
-      <div class="text-xs text-slate-600">
-        抄送 (CC)
+      <el-form-item label="抄送 (CC)" class="!mb-0">
         <AddressChips
           v-model="cc"
-          class="mt-1"
           :disabled="sending"
           placeholder="按 Enter 添加邮箱…"
         />
-      </div>
+      </el-form-item>
 
-      <div class="flex min-h-0 flex-1 flex-col text-xs text-slate-600">
-        <div class="mb-1 flex items-center justify-between">
-          <span>正文</span>
-          <button
-            class="rounded border border-accent/50 px-2 py-0.5 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
-            :disabled="aiRunning || sending"
-            @click="onAiDraft"
-          >{{ aiRunning ? "起草中…" : "AI 起草" }}</button>
-        </div>
-        <textarea
+      <el-form-item label="正文" class="!mb-0">
+        <template #label>
+          <div class="flex w-full items-center justify-between">
+            <span>正文</span>
+            <el-button
+              size="small"
+              :disabled="aiRunning || sending"
+              :loading="aiRunning"
+              @click="onAiDraft"
+            >
+              {{ aiRunning ? "起草中…" : "AI 起草" }}
+            </el-button>
+          </div>
+        </template>
+        <el-input
           v-model="body"
-          class="min-h-0 flex-1 rounded border border-border bg-canvas p-2 font-mono text-xs text-slate-800"
+          type="textarea"
+          :rows="8"
           placeholder="邮件正文…"
           :disabled="sending"
+          class="!font-mono"
         />
-      </div>
+      </el-form-item>
 
       <!-- 附件 -->
       <div class="flex flex-col gap-2 text-xs text-slate-600">
         <div class="flex items-center justify-between">
           <span>附件（{{ attachments.length }}）</span>
-          <label class="cursor-pointer rounded border border-border px-2 py-0.5 text-slate-700 hover:bg-surface-alt">
-            + 添加附件
-            <input
-              type="file"
-              multiple
-              class="hidden"
-              :disabled="sending"
-              @change="onPickFiles"
-            />
-          </label>
+          <el-upload
+            :show-file-list="false"
+            :auto-upload="false"
+            :disabled="sending"
+            multiple
+            :on-change="onUploadChange"
+          >
+            <el-button size="small" :disabled="sending">+ 添加附件</el-button>
+          </el-upload>
         </div>
         <ul v-if="attachments.length > 0" class="flex flex-wrap gap-1">
           <li
@@ -107,34 +101,34 @@
           >
             <span>{{ a.filename }}</span>
             <span class="text-slate-500">{{ formatSize(a.size) }}</span>
-            <button
+            <el-button
               v-if="!sending"
-              class="text-red-300 hover:text-red-100"
+              link
+              type="danger"
+              size="small"
               @click="removeLocalAttachment(a.localId)"
-            >×</button>
+            >×</el-button>
           </li>
         </ul>
       </div>
 
-      <footer class="flex items-center justify-between border-t border-border pt-2">
-        <span class="text-[11px] text-slate-500">
-          {{ sending ? "处理中…" : emailId ? `草稿 ${emailId.slice(0, 8)}…` : "尚未保存" }}
-        </span>
-        <div class="flex gap-2">
-          <button
-            class="rounded border border-border px-3 py-1 text-xs text-slate-700 hover:bg-surface-alt"
-            :disabled="sending"
-            @click="onSaveDraft"
-          >保存草稿</button>
-          <button
-            class="rounded border border-accent/50 px-3 py-1 text-xs text-accent hover:bg-accent/10 disabled:opacity-50"
-            :disabled="sending || !subject.trim()"
-            @click="onSend"
-          >{{ sending ? "发送中…" : "发送" }}</button>
-        </div>
-      </footer>
+      <div class="text-[11px] text-slate-500">
+        {{ sending ? "处理中…" : emailId ? `草稿 ${emailId.slice(0, 8)}…` : "尚未保存" }}
+      </div>
     </div>
-  </div>
+
+    <template #footer>
+      <el-button :disabled="sending" @click="onSaveDraft">保存草稿</el-button>
+      <el-button
+        type="primary"
+        :loading="sending"
+        :disabled="!subject.trim()"
+        @click="onSend"
+      >
+        {{ sending ? "发送中…" : "发送" }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -145,6 +139,7 @@ import { useEmailComposerStore } from "../stores/email-composer.store.ts";
 import { projectApi } from "../api/project.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 import AddressChips from "./AddressChips.vue";
+import type { UploadFile } from "element-plus";
 
 const store = useEmailComposerStore();
 const projectId = computed(() => store.projectId ?? "");
@@ -181,6 +176,10 @@ onMounted(async () => {
   if (open.value) await loadDefaults();
 });
 
+function onModelUpdate(v: boolean): void {
+  if (!v && !sending.value) store.close();
+}
+
 async function loadDefaults(): Promise<void> {
   error.value = null;
   subject.value = "";
@@ -216,19 +215,16 @@ function onClose(): void {
   store.close();
 }
 
-function onPickFiles(e: Event): void {
-  const target = e.target as HTMLInputElement;
-  if (!target.files) return;
-  for (const f of Array.from(target.files)) {
-    attachments.value.push({
-      localId: crypto.randomUUID(),
-      filename: f.name,
-      mime: f.type || "application/octet-stream",
-      size: f.size,
-      file: f,
-    });
-  }
-  target.value = "";
+function onUploadChange(file: UploadFile): void {
+  const raw = file.raw;
+  if (!raw) return;
+  attachments.value.push({
+    localId: crypto.randomUUID(),
+    filename: raw.name,
+    mime: raw.type || "application/octet-stream",
+    size: raw.size,
+    file: raw,
+  });
 }
 
 function removeLocalAttachment(localId: string): void {

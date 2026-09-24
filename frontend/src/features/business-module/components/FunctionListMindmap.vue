@@ -54,22 +54,21 @@
           <div class="grid grid-cols-2 gap-3">
             <label class="flex flex-col gap-1">
               <span class="text-slate-600">CP</span>
-              <select
-                :value="selectedDto.cp"
-                class="rounded border border-border bg-white px-2 py-1 text-slate-800"
-                @change="onCpChange"
+              <el-select
+                :model-value="selectedDto.cp"
+                size="small"
+                @update:model-value="(v) => onCpChange(v)"
               >
-                <option :value="0">—</option>
-                <option v-for="cp in CP_VALUES" :key="cp" :value="cp">{{ cp }}</option>
-              </select>
+                <el-option :value="0" label="—" />
+                <el-option v-for="cp in CP_VALUES" :key="cp" :value="cp" :label="String(cp)" />
+              </el-select>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-slate-600">项目范围内</span>
               <label class="mt-1 inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  :checked="selectedDto.inScope"
-                  @change="emit('toggleScope', selectedDto)"
+                <el-checkbox
+                  :model-value="selectedDto.inScope"
+                  @update:model-value="emit('toggleScope', selectedDto)"
                 />
                 <span :class="selectedDto.inScope ? 'text-emerald-400' : 'text-slate-500'">
                   {{ selectedDto.inScope ? "是" : "否" }}
@@ -179,9 +178,9 @@ function selectByDtoId(dtoId: string): void {
   selectedLeafId.value = `${dto.category}|${dto.module}|${dto.id}`;
 }
 
-function onCpChange(e: Event): void {
+function onCpChange(v: unknown): void {
   if (!selectedDto.value) return;
-  const cp = Number((e.target as HTMLSelectElement).value);
+  const cp = Number(v);
   emit("changeCp", selectedDto.value, cp);
 }
 

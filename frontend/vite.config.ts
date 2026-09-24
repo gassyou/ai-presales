@@ -1,5 +1,8 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import AutoImport from "unplugin-auto-import/vite";
+import Components from "unplugin-vue-components/vite";
+import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import { resolve } from "node:path";
 import { copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
 
@@ -21,6 +24,16 @@ const distIcons = resolve(__dirname, "..", "dist/icons");
 export default defineConfig({
   plugins: [
     vue(),
+    // 自动导入 Element Plus 组件（按需引入，无需手动 import）
+    Components({
+      resolvers: [ElementPlusResolver()],
+      dts: "src/types/auto-components.d.ts",
+    }),
+    // 自动导入 ElMessage / ElMessageBox / ElNotification 等函数
+    AutoImport({
+      resolvers: [ElementPlusResolver()],
+      dts: "src/types/auto-imports.d.ts",
+    }),
     {
       name: "copy-vue3-mindmap-icons",
       closeBundle(): void {

@@ -20,7 +20,7 @@
             <div class="flex items-start justify-between gap-2">
               <h5 class="font-medium text-slate-900">{{ fn.name }}</h5>
               <label class="flex items-center gap-1 text-slate-600">
-                <input type="checkbox" :checked="fn.inScope" @change="emit('toggleScope', fn)" />
+                <el-checkbox :model-value="fn.inScope" @update:model-value="emit('toggleScope', fn)" />
                 <span>范围内</span>
               </label>
             </div>
@@ -32,14 +32,8 @@
               <span class="text-slate-700">¥{{ Math.round(fn.amount).toLocaleString() }}</span>
             </div>
             <div class="mt-2 flex justify-end gap-2">
-              <button
-                class="text-accent hover:underline"
-                @click="emit('edit', fn)"
-              >编辑</button>
-              <button
-                class="text-red-300 hover:underline"
-                @click="emit('delete', fn.id)"
-              >删</button>
+              <el-button link type="primary" size="small" @click="emit('edit', fn)">编辑</el-button>
+              <el-button link type="danger" size="small" @click="emit('delete', fn.id)">删</el-button>
             </div>
           </div>
         </div>
