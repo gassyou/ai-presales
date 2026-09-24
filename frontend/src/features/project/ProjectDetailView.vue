@@ -32,8 +32,19 @@
           <StatusBadge :status="project.status" />
           <code class="rounded bg-surface-alt px-1.5 py-0.5">{{ project.code }}</code>
         </div>
-        <h1 class="text-2xl font-semibold text-slate-900">{{ project.name }}</h1>
-        <span>客户：{{ project.clientName }}</span>
+        <h1 class="text-2xl font-semibold text-slate-900">{{ project.name }}
+          <span v-if="project.startDate || project.endDate" class="text-xs text-slate-500">
+              {{ project.startDate ? formatDate(project.startDate) : "—" }}
+              ~
+              {{ project.endDate ? formatDate(project.endDate) : "—" }}
+          </span>
+        </h1>
+        <span class="text-xs text-slate-500">客户：{{ project.clientName }}</span>
+        <span class="text-xs ml-3" v-if="project.clientWebsite">
+            <a :href="project.clientWebsite" target="_blank" class="text-accent hover:underline">
+              {{ project.clientWebsite }}
+            </a>
+        </span>
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
@@ -69,28 +80,6 @@
     <!-- 项目元数据：紧凑单卡，全宽 -->
     <article class="card flex flex-col gap-3">
       <dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-xs md:grid-cols-2">
-        <div class="flex items-center gap-2">
-          <dt class="shrink-0 text-slate-500">客户网站</dt>
-          <dd class="truncate text-slate-800">
-            <a v-if="project.clientWebsite" :href="project.clientWebsite" target="_blank" class="text-accent hover:underline">
-              {{ project.clientWebsite }}
-            </a>
-            <span v-else class="text-slate-400">未填</span>
-          </dd>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <dt class="shrink-0 text-slate-500">起止日期</dt>
-          <dd class="truncate text-slate-800">
-            <span v-if="project.startDate || project.endDate">
-              {{ project.startDate ? formatDate(project.startDate) : "—" }}
-              ~
-              {{ project.endDate ? formatDate(project.endDate) : "—" }}
-            </span>
-            <span v-else class="text-slate-400">未填</span>
-          </dd>
-        </div>
-
         <div class="flex flex-col gap-1">
           <dt class="text-slate-500">客户简介</dt>
           <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">
