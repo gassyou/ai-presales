@@ -28,7 +28,7 @@
           :key="item.name"
           :to="{ name: item.routeName }"
           class="rounded-md px-2.5 py-1 text-slate-700 transition-colors hover:bg-surface-sunken"
-          active-class="bg-accent-soft text-accent-ink font-medium"
+          exact-active-class="bg-accent-soft text-accent-ink font-medium"
         >
           {{ item.label }}
         </router-link>

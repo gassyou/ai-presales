@@ -25,10 +25,10 @@
       <textarea
         ref="inputRef"
         v-model="input"
-        rows="1"
+        rows="3"
         :placeholder="placeholder"
         class="block w-full resize-none border-0 bg-transparent text-sm leading-6 text-slate-900 outline-none placeholder:text-slate-400"
-        style="min-height: 28px; max-height: 168px"
+        style="min-height: 84px; max-height: 168px"
         @input="onInput"
         @keydown="onKeyDown"
         @keydown.enter.exact.prevent="onSend"
@@ -55,6 +55,10 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <SubAgentPicker
+          :model-value="store.subAgentName"
+          @update:model-value="store.setSubAgent"
+        />
         <el-select
           :model-value="store.profile"
           size="small"
@@ -93,6 +97,7 @@
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import MentionAutocomplete from "./MentionAutocomplete.vue";
+import SubAgentPicker from "@frontend/features/sub-agent/SubAgentPicker.vue";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 
 const store = useAiChatStore();

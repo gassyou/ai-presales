@@ -58,22 +58,22 @@
         </div>
 
         <div class="flex flex-col gap-2">
-          <el-form-item label="Provider" class="!mb-0">
+          <el-form-item label-position="top" label="供应商（Provider）" class="!mb-2">
             <el-select v-model="p.provider" size="small">
               <el-option label="anthropic" value="anthropic" />
               <el-option label="openai" value="openai" />
             </el-select>
           </el-form-item>
 
-          <el-form-item label="Base URL（可省）" class="!mb-0">
+          <el-form-item label-position="top" label="基础地址（Base URL，可省）" class="!mb-2">
             <el-input v-model="p.baseUrl" placeholder="https://api.example.com" size="small" />
           </el-form-item>
 
-          <el-form-item label="Model" class="!mb-0">
+          <el-form-item label-position="top" label="模型（Model）" class="!mb-2">
             <el-input v-model="p.model" placeholder="claude-sonnet-4.5 / gpt-4o" size="small" />
           </el-form-item>
 
-          <el-form-item label="API Key" class="!mb-0">
+          <el-form-item label-position="top" label="API 密钥（API Key）" class="!mb-2">
             <div class="flex gap-1">
               <el-input
                 v-model="p.apiKey"
@@ -88,7 +88,7 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="Temperature (0-2)" class="!mb-0">
+          <el-form-item label-position="top" label="温度（Temperature，0-2）" class="!mb-2">
             <el-input-number
               v-model="p.temperature"
               :min="0"
@@ -99,7 +99,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="Max tokens" class="!mb-0">
+          <el-form-item label-position="top" label="最大 Token 数（Max tokens）" class="!mb-2">
             <el-input-number
               v-model="p.maxTokens"
               :min="1"

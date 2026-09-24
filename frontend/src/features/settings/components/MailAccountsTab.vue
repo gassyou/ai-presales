@@ -53,10 +53,10 @@
         </div>
 
         <div class="flex flex-col gap-2">
-          <el-form-item label="SMTP Host" class="!mb-0">
+          <el-form-item label-position="top" label="SMTP 服务器（SMTP Host）" class="!mb-2">
             <el-input v-model="a.host" placeholder="smtp.example.com" size="small" />
           </el-form-item>
-          <el-form-item label="Port" class="!mb-0">
+          <el-form-item label-position="top" label="端口（Port）" class="!mb-2">
             <el-input-number
               v-model="a.port"
               :min="1"
@@ -65,17 +65,17 @@
               controls-position="right"
             />
           </el-form-item>
-          <el-form-item label="SSL" class="!mb-0">
+          <el-form-item label-position="top" label="加密方式（SSL）" class="!mb-2">
             <el-select v-model="a.ssl" size="small">
               <el-option label="tls（连接时）" value="tls" />
               <el-option label="starttls（EHLO 后升级）" value="starttls" />
               <el-option label="none（明文）" value="none" />
             </el-select>
           </el-form-item>
-          <el-form-item label="用户名" class="!mb-0">
+          <el-form-item label-position="top" label="用户名" class="!mb-2">
             <el-input v-model="a.username" placeholder="user@example.com" size="small" />
           </el-form-item>
-          <el-form-item label="密码" class="!mb-0">
+          <el-form-item label-position="top" label="密码" class="!mb-2">
             <div class="flex w-full gap-1">
               <el-input
                 :type="showPw[a.id] ? 'text' : 'password'"
@@ -89,7 +89,7 @@
               </el-button>
             </div>
           </el-form-item>
-          <el-form-item label="From 地址（email 或 Name <a@b>）" class="!mb-0">
+          <el-form-item label-position="top" label="发件地址（From 地址，可填 email 或 Name <a@b>）" class="!mb-2">
             <el-input v-model="a.fromAddress" placeholder="user@example.com" size="small" />
           </el-form-item>
         </div>

@@ -29,7 +29,7 @@
     <div v-else class="flex flex-col gap-2">
       <div class="rounded border border-border p-3">
         <div class="flex flex-col gap-2">
-          <el-form-item label="Provider" class="!mb-0">
+          <el-form-item label-position="top" label="供应商（Provider）" class="!mb-2">
             <el-select
               v-model="form.provider"
               size="small"
@@ -42,11 +42,11 @@
             </el-select>
           </el-form-item>
 
-          <el-form-item v-if="form.provider !== 'mock'" label="Model" class="!mb-0">
+          <el-form-item v-if="form.provider !== 'mock'" label-position="top" label="模型（Model）" class="!mb-2">
             <el-input v-model="form.model" :placeholder="modelPlaceholder" size="small" />
           </el-form-item>
 
-          <el-form-item v-if="form.provider !== 'mock'" label="Dimension" class="!mb-0">
+          <el-form-item v-if="form.provider !== 'mock'" label-position="top" label="向量维度（Dimension）" class="!mb-2">
             <el-input-number
               v-model="form.dimension"
               :min="0"
@@ -58,16 +58,18 @@
 
           <el-form-item
             v-if="form.provider === 'openai' || form.provider === 'ollama'"
-            label="Base URL"
-            class="!mb-0"
+            label-position="top"
+            label="基础地址（Base URL）"
+            class="!mb-2"
           >
             <el-input v-model="form.baseUrl" :placeholder="baseUrlPlaceholder" size="small" />
           </el-form-item>
 
           <el-form-item
             v-if="form.provider === 'openai' || form.provider === 'dashscope'"
-            label="API Key"
-            class="!mb-0"
+            label-position="top"
+            label="API 密钥（API Key）"
+            class="!mb-2"
           >
             <div class="flex w-full gap-1">
               <el-input
@@ -85,8 +87,9 @@
 
           <el-form-item
             v-if="form.provider === 'dashscope'"
-            label="Text Type"
-            class="!mb-0"
+            label-position="top"
+            label="文本类型（Text Type）"
+            class="!mb-2"
           >
             <el-select v-model="form.textType" size="small">
               <el-option label="document" value="document" />

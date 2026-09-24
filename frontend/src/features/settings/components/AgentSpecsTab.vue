@@ -42,11 +42,11 @@
           </div>
         </div>
 
-        <el-form-item label="描述" class="!mb-2">
+        <el-form-item label-position="top" label="描述" class="!mb-2">
           <el-input v-model="s.description" size="small" />
         </el-form-item>
 
-        <el-form-item label="可用工具（逗号分隔）" class="!mb-2">
+        <el-form-item label-position="top" label="可用工具（逗号分隔）" class="!mb-2">
           <el-input
             :model-value="s.toolNames.join(', ')"
             placeholder="list_files, read_file, ..."
@@ -58,7 +58,7 @@
           </template>
         </el-form-item>
 
-        <el-form-item label="Profile hint（默认 LLM profile 名）" class="!mb-2">
+        <el-form-item label-position="top" label="Profile hint（默认 LLM profile 名）" class="!mb-2">
           <el-input
             v-model="s.profileHint"
             placeholder="default / fast / deep"
@@ -66,7 +66,7 @@
           />
         </el-form-item>
 
-        <el-form-item class="!mb-0">
+        <el-form-item label-position="top" class="!mb-2">
           <template #label>
             <span>系统提示词（{{ s.systemPrompt.length }} 字）</span>
           </template>

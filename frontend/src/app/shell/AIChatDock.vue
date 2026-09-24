@@ -31,10 +31,6 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <SubAgentPicker
-          :model-value="store.subAgentName"
-          @update:model-value="store.setSubAgent"
-        />
         <el-button
           size="small"
           @click="store.clear"
@@ -58,7 +54,6 @@
 
 <script setup lang="ts">
 import AiChatPanel from "@frontend/features/ai-chat/AiChatPanel.vue";
-import SubAgentPicker from "@frontend/features/sub-agent/SubAgentPicker.vue";
 import { useAiChatStore } from "@frontend/features/ai-chat/stores/ai-chat.store.ts";
 
 defineProps<{ side?: "left" | "right" }>();
