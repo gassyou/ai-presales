@@ -46,40 +46,21 @@
         <AIChatDock @collapse="dockCollapsed = true" />
       </ResizableSplit>
     </div>
-
-    <!-- 浮动按钮（仅项目详情页可见） -->
-    <div
-      v-if="showProjectActions"
-      class="fixed bottom-6 right-6 z-40 flex flex-col gap-2"
-    >
-      <el-button type="success" round size="default" @click="openQuote">
-        ⊕ 生成报价单
-      </el-button>
-      <el-button type="primary" round size="default" @click="openComposer">
-        ✉ 发送邮件
-      </el-button>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import TopBar from "./TopBar.vue";
 import AIChatDock from "./AIChatDock.vue";
 import ResizableSplit from "@frontend/shared/ui/ResizableSplit.vue";
 import { useResizableWidth } from "@frontend/shared/utils/use-resizable-width.ts";
-import { useEmailComposerStore } from "@frontend/features/project/stores/email-composer.store.ts";
-import { useQuoteComposerStore } from "@frontend/features/quote/stores/quote-composer.store.ts";
 import { projectApi } from "@frontend/features/project/api/project.api.ts";
 import { useAiChatStore } from "@frontend/features/ai-chat/stores/ai-chat.store.ts";
 
 const route = useRoute();
-const emailComposerStore = useEmailComposerStore();
-const quoteComposerStore = useQuoteComposerStore();
 const aiChatStore = useAiChatStore();
-
-const showProjectActions = computed(() => route.name === "project-detail");
 
 // 右侧 AI 抽屉宽度
 const RIGHT_DEFAULT = 360;
@@ -105,21 +86,4 @@ onMounted(async () => {
     // 静默失败 —— 候选池空了不影响基本对话
   }
 });
-
-function projectIdFromRoute(): string | null {
-  const id = route.params.id;
-  return typeof id === "string" && id.length > 0 ? id : null;
-}
-
-function openComposer(): void {
-  const id = projectIdFromRoute();
-  if (!id) return;
-  emailComposerStore.openComposer(id);
-}
-
-function openQuote(): void {
-  const id = projectIdFromRoute();
-  if (!id) return;
-  quoteComposerStore.openComposer(id);
-}
 </script>

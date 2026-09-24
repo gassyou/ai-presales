@@ -38,10 +38,23 @@
 
       <div class="flex flex-wrap items-center gap-2">
         <KnowledgeStatusBadge :project-id="project.id" />
-        <el-button size="small" @click="onOpenQuote">生成报价单</el-button>
-        <el-button size="small" @click="onOpenEmail">发送邮件</el-button>
         <button
-          class="rounded border border-border px-3 py-1.5 text-sm text-slate-700 hover:bg-surface-alt"
+          type="button"
+          class="inline-flex h-8 items-center gap-1.5 rounded bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700"
+          @click="onOpenQuote"
+        >
+          <span>生成报价单</span>
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-8 items-center gap-1.5 rounded bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700"
+          @click="onOpenEmail"
+        >
+          <span>发送邮件</span>
+        </button>
+        <button
+          type="button"
+          class="text-xs text-slate-500 underline-offset-4 hover:text-accent hover:underline"
           @click="goBack"
         >
           返回列表

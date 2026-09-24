@@ -31,7 +31,7 @@
         {{ error }}
       </p>
 
-      <el-form-item label="主题" class="!mb-0">
+      <el-form-item label="主题" label-position="top" class="!mb-0">
         <el-input
           v-model="subject"
           placeholder="邮件主题（≤ 20 字）"
@@ -39,36 +39,25 @@
         />
       </el-form-item>
 
-      <el-form-item label="收件人 (TO)" class="!mb-0">
+      <el-form-item label="收件人 (TO)" label-position="top" class="!mb-0">
         <AddressChips
           v-model="to"
           :disabled="sending"
           placeholder="按 Enter 添加邮箱…"
+          class="!w-full"
         />
       </el-form-item>
 
-      <el-form-item label="抄送 (CC)" class="!mb-0">
+      <el-form-item label="抄送 (CC)" label-position="top" class="!mb-0">
         <AddressChips
           v-model="cc"
           :disabled="sending"
           placeholder="按 Enter 添加邮箱…"
+          class="!w-full"
         />
       </el-form-item>
 
-      <el-form-item label="正文" class="!mb-0">
-        <template #label>
-          <div class="flex w-full items-center justify-between">
-            <span>正文</span>
-            <el-button
-              size="small"
-              :disabled="aiRunning || sending"
-              :loading="aiRunning"
-              @click="onAiDraft"
-            >
-              {{ aiRunning ? "起草中…" : "AI 起草" }}
-            </el-button>
-          </div>
-        </template>
+      <el-form-item label="正文" label-position="top" class="!mb-0">
         <el-input
           v-model="body"
           type="textarea"
@@ -118,15 +107,37 @@
     </div>
 
     <template #footer>
-      <el-button :disabled="sending" @click="onSaveDraft">保存草稿</el-button>
-      <el-button
-        type="primary"
-        :loading="sending"
-        :disabled="!subject.trim()"
-        @click="onSend"
-      >
-        {{ sending ? "发送中…" : "发送" }}
-      </el-button>
+      <div class="flex w-full items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">润色语言</span>
+          <el-segmented
+            v-model="polishLang"
+            :options="LANG_OPTIONS"
+            :disabled="sending"
+            size="small"
+          />
+          <button
+            type="button"
+            class="inline-flex h-7 items-center gap-1.5 rounded bg-amber-500 px-3 text-xs font-medium text-amber-950 transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+            :disabled="aiRunning || sending || !canPolish"
+            @click="onAiPolish"
+          >
+            <span aria-hidden="true">✨</span>
+            <span>{{ aiRunning ? "润色中…" : "AI 润色" }}</span>
+          </button>
+        </div>
+        <div class="flex items-center gap-2">
+          <el-button :disabled="sending" @click="onSaveDraft">保存草稿</el-button>
+          <el-button
+            type="primary"
+            :loading="sending"
+            :disabled="!subject.trim()"
+            @click="onSend"
+          >
+            {{ sending ? "发送中…" : "发送" }}
+          </el-button>
+        </div>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -163,6 +174,20 @@ const emailId = ref<string | null>(null);
 const error = ref<string | null>(null);
 const sending = ref(false);
 const aiRunning = ref(false);
+
+/** AI 润色：默认中文，可选日文 / 英文 */
+type PolishLang = "zh" | "ja" | "en";
+const LANG_OPTIONS: Array<{ label: string; value: PolishLang }> = [
+  { label: "中文", value: "zh" },
+  { label: "日文", value: "ja" },
+  { label: "英文", value: "en" },
+];
+const polishLang = ref<PolishLang>("zh");
+
+/** 主题和正文至少有一项非空才允许润色 */
+const canPolish = computed(
+  () => subject.value.trim().length > 0 || body.value.trim().length > 0,
+);
 
 watch(open, async (isOpen) => {
   if (isOpen) {
@@ -237,13 +262,21 @@ function formatSize(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)}MB`;
 }
 
-async function onAiDraft(): Promise<void> {
+async function onAiPolish(): Promise<void> {
   aiRunning.value = true;
-  body.value = "";
+  error.value = null;
+  // 记录当前内容，便于流式覆盖期间用户也能看到旧值；流结束后整体替换
+  const prevSubject = subject.value;
+  const prevBody = body.value;
   try {
-    const input = subject.value.trim().length > 0
-      ? `主题：${subject.value.trim()}\n请按商务风格起草邮件正文（3~5 段）`
-      : "请按商务风格起草一封给客户的邮件正文（3~5 段；先写占位主题）";
+    const langLabel = polishLang.value === "zh" ? "中文" : polishLang.value === "ja" ? "日文" : "英文";
+    const input = [
+      `任务：对现有邮件进行 AI 润色（不要凭空新增内容，保留原意）。`,
+      `目标输出语言：${langLabel}。`,
+      `主题原文：${prevSubject || "（空）"}`,
+      `正文原文：${prevBody || "（空）"}`,
+      `输出格式：第一行 "主题：xxxx"（≤20 字），随后空一行，再输出润色后的正文。`,
+    ].join("\n");
     let draft = "";
     for await (const ev of subAgentApi.invoke("business-email-writer", {
       input,
@@ -255,10 +288,15 @@ async function onAiDraft(): Promise<void> {
         return;
       }
     }
-    body.value = draft;
-    // 尝试从正文首行解析主题（"主题：xxxx"）
-    const m = draft.match(/^主题[:：]\s*(.+?)$/m);
-    if (m && subject.value.trim().length === 0) subject.value = m[1].trim().slice(0, 80);
+    // 解析第一行主题
+    const m = draft.match(/^主题[:：]\s*(.+?)\s*$/m);
+    if (m) {
+      subject.value = m[1].trim().slice(0, 80);
+      body.value = draft.replace(/^主题[:：].+?\r?\n\r?\n?/, "").trim();
+    } else {
+      // 解析失败：仅覆盖正文，主题不动
+      body.value = draft.trim();
+    }
   } catch (e) {
     error.value = errMsg(e);
   } finally {
