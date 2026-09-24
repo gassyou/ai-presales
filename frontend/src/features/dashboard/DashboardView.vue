@@ -13,7 +13,7 @@
     <!-- Slogan：浅色商务卡（深色背景 + 浅文字 对比度差，改用 accent 渐变浅底 + 深字） -->
     <div class="rounded-lg border border-border bg-gradient-to-r from-accent-soft via-white to-surface-alt px-5 py-6">
       <h1 class="text-xl font-semibold text-slate-900">
-        让每一份提案都切中要点，深入人心，让每一个案件都能中标
+        让商机不再错过，让提案更有魅力，让成交更快到来。
       </h1>
       <p class="mt-1 text-sm text-slate-600">
         AI 驱动的提案协助工作台
