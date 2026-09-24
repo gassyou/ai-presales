@@ -6,7 +6,7 @@
   - profileHint 下拉（可选值 = 所有 LLM profile name + "default"）
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">Sub-agent 配置</h2>
       <el-button
@@ -28,7 +28,7 @@
       <div
         v-for="(s, idx) in form.specs"
         :key="s.name || idx"
-        class="rounded border border-border p-3"
+        class="rounded border border-border bg-white p-3"
       >
         <div class="mb-2 flex items-center justify-between gap-2">
           <div class="flex items-baseline gap-2">

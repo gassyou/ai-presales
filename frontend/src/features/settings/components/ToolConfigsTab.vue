@@ -10,7 +10,7 @@
     - read_module: defaultMaxTokens
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">AI 工具配置</h2>
       <el-button
@@ -32,7 +32,7 @@
       <div
         v-for="t in TOOL_SCHEMAS"
         :key="t.name"
-        class="rounded border border-border p-3"
+        class="rounded border border-border bg-white p-3"
       >
         <div class="mb-2 flex items-center justify-between">
           <div class="flex items-baseline gap-2">

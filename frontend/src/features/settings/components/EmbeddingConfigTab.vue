@@ -7,7 +7,7 @@
   - provider 切换时自动隐藏/显示对应字段
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">向量模型配置 (Embedding)</h2>
       <div class="flex gap-2">
@@ -27,7 +27,7 @@
 
     <div v-if="!form" class="text-xs text-slate-600">加载中…</div>
     <div v-else class="flex flex-col gap-2">
-      <div class="rounded border border-border p-3">
+      <div class="rounded border border-border bg-white p-3">
         <div class="flex flex-col gap-2">
           <el-form-item label-position="top" label="供应商（Provider）" class="!mb-2">
             <el-select

@@ -6,7 +6,7 @@
   - password 字段默认隐藏；显示/隐藏按钮
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">邮件发送账号 (SMTP)</h2>
       <div class="flex gap-2">
@@ -34,7 +34,7 @@
       <div
         v-for="(a, idx) in form.accounts"
         :key="a.id || idx"
-        class="rounded border border-border p-3"
+        class="rounded border border-border bg-white p-3"
       >
         <div class="mb-2 flex items-center justify-between gap-2">
           <el-input

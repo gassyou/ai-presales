@@ -7,7 +7,7 @@
     temperature ∈ [0,2]、maxTokens ≥ 1；后端会兜底校验
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">模型配置 (LLM profiles)</h2>
       <div class="flex gap-2">
@@ -31,7 +31,7 @@
       <div
         v-for="(p, idx) in form.profiles"
         :key="p.name || idx"
-        class="rounded border border-border p-3"
+        class="rounded border border-border bg-white p-3"
       >
         <div class="mb-2 flex items-center justify-between gap-2">
           <el-input
