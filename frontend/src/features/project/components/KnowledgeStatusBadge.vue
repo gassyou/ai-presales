@@ -22,12 +22,7 @@
     </span>
     <button
       type="button"
-      class="inline-flex h-8 items-center gap-1.5 rounded px-3 text-xs font-medium transition"
-      :class="store.ingesting === projectId
-        ? 'cursor-not-allowed bg-emerald-400 text-white'
-        : status?.isIndexed
-          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-          : 'bg-emerald-600 text-white hover:bg-emerald-700'"
+      class="inline-flex h-8 items-center gap-1.5 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
       :disabled="store.ingesting === projectId"
       @click="onIngest"
     >

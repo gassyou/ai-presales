@@ -29,11 +29,11 @@
     <header class="flex flex-wrap items-start justify-between gap-4">
       <div class="flex flex-col gap-1">
         <div class="flex items-center gap-2 text-xs text-slate-500">
-          <code class="rounded bg-surface-alt px-1.5 py-0.5">{{ project.code }}</code>
           <StatusBadge :status="project.status" />
-          <span>客户：{{ project.clientName }}</span>
+          <code class="rounded bg-surface-alt px-1.5 py-0.5">{{ project.code }}</code>
         </div>
         <h1 class="text-2xl font-semibold text-slate-900">{{ project.name }}</h1>
+        <span>客户：{{ project.clientName }}</span>
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
@@ -47,7 +47,7 @@
         </button>
         <button
           type="button"
-          class="inline-flex h-8 items-center gap-1.5 rounded bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700"
+          class="inline-flex h-8 items-center gap-1.5 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
           @click="onOpenEmail"
         >
           <span>发送邮件</span>
