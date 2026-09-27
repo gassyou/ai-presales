@@ -10,14 +10,17 @@
 -->
 <template>
   <section class="mx-auto flex h-full max-w-7xl flex-col gap-4 p-6">
-    <!-- Slogan：浅色商务卡（深色背景 + 浅文字 对比度差，改用 accent 渐变浅底 + 深字） -->
-    <div class="rounded-lg border border-border bg-gradient-to-r from-accent-soft via-white to-surface-alt px-5 py-6">
-      <h1 class="text-xl font-semibold text-slate-900">
-        让商机不再错过，让提案更有魅力，让成交更快到来。
-      </h1>
-      <p class="mt-1 text-sm text-slate-600">
-        AI 驱动的提案协助工作台
-      </p>
+    <!-- Slogan：浅色商务卡 + logo -->
+    <div class="flex items-center gap-4 rounded-lg border border-border bg-gradient-to-r from-accent-soft via-white to-surface-alt px-5 py-6">
+      <img src="/logo/logo.svg" alt="AI 售前智能平台" class="h-14 w-14 shrink-0" />
+      <div class="flex flex-col gap-1">
+        <h1 class="text-xl font-semibold text-slate-900">
+          让商机不再错过，让提案更有魅力，让成交更快到来。
+        </h1>
+        <p class="text-sm text-slate-600">
+          AI 驱动的提案协助工作台
+        </p>
+      </div>
     </div>
 
     <div v-if="store.error" class="rounded border border-rose-700 bg-rose-50 px-3 py-2 text-xs text-rose-700">

@@ -1,7 +1,7 @@
 {
   "name": "ai-presales",
   "version": "0.1.0",
-  "description": "AI 售前智能平台",
+  "description": "端点星-AI售前智能平台",
   "license": "UNLICENSED",
   "nodeModulesDir": "auto",
 
@@ -63,7 +63,16 @@
   },
 
   "desktop": {
-    "backend": "webview"
+    "backend": "webview",
+    "app": {
+      "name": "端点星-AI售前智能平台",
+      "identifier": "com.aipresales.desktop",
+      "icons": {
+        "macos": "./icons/app.icns",
+        "windows": "./icons/app.ico",
+        "linux": "./icons/app.png"
+      }
+    }
   },
 
   "lint": {

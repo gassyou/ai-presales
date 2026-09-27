@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 200" width="920" height="200" role="img" aria-label="端点星AI 智能售前平台">
+  <title>端点星AI 智能售前平台</title>
+  <defs>
+    <linearGradient id="bgGradH" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="55%" stop-color="#6D28D9"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="rayGradH" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#E0E7FF" stop-opacity="0.85"/>
+    </linearGradient>
+    <radialGradient id="coreGradH" cx="0.35" cy="0.32" r="0.85">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="60%" stop-color="#F5F3FF"/>
+      <stop offset="100%" stop-color="#C7D2FE"/>
+    </radialGradient>
+    <linearGradient id="wordGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1E1B4B"/>
+      <stop offset="100%" stop-color="#312E81"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ===== Icon ===== -->
+  <g id="icon" transform="translate(0,0) scale(0.78125)">
+    <rect x="0" y="0" width="256" height="256" rx="56" ry="56" fill="url(#bgGradH)"/>
+    <ellipse cx="92" cy="74" rx="120" ry="80" fill="#FFFFFF" opacity="0.07"/>
+    <g>
+      <polygon points="119.000,104.000 137.000,104.000 128.000,40.000" fill="url(#rayGradH)"/>
+    <polygon points="144.285,108.206 153.285,123.794 204.210,84.000" fill="url(#rayGradH)"/>
+    <polygon points="153.285,132.206 144.285,147.794 204.210,172.000" fill="url(#rayGradH)"/>
+    <polygon points="137.000,152.000 119.000,152.000 128.000,216.000" fill="url(#rayGradH)"/>
+    <polygon points="111.715,147.794 102.715,132.206 51.790,172.000" fill="url(#rayGradH)"/>
+    <polygon points="102.715,123.794 111.715,108.206 51.790,84.000" fill="url(#rayGradH)"/>
+    </g>
+    <g>
+      <circle cx="128.000" cy="32.000" r="5.5" fill="url(#rayGradH)"/>
+    <circle cx="211.138" cy="80.000" r="5.5" fill="url(#rayGradH)"/>
+    <circle cx="211.138" cy="176.000" r="5.5" fill="url(#rayGradH)"/>
+    <circle cx="128.000" cy="224.000" r="5.5" fill="url(#rayGradH)"/>
+    <circle cx="44.862" cy="176.000" r="5.5" fill="url(#rayGradH)"/>
+    <circle cx="44.862" cy="80.000" r="5.5" fill="url(#rayGradH)"/>
+    </g>
+    <circle cx="128" cy="128" r="22" fill="url(#coreGradH)"/>
+    <circle cx="122" cy="122" r="6" fill="#FFFFFF" opacity="0.55"/>
+  </g>
+
+  <!-- ===== Wordmark ===== -->
+  <g id="wordmark">
+    <text x="232" y="100"
+          font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif"
+          font-size="64" font-weight="800" fill="url(#wordGrad)" letter-spacing="-1">
+      端点星<tspan font-weight="900" fill="#4F46E5">AI</tspan>
+    </text>
+    <line x1="232" y1="118" x2="532" y2="118" stroke="#E0E7FF" stroke-width="1.5"/>
+    <text x="238" y="152"
+          font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif"
+          font-size="26" font-weight="500" fill="#64748B" letter-spacing="8">
+      智能售前平台
+    </text>
+  </g>
+</svg>

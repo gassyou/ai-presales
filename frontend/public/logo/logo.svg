@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="端点星AI logo">
+  <title>端点星AI 智能售前平台</title>
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="55%" stop-color="#6D28D9"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="rayGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#E0E7FF" stop-opacity="0.85"/>
+    </linearGradient>
+    <radialGradient id="coreGrad" cx="0.35" cy="0.32" r="0.85">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="60%" stop-color="#F5F3FF"/>
+      <stop offset="100%" stop-color="#C7D2FE"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 容器 -->
+  <rect x="0" y="0" width="256" height="256" rx="56" ry="56" fill="url(#bgGrad)"/>
+  <!-- 顶部柔光 -->
+  <ellipse cx="92" cy="74" rx="120" ry="80" fill="#FFFFFF" opacity="0.07"/>
+
+  <!-- 星芒 + 端点 -->
+  <g id="rays">
+    <polygon points="119.000,104.000 137.000,104.000 128.000,40.000" fill="url(#rayGrad)"/>
+    <polygon points="144.285,108.206 153.285,123.794 204.210,84.000" fill="url(#rayGrad)"/>
+    <polygon points="153.285,132.206 144.285,147.794 204.210,172.000" fill="url(#rayGrad)"/>
+    <polygon points="137.000,152.000 119.000,152.000 128.000,216.000" fill="url(#rayGrad)"/>
+    <polygon points="111.715,147.794 102.715,132.206 51.790,172.000" fill="url(#rayGrad)"/>
+    <polygon points="102.715,123.794 111.715,108.206 51.790,84.000" fill="url(#rayGrad)"/>
+  </g>
+  <g id="endpoints">
+    <circle cx="128.000" cy="32.000" r="5.5" fill="url(#rayGrad)"/>
+    <circle cx="211.138" cy="80.000" r="5.5" fill="url(#rayGrad)"/>
+    <circle cx="211.138" cy="176.000" r="5.5" fill="url(#rayGrad)"/>
+    <circle cx="128.000" cy="224.000" r="5.5" fill="url(#rayGrad)"/>
+    <circle cx="44.862" cy="176.000" r="5.5" fill="url(#rayGrad)"/>
+    <circle cx="44.862" cy="80.000" r="5.5" fill="url(#rayGrad)"/>
+  </g>
+
+  <!-- 中心节点 -->
+  <circle cx="128" cy="128" r="22" fill="url(#coreGrad)"/>
+  <circle cx="128" cy="128" r="22" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-opacity="0.4"/>
+  <circle cx="122" cy="122" r="6" fill="#FFFFFF" opacity="0.55"/>
+</svg>

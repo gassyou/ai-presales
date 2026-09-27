@@ -11,10 +11,9 @@
     class="flex h-10 shrink-0 items-center justify-between border-b border-border bg-white px-3 text-sm"
   >
     <div class="flex items-center gap-3">
-      <div class="flex items-center gap-1.5 text-slate-800">
-        <div class="h-2 w-2 rounded-full bg-accent" />
-        <span class="font-semibold">AI 售前智能平台</span>
-      </div>
+      <router-link :to="{ name: 'dashboard' }" class="flex items-center" title="端点星AI售前智能平台">
+        <img src="/logo/logo-horizontal.svg" alt="端点星AI售前智能平台" class="h-7" />
+      </router-link>
     </div>
 
     <div class="flex items-center gap-2">

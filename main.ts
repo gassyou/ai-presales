@@ -707,7 +707,7 @@ if (isDesktopMode) {
     };
   }).BrowserWindow;
   const win = new BrowserWindow({
-    title: "AI 提案协助",
+    title: "端点星",
     width: 1280,
     height: 800,
   });
