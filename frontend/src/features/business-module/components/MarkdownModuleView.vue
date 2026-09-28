@@ -1,14 +1,14 @@
 <!--
   MarkdownModuleView.vue
   =====================
-  通用 markdown 模块编辑器（阶段 7.3）。
+  通用 markdown 模块编辑器（阶段 7.3 + Bytemd 升级）。
 
   适用 11 个模块（业务现状/痛点/改善/构想/非功能/IT/风险/TO-BE/ROI/前提/硬件成本）。
   通过 props.kind 区分；后端用同一份 /markdown 端点。
 
   形态：
     - 顶部：标题 + 状态徽章 + AI 生成 / 下载 / 采用切换
-    - 主体：编辑（textarea）/ 预览（简单 markdown → HTML 渲染）切换
+    - 主体：MarkdownEditor（Bytemd 双栏 split，窄屏自动 tab）= 编辑 + 预览同页
     - 自动保存：编辑时 800ms debounce 后 PUT
 -->
 <template>
@@ -21,10 +21,6 @@
         </span>
       </h2>
       <div class="flex flex-wrap gap-2">
-        <el-radio-group v-model="mode" size="small">
-          <el-radio-button value="edit">编辑</el-radio-button>
-          <el-radio-button value="preview">预览</el-radio-button>
-        </el-radio-group>
         <el-button
           size="small"
           :disabled="generating"
@@ -52,19 +48,10 @@
 
     <p v-if="error" class="text-xs text-red-300">{{ error }}</p>
 
-    <el-input
-      v-if="mode === 'edit'"
+    <MarkdownEditor
       v-model="draft"
-      type="textarea"
-      :rows="14"
-      class="!font-mono"
       :placeholder="`编辑 ${title}…`"
-      @input="onDraftChange"
     />
-    <div
-      v-else
-      class="min-h-[200px] whitespace-pre-wrap rounded border border-border bg-white/50 p-3 text-xs text-slate-800"
-    >{{ draft || "（暂无内容）" }}</div>
 
     <p v-if="saving" class="text-[10px] text-slate-500">保存中…</p>
     <p v-else-if="lastSavedAt" class="text-[10px] text-emerald-400">
@@ -78,6 +65,7 @@ import { onMounted, ref, watch } from "vue";
 import { markdownModuleApi, type MarkdownModuleResult } from "../api/markdown-module.api.ts";
 import type { BusinessModuleKind } from "@backend/domain/business-module/business-module.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
+import MarkdownEditor from "@frontend/shared/ui/MarkdownEditor.vue";
 
 const props = defineProps<{
   projectId: string;
@@ -87,7 +75,6 @@ const props = defineProps<{
 
 const item = ref<MarkdownModuleResult | null>(null);
 const draft = ref<string>("");
-const mode = ref<"edit" | "preview">("edit");
 const error = ref<string | null>(null);
 const saving = ref(false);
 const lastSavedAt = ref<Date | null>(null);
@@ -132,7 +119,7 @@ async function load(): Promise<void> {
   }
 }
 
-function onDraftChange(): void {
+function scheduleSave(): void {
   if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     if (!item.value) return;
@@ -190,6 +177,12 @@ function onDownload(): void {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// 监听 draft 变化触发 debounce 自动保存（Bytemd 通过 v-model 改 draft）
+watch(draft, () => {
+  if (!item.value) return; // 首次 load 未完成前不保存
+  scheduleSave();
+});
 
 watch(() => [props.projectId, props.kind], () => {
   void load();

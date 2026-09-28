@@ -1,16 +1,16 @@
 <!--
   CustomPageEditor.vue
   =====================
-  单个自定义页面编辑器（阶段 7.4d）。
+  单个自定义页面编辑器（阶段 7.4d + Bytemd 升级）。
 
   与 MarkdownModuleView 的差异：
     - props 是 itemId + title（不是 projectId + kind）
     - 没有 status badge / 采用切换（自定义页面始终 pending）
     - 操作：AI 生成 / 下载 / 删除
 
- 形态（复用 markdown 视图的 Tailwind 类 + 800ms debounce）：
+  形态：
     - 顶部：标题 + 状态 + AI 生成 / 下载 / 删除
-    - 主体：编辑（textarea）/ 预览切换
+    - 主体：MarkdownEditor（Bytemd 双栏 split，窄屏自动 tab）= 编辑 + 预览同页
 -->
 <template>
   <div class="rounded border border-border bg-white/40 p-3">
@@ -23,10 +23,6 @@
         >{{ statusLabel(item.status) }}</span>
       </h4>
       <div class="flex flex-wrap gap-2">
-        <el-radio-group v-model="mode" size="small">
-          <el-radio-button value="edit">编辑</el-radio-button>
-          <el-radio-button value="preview">预览</el-radio-button>
-        </el-radio-group>
         <el-button
           size="small"
           :disabled="generating"
@@ -43,19 +39,10 @@
 
     <p v-if="error" class="mb-2 text-xs text-red-300">{{ error }}</p>
 
-    <el-input
-      v-if="mode === 'edit'"
+    <MarkdownEditor
       v-model="draft"
-      type="textarea"
-      :rows="10"
-      class="!font-mono"
       :placeholder="`编辑 ${title} 的内容…`"
-      @input="onDraftChange"
     />
-    <div
-      v-else
-      class="min-h-[160px] whitespace-pre-wrap rounded border border-border bg-white/50 p-3 text-xs text-slate-800"
-    >{{ draft || "（暂无内容）" }}</div>
 
     <p v-if="saving" class="mt-1 text-[10px] text-slate-500">保存中…</p>
     <p v-else-if="lastSavedAt" class="mt-1 text-[10px] text-emerald-400">
@@ -69,6 +56,7 @@ import { onMounted, ref, watch } from "vue";
 import { businessModuleApi } from "../api/business-module.api.ts";
 import type { BusinessModuleItemDTO } from "@shared/types/dto/business-module.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
+import MarkdownEditor from "@frontend/shared/ui/MarkdownEditor.vue";
 
 const props = defineProps<{
   projectId: string;
@@ -83,7 +71,6 @@ const emit = defineEmits<{
 
 const item = ref<BusinessModuleItemDTO | null>(null);
 const draft = ref<string>("");
-const mode = ref<"edit" | "preview">("edit");
 const error = ref<string | null>(null);
 const saving = ref(false);
 const lastSavedAt = ref<Date | null>(null);
@@ -115,7 +102,7 @@ async function load(): Promise<void> {
   }
 }
 
-function onDraftChange(): void {
+function scheduleSave(): void {
   if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     saving.value = true;
@@ -184,6 +171,12 @@ function errMsg(e: unknown): string {
     ? e.message
     : String(e);
 }
+
+// 监听 draft 变化触发 debounce 自动保存（Bytemd 通过 v-model 改 draft）
+watch(draft, () => {
+  if (!item.value) return; // 首次 load 未完成前不保存
+  scheduleSave();
+});
 
 watch(() => props.itemId, () => {
   void load();
