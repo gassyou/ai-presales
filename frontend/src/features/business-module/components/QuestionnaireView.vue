@@ -1,23 +1,20 @@
 <!--
   QuestionnaireView.vue
   =====================
-  「调查问卷」主组件（阶段 7.2）。
+  「调查问卷」主组件（阶段 7.2 + 重构）。
 
-  两种展现方式（需求文档第 5 条）：
+  三种展现方式（需求文档第 5 条）：
     1. 便签贴式 —— 按 outlinePath 分组的卡片，每张卡片显示问题标题
     2. 回答模式 —— 双栏：左列问题列表（含增/删/复制）；右列：问题显示区 + 回答输入区
-
-  顶部操作：
-    - 编辑脑图大纲（抽屉式）
-    - 一键从脑图生成初始问题
-    - 下载 Word（markdown 格式）
+    3. 脑图模式 —— **脑图直接在主区编辑**（不再是抽屉）。vue3-mindmap 的
+       双击/右键/拖拽即可增删改节点；800ms debounce 后 PUT 到后端。
 
   数据：
     - 大纲 + 问题 通过 surveyQuestionnaireApi
     - 状态本地管理；保存回答走 PATCH（debounce 500ms）
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="card flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">
         调查问卷
@@ -26,19 +23,16 @@
         </span>
       </h2>
       <div class="flex flex-wrap gap-2">
-        <el-button size="small" @click="openOutlineEditor">
-          {{ outline ? "编辑脑图" : "创建脑图大纲" }}
-        </el-button>
         <el-button
-          v-if="outline"
+          v-if="viewMode !== 'mindmap'"
           size="small"
-          :disabled="!outline.mindmap"
+          :disabled="!outline"
           @click="onBatchFromMindmap"
         >
           从脑图生成问题
         </el-button>
         <el-button
-          v-if="questions.length > 0"
+          v-if="questions.length > 0 && viewMode !== 'mindmap'"
           size="small"
           @click="onDownload"
         >
@@ -47,44 +41,70 @@
         <el-radio-group v-model="viewMode" size="small">
           <el-radio-button value="sticky">便签贴式</el-radio-button>
           <el-radio-button value="answer">回答模式</el-radio-button>
+          <el-radio-button value="mindmap">脑图</el-radio-button>
         </el-radio-group>
       </div>
     </header>
 
     <p v-if="error" class="text-xs text-red-300">{{ error }}</p>
-    <p v-else-if="!outline" class="text-xs text-slate-500">
-      暂无大纲。点击右上角"创建脑图大纲"开始。
-    </p>
+
+    <!-- 视图：脑图（直接在主区编辑；首次进入若无大纲则一键创建根节点） -->
+    <div v-if="viewMode === 'mindmap'" class="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
+      <div class="rounded border border-border bg-amber-50/50 p-2 text-[11px] text-slate-600">
+        <span class="font-medium text-slate-700">操作：</span>
+        双击节点改名 / 右键节点弹出菜单（＋子 / ⎁兄弟 / ←→ 调层级 / ✕删除 / 复制粘贴）/
+        拖拽节点 / 滚轮缩放 / 右上角撤销重做
+        <span class="ml-2 text-slate-500">
+          {{ outlineSaveStatus }}
+        </span>
+      </div>
+      <div class="flex-1 overflow-hidden rounded border border-border bg-white/30">
+        <MindmapEditor
+          v-if="outlineDraft"
+          :nodes="outlineDraft.children"
+          @update:nodes="onOutlineNodesChange"
+        />
+        <div v-else class="flex h-full items-center justify-center">
+          <el-button type="primary" @click="initOutlineDraft">+ 创建脑图根节点</el-button>
+        </div>
+      </div>
+      <p v-if="outline && questions.length > 0" class="text-[11px] text-slate-500">
+        当前脑图关联的问题：{{ questions.length }} 题。
+        <el-button link type="primary" size="small" @click="viewMode = 'sticky'">查看便签贴</el-button>
+      </p>
+    </div>
 
     <!-- 视图：便签贴式 -->
-    <div v-if="viewMode === 'sticky'" class="space-y-3">
-      <div
-        v-for="group in groupedQuestions"
-        :key="group.path"
-        class="flex flex-col gap-2"
-      >
-        <h3 class="text-xs font-medium text-slate-600">{{ group.path || "（未分组）" }}</h3>
-        <ul class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-          <li
-            v-for="q in group.items"
-            :key="q.id"
-            class="rounded border border-border bg-amber-50 p-3 text-xs text-slate-800"
-          >
-            <div class="font-medium">{{ q.title }}</div>
-            <div v-if="q.answer" class="mt-1 whitespace-pre-wrap text-slate-600">
-              答：{{ q.answer }}
-            </div>
-            <div class="mt-2 flex justify-end">
-              <el-button link type="danger" size="small" @click="onDeleteQuestion(q.id)">删除</el-button>
-            </div>
-          </li>
-        </ul>
+    <div v-else-if="viewMode === 'sticky'" class="flex-1 min-h-0 overflow-auto">
+      <div v-if="questions.length === 0" class="rounded border border-dashed border-border bg-white/30 p-4 text-center text-xs text-slate-500">
+        还没有问题。点击「从脑图生成问题」批量生成占位问题，或手动添加。
       </div>
-      <p v-if="questions.length === 0" class="text-xs text-slate-500">
-        还没有问题。点击"从脑图生成问题"批量生成占位问题，或手动添加。
-      </p>
+      <div v-else class="space-y-3">
+        <div
+          v-for="group in groupedQuestions"
+          :key="group.path"
+          class="flex flex-col gap-2"
+        >
+          <h3 class="text-xs font-medium text-slate-600">{{ group.path || "（未分组）" }}</h3>
+          <ul class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+            <li
+              v-for="q in group.items"
+              :key="q.id"
+              class="rounded border border-border bg-amber-50 p-3 text-xs text-slate-800"
+            >
+              <div class="font-medium">{{ q.title }}</div>
+              <div v-if="q.answer" class="mt-1 whitespace-pre-wrap text-slate-600">
+                答：{{ q.answer }}
+              </div>
+              <div class="mt-2 flex justify-end">
+                <el-button link type="danger" size="small" @click="onDeleteQuestion(q.id)">删除</el-button>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
       <el-button
-        v-if="outline"
+        v-if="outline && questions.length > 0"
         class="self-start"
         size="small"
         @click="onAddManualQuestion"
@@ -94,7 +114,7 @@
     </div>
 
     <!-- 视图：回答模式（双栏） -->
-    <div v-else-if="viewMode === 'answer'" class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+    <div v-else-if="viewMode === 'answer'" class="grid flex-1 min-h-0 grid-cols-1 gap-3 overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <!-- 左：列表 -->
       <aside class="flex flex-col gap-1">
         <div class="flex items-center justify-between text-xs text-slate-600">
@@ -175,34 +195,6 @@
         <p v-else class="text-xs text-slate-500">左侧选中一个问题查看详情。</p>
       </main>
     </div>
-
-    <!-- 大纲编辑器抽屉 -->
-    <el-drawer
-      v-model="showOutlineEditor"
-      title="编辑脑图大纲"
-      direction="rtl"
-      size="600px"
-      :close-on-click-modal="false"
-    >
-      <div class="flex flex-col gap-3">
-        <p class="text-xs text-slate-500">
-          双击节点改名 · 右键节点弹出菜单（＋子 / ⎁兄弟 / ←→ 调层级 / ✕删除 / 复制粘贴）·
-          拖拽节点调整层级 · 右上角撤销重做 / 缩放 / 居中
-        </p>
-        <MindmapEditor
-          v-if="outlineDraft"
-          :nodes="outlineDraft.children"
-          @update:nodes="onOutlineNodesChange"
-        />
-        <div v-else>
-          <el-button size="small" @click="initOutlineDraft">+ 创建根节点</el-button>
-        </div>
-        <div class="flex justify-end gap-2 border-t border-border pt-3">
-          <el-button @click="closeOutlineEditor">取消</el-button>
-          <el-button type="primary" @click="saveOutlineDraft">保存大纲</el-button>
-        </div>
-      </div>
-    </el-drawer>
   </section>
 </template>
 
@@ -221,9 +213,19 @@ const props = defineProps<{ projectId: string }>();
 const outline = ref<{ id: string; mindmap: MindmapNode | null } | null>(null);
 const questions = ref<QuestionDTO[]>([]);
 const error = ref<string | null>(null);
-const viewMode = ref<"sticky" | "answer">("sticky");
-const showOutlineEditor = ref(false);
+const viewMode = ref<"sticky" | "answer" | "mindmap">("sticky");
+
+/** 脑图草稿（vue3-mindmap 在主区直接编辑的对象）。debounce 后 PUT 到后端 */
 const outlineDraft = ref<MindmapNode | null>(null);
+const savingOutline = ref(false);
+const lastSavedOutlineAt = ref<Date | null>(null);
+let outlineTimer: number | null = null;
+
+const outlineSaveStatus = computed<string>(() => {
+  if (savingOutline.value) return "保存中…";
+  if (lastSavedOutlineAt.value) return `已保存 ${formatRelative(lastSavedOutlineAt.value)}`;
+  return "";
+});
 
 // 回答模式
 const selectedId = ref<string | null>(null);
@@ -258,6 +260,10 @@ async function loadAll(): Promise<void> {
   try {
     const o = await surveyQuestionnaireApi.getOutline(props.projectId);
     outline.value = o.outline ? { id: o.outline.id, mindmap: o.outline.mindmap } : null;
+    // 进入脑图模式时初始化草稿
+    outlineDraft.value = outline.value?.mindmap
+      ? JSON.parse(JSON.stringify(outline.value.mindmap)) as MindmapNode
+      : null;
     if (outline.value) {
       const q = await surveyQuestionnaireApi.listQuestions(props.projectId);
       questions.value = q.questions;
@@ -275,46 +281,41 @@ async function loadAll(): Promise<void> {
   }
 }
 
-function openOutlineEditor(): void {
-  outlineDraft.value = outline.value?.mindmap
-    ? JSON.parse(JSON.stringify(outline.value.mindmap)) as MindmapNode
-    : null;
-  showOutlineEditor.value = true;
-}
-
-function closeOutlineEditor(): void {
-  showOutlineEditor.value = false;
-}
-
 function initOutlineDraft(): void {
   outlineDraft.value = {
     id: crypto.randomUUID(),
     text: "调查主题",
     children: [],
   };
+  scheduleOutlineSave();
 }
 
-function onOutlineNodesChange(nodes: MindmapNode[]): void {
-  // MindmapEditor emits the new top-level children list; copy into outlineDraft
-  if (outlineDraft.value) {
-    outlineDraft.value.children = nodes;
-  }
+function onOutlineNodesChange(_nodes: MindmapNode[]): void {
+  // MindmapEditor 已 emit 出新的 children 列表，sync 进 outlineDraft
+  // （父组件不做额外转换；MindmapEditor 内部已与后端 schema 对齐）
+  scheduleOutlineSave();
 }
 
-async function saveOutlineDraft(): Promise<void> {
-  if (!outlineDraft.value) {
-    showOutlineEditor.value = false;
-    return;
-  }
-  try {
-    const saved = await surveyQuestionnaireApi.saveOutline(props.projectId, outlineDraft.value);
-    outline.value = { id: saved.id, mindmap: saved.mindmap };
-    showOutlineEditor.value = false;
-  } catch (e) {
-    error.value = e instanceof ApiError
-      ? `${e.envelope.code}: ${e.envelope.message}`
-      : (e instanceof Error ? e.message : String(e));
-  }
+function scheduleOutlineSave(): void {
+  if (outlineTimer !== null) clearTimeout(outlineTimer);
+  outlineTimer = setTimeout(async () => {
+    const draft = outlineDraft.value;
+    if (!draft) return;
+    savingOutline.value = true;
+    try {
+      const saved = await surveyQuestionnaireApi.saveOutline(props.projectId, draft);
+      outline.value = { id: saved.id, mindmap: saved.mindmap };
+      // 用服务端返回值回填，避免与 vue3-mindmap 内部格式偏离
+      outlineDraft.value = JSON.parse(JSON.stringify(saved.mindmap)) as MindmapNode;
+      lastSavedOutlineAt.value = new Date();
+    } catch (e) {
+      error.value = e instanceof ApiError
+        ? `${e.envelope.code}: ${e.envelope.message}`
+        : (e instanceof Error ? e.message : String(e));
+    } finally {
+      savingOutline.value = false;
+    }
+  }, 800) as unknown as number;
 }
 
 async function onBatchFromMindmap(): Promise<void> {
@@ -437,6 +438,7 @@ watch(selected, (s) => {
 watch(() => props.projectId, () => {
   selectedId.value = null;
   answerDraft.value = "";
+  if (outlineTimer !== null) clearTimeout(outlineTimer);
   void loadAll();
 });
 

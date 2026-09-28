@@ -57,11 +57,10 @@
       @change-cp="onChangeCp"
       @cell-edit="onCellEdit"
     />
-    <FunctionListMindmap
+    <FunctionListMindmapEditor
       v-else-if="viewMode === 'mindmap'"
       :items="filtered"
-      @toggle-scope="onToggleScope"
-      @change-cp="onChangeCp"
+      :project-id="projectId"
     />
     <FunctionListCards
       v-else
@@ -128,7 +127,7 @@ import { computed, onMounted, ref } from "vue";
 import { useBudgetStore } from "../stores/budget.store.ts";
 import { CP_VALUES, structuredModulesApi, type FunctionListInput } from "../api/structured-modules.api.ts";
 import FunctionListTable from "./FunctionListTable.vue";
-import FunctionListMindmap from "./FunctionListMindmap.vue";
+import FunctionListMindmapEditor from "./FunctionListMindmapEditor.vue";
 import FunctionListCards from "./FunctionListCards.vue";
 import SummaryCell from "./SummaryCell.vue";
 import {
