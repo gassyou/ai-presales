@@ -209,6 +209,22 @@ export function createApp(deps: AppDeps): App {
   }
 
   async function routeApi(req: Request, path: string, url: URL): Promise<Response> {
+    // markdown_* 模块专用端点必须最早拦截——前面有 /api/projects/ 通配和 /modules/ 通配会吞掉它
+    // 路径：/api/projects/:id/modules/:markdownKind/markdown[/action]
+    const markdownPathMatch = /^\/api\/projects\/([^/]+)\/modules\/markdown_[^/]+\/markdown/.test(path);
+    if (markdownPathMatch) {
+      if (!deps.markdownModuleService) {
+        return new Response(
+          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "markdown module service not wired", traceId: "" }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      const mDeps: MarkdownModuleRouteDeps = {
+        service: deps.markdownModuleService,
+        logger,
+      };
+      return await handleMarkdownModule(req, mDeps, path);
+    }
     if (path === "/api/health") {
       return await healthHandler(req, healthDeps);
     }
@@ -266,6 +282,105 @@ export function createApp(deps: AppDeps): App {
         }
         return await handleQuoteTemplates(req, deps.quoteTemplatesRoute, url);
       }
+      // 阶段 7.x：业务模块（activity / survey_task / custom / use_case ...）
+      // 必须在 handleProjects 之前拦截，否则 /api/projects/ 通配会吞掉 /modules/* 路径
+      if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/modules\//.test(path)) {
+        if (!deps.businessModuleService) {
+          return new Response(
+            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "business module service not wired", traceId: "" }),
+            { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+          );
+        }
+        const bmDeps: BusinessModuleRouteDeps = {
+          service: deps.businessModuleService,
+          logger,
+          ...(deps.surveyTaskUseCase ? { surveyTaskUseCase: deps.surveyTaskUseCase } : {}),
+          ...(deps.structuredModulesUseCase ? { structuredModulesUseCase: deps.structuredModulesUseCase } : {}),
+        };
+        return await handleBusinessModule(req, bmDeps, path);
+      }
+      // 阶段 7.4a–7.4f：knowledge / questionnaire / structured / budget / ppt 等其他子资源
+      // 必须在 handleProjects 之前拦截，否则被 projects 通配吃掉
+      const projectScopedSub =
+        /^\/api\/projects\/[0-9a-fA-F-]{36}\/(knowledge|questionnaire|use-cases|deliverables|reviews|budget-settings|budget-summary|ppt\/pages)(\/|$)/;
+      if (projectScopedSub.test(path)) {
+        // knowledge
+        if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/knowledge\//.test(path)) {
+          if (!deps.knowledgeRoute) {
+            return new Response(
+              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "knowledge service not wired", traceId: "" }),
+              { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+            );
+          }
+          return await handleKnowledge(req, deps.knowledgeRoute, path);
+        }
+        // questionnaire
+        if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/questionnaire\//.test(path)) {
+          if (!deps.surveyQuestionnaireUseCase) {
+            return new Response(
+              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "survey questionnaire use case not wired", traceId: "" }),
+              { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+            );
+          }
+          const qDeps: SurveyQuestionnaireRouteDeps = {
+            useCase: deps.surveyQuestionnaireUseCase,
+            logger,
+          };
+          return await handleSurveyQuestionnaire(req, qDeps, path);
+        }
+        // structured modules: use-cases / deliverables / reviews
+        if (
+          /^\/api\/projects\/[0-9a-fA-F-]{36}\/use-cases(\/|$)/.test(path) ||
+          /^\/api\/projects\/[0-9a-fA-F-]{36}\/deliverables(\/|$)/.test(path) ||
+          /^\/api\/projects\/[0-9a-fA-F-]{36}\/reviews(\/|$)/.test(path)
+        ) {
+          if (!deps.structuredModulesUseCase) {
+            return new Response(
+              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "structured modules use case not wired", traceId: "" }),
+              { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+            );
+          }
+          const sDeps: StructuredModulesRouteDeps = {
+            useCase: deps.structuredModulesUseCase,
+            logger,
+          };
+          return await handleStructuredModules(req, sDeps, path);
+        }
+        // budget
+        if (
+          /^\/api\/projects\/[0-9a-fA-F-]{36}\/budget-settings(\/|$)/.test(path) ||
+          /^\/api\/projects\/[0-9a-fA-F-]{36}\/budget-summary(\/|$)/.test(path)
+        ) {
+          if (!deps.structuredModulesUseCase) {
+            return new Response(
+              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "structured modules use case not wired", traceId: "" }),
+              { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+            );
+          }
+          const bDeps: BudgetRouteDeps = {
+            useCase: deps.structuredModulesUseCase,
+            logger,
+          };
+          return await handleBudget(req, bDeps, path);
+        }
+        // ppt/pages
+        if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/ppt\/pages(\/|$)/.test(path)) {
+          if (!deps.pptUseCase || !deps.clientResolver) {
+            return new Response(
+              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "ppt use case not wired", traceId: "" }),
+              { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+            );
+          }
+          const pDeps: PptRouteDeps = {
+            useCase: deps.pptUseCase,
+            logger,
+            config: deps.config,
+            clientResolver: deps.clientResolver,
+            defaultProfileName: deps.config.defaultProfile,
+          };
+          return await handlePpt(req, pDeps, path);
+        }
+      }
       if (!projectRouteDeps) {
         return new Response(
           JSON.stringify({ code: "NOT_IMPLEMENTED", message: "project service not wired", traceId: "" }),
@@ -273,6 +388,33 @@ export function createApp(deps: AppDeps): App {
         );
       }
       return await handleProjects(req, projectRouteDeps, url);
+    }
+    // 阶段 7.0+：单条业务模块操作 (/api/modules/items/{id}[/action])
+    // 与 /api/projects/{id}/modules/... 共享同一 handler，但路径以 item id 寻址
+    if (/^\/api\/modules\/items\//.test(path)) {
+      if (!deps.businessModuleService) {
+        return new Response(
+          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "business module service not wired", traceId: "" }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      const bmDeps: BusinessModuleRouteDeps = {
+        service: deps.businessModuleService,
+        logger,
+        ...(deps.surveyTaskUseCase ? { surveyTaskUseCase: deps.surveyTaskUseCase } : {}),
+        ...(deps.structuredModulesUseCase ? { structuredModulesUseCase: deps.structuredModulesUseCase } : {}),
+      };
+      return await handleBusinessModule(req, bmDeps, path);
+    }
+    // 阶段 7.4f：硬件单条 (/api/modules/hardware-items/{id})
+    if (/^\/api\/modules\/hardware-items\/[0-9a-fA-F-]{36}/.test(path)) {
+      if (!deps.hardwareItemsRoute) {
+        return new Response(
+          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "hardware items service not wired", traceId: "" }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      return await handleHardwareItems(req, deps.hardwareItemsRoute, url);
     }
     if (path === "/api/ai/chat") {
       if (!aiRouteDeps) {
@@ -310,21 +452,6 @@ export function createApp(deps: AppDeps): App {
       }
       return await handleKnowledge(req, deps.knowledgeRoute, path);
     }
-    if (path.includes("/modules/")) {
-      if (!deps.businessModuleService) {
-        return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "business module service not wired", traceId: "" }),
-          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
-        );
-      }
-      const bmDeps: BusinessModuleRouteDeps = {
-        service: deps.businessModuleService,
-        logger,
-        ...(deps.surveyTaskUseCase ? { surveyTaskUseCase: deps.surveyTaskUseCase } : {}),
-        ...(deps.structuredModulesUseCase ? { structuredModulesUseCase: deps.structuredModulesUseCase } : {}),
-      };
-      return await handleBusinessModule(req, bmDeps, path);
-    }
     if (path.includes("/questionnaire/")) {
       if (!deps.surveyQuestionnaireUseCase) {
         return new Response(
@@ -337,21 +464,6 @@ export function createApp(deps: AppDeps): App {
         logger,
       };
       return await handleSurveyQuestionnaire(req, qDeps, path);
-    }
-    // markdown_* 模块专用端点：/api/projects/:id/modules/:markdownKind/markdown[/action]
-    const markdownPathMatch = /^\/api\/projects\/([^/]+)\/modules\/markdown_[^/]+\/markdown/.test(path);
-    if (markdownPathMatch) {
-      if (!deps.markdownModuleService) {
-        return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "markdown module service not wired", traceId: "" }),
-          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
-        );
-      }
-      const mDeps: MarkdownModuleRouteDeps = {
-        service: deps.markdownModuleService,
-        logger,
-      };
-      return await handleMarkdownModule(req, mDeps, path);
     }
     // 阶段 7.4a：结构化模块（用例 / 交付物 / Review）
     if (
