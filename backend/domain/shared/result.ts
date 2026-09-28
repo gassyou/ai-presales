@@ -25,6 +25,8 @@ export type DomainErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "ILLEGAL_STATE_TRANSITION"
+  | "NOT_IMPLEMENTED"
+  | "ABORTED"
   | "INTERNAL";
 
 export interface DomainError {

@@ -59,6 +59,10 @@ function mapDomainError(code: DomainErrorCode): { status: number; code: ErrorCod
       return { status: 409, code: ErrorCode.CONFLICT };
     case "INVARIANT_VIOLATED":
       return { status: 422, code: ErrorCode.VALIDATION_FAILED };
+    case "ABORTED":
+      return { status: 499, code: ErrorCode.INTERNAL };
+    case "NOT_IMPLEMENTED":
+      return { status: 501, code: ErrorCode.INTERNAL };
     case "INTERNAL":
       return { status: 500, code: ErrorCode.INTERNAL };
   }
