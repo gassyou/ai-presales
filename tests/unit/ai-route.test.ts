@@ -71,7 +71,7 @@ Deno.test("ai chat —— happy path (anthropic)", async () => {
     usage: { input_tokens: 5, output_tokens: 5 },
   });
   const client: ILLMClient = new AnthropicClient({ apiKey: "x", model: "x", transport: t });
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => client };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => client };
   const res = await handleAiChat(makeRequest({ profile: "fast", messages: [{ role: "user", content: "hi" }] }), deps);
   assertEquals(res.status, 200);
   const body = await res.json() as { content: Array<{ type: string; text?: string }>; stopReason: string };
@@ -87,13 +87,13 @@ Deno.test("ai chat —— happy path (openai)", async () => {
     usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
   });
   const client: ILLMClient = new OpenAIClient({ apiKey: "x", model: "x", transport: t });
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => client };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => client };
   const res = await handleAiChat(makeRequest({ profile: "local", messages: [{ role: "user", content: "hi" }] }), deps);
   assertEquals(res.status, 200);
 });
 
 Deno.test("ai chat —— 未知 profile → 400 VALIDATION_FAILED", async () => {
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => { throw new Error("no"); } };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => { throw new Error("no"); } };
   const res = await handleAiChat(makeRequest({ profile: "nope", messages: [{ role: "user", content: "x" }] }), deps);
   assertEquals(res.status, 400);
   const body = await res.json() as { code: string };
@@ -101,13 +101,13 @@ Deno.test("ai chat —— 未知 profile → 400 VALIDATION_FAILED", async () =>
 });
 
 Deno.test("ai chat —— 缺 messages → 400", async () => {
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => { throw new Error("no"); } };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => { throw new Error("no"); } };
   const res = await handleAiChat(makeRequest({ profile: "fast" }), deps);
   assertEquals(res.status, 400);
 });
 
 Deno.test("ai chat —— resolver 抛错 → 400", async () => {
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => { throw new Error("api key missing"); } };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => { throw new Error("api key missing"); } };
   const res = await handleAiChat(makeRequest({ profile: "fast", messages: [{ role: "user", content: "x" }] }), deps);
   assertEquals(res.status, 400);
 });
@@ -116,7 +116,7 @@ Deno.test("ai chat —— 上游 401 → 401 LLM_AUTH_FAILED", async () => {
   const t = new FakeTransport();
   t.reply("https://api.anthropic.com/v1/messages", 401, { message: "bad key" });
   const client = new AnthropicClient({ apiKey: "x", model: "x", transport: t });
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => client };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => client };
   const res = await handleAiChat(makeRequest({ profile: "fast", messages: [{ role: "user", content: "x" }] }), deps);
   assertEquals(res.status, 401);
   const body = await res.json() as { code: string };
@@ -127,19 +127,19 @@ Deno.test("ai chat —— 上游 429 → 429 LLM_RATE_LIMIT", async () => {
   const t = new FakeTransport();
   t.reply("https://api.anthropic.com/v1/messages", 429, { message: "slow down" });
   const client = new AnthropicClient({ apiKey: "x", model: "x", transport: t });
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => client };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => client };
   const res = await handleAiChat(makeRequest({ profile: "fast", messages: [{ role: "user", content: "x" }] }), deps);
   assertEquals(res.status, 429);
 });
 
 Deno.test("ai chat —— GET 方法 → 405", async () => {
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => { throw new Error("no"); } };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => { throw new Error("no"); } };
   const res = await handleAiChat(new Request("http://x/api/ai/chat", { method: "GET" }), deps);
   assertEquals(res.status, 405);
 });
 
 Deno.test("ai chat —— 无效 JSON body → 400", async () => {
-  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: () => { throw new Error("no"); } };
+  const deps = { logger: makeLogger(), config: makeConfig(), clientResolver: async () => { throw new Error("no"); } };
   const req = new Request("http://x/api/ai/chat", {
     method: "POST",
     headers: { "content-type": "application/json" },

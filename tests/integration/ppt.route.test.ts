@@ -117,7 +117,7 @@ async function setup(opts?: { mockText?: string }): Promise<{
     useCase,
     logger: makeLogger(),
     config: makeConfig(),
-    clientResolver: (_p) => client,
+    clientResolver: async (_p) => client,
     defaultProfileName: "fast",
   };
   return {

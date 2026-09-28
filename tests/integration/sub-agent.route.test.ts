@@ -86,7 +86,7 @@ function makeDeps(opts?: { text?: string; agentName?: string; toolName?: string 
     logger: makeLogger(),
     registry: reg,
     toolRegistry: toolReg,
-    clientResolver: () => makeFakeClient(text),
+    clientResolver: async () => makeFakeClient(text),
     cwd: Deno.cwd(),
     allowedPaths: [],
     defaultProfileName: "fast",

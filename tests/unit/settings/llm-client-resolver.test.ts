@@ -16,7 +16,6 @@ import type { ILLMClient } from "@backend/ai/client/llm-client.ts";
 function makeFakeClient(name: string): ILLMClient {
   return {
     provider: "anthropic",
-    model: name,
     async chat() {
       return {
         message: {
@@ -26,6 +25,18 @@ function makeFakeClient(name: string): ILLMClient {
           stopReason: "stop" as const,
           usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
         },
+      };
+    },
+    async *stream() {
+      yield { type: "done", messageId: "msg-1", usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } };
+    },
+    capabilities() {
+      return {
+        provider: "anthropic" as const,
+        supportsTools: true,
+        supportsStructuredOutput: false,
+        supportsStreaming: true,
+        contextWindow: 200000,
       };
     },
   };
