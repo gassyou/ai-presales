@@ -13,6 +13,8 @@ import { ListFilesTool } from "./builtin/list-files.tool.ts";
 import { ReadFileTool } from "./builtin/read-file.tool.ts";
 import { SearchKnowledgeTool, type SearchKnowledgeToolDeps } from "./builtin/search-knowledge.tool.ts";
 import { ReadModuleTool, type ReadModuleToolDeps } from "./builtin/read-module.tool.ts";
+import { buildWriteableTools, type WriteableToolsDeps } from "./builtin/writeable-tools.ts";
+import type { Tool } from "./tool.ts";
 
 export interface BuildBuiltinToolRegistryOptions {
   /** 注入 read_module 依赖；不传则不注册该工具 */
@@ -31,6 +33,19 @@ export function buildBuiltinToolRegistry(opts: BuildBuiltinToolRegistryOptions =
     r.register(new ReadModuleTool(opts.readModule));
   }
   return r;
+}
+
+/**
+ * 阶段 H：往一个已存在的 registry 上追加 7 个写工具
+ * 拆出来便于 main.ts 单独 wire（写工具需要 service 依赖）。
+ */
+export function registerWriteableTools(
+  registry: ToolRegistry,
+  deps: WriteableToolsDeps,
+): Tool[] {
+  const tools = buildWriteableTools(deps);
+  for (const t of tools) registry.register(t);
+  return tools;
 }
 
 // 向后兼容的 const 引用（测试 / 旧调用方）

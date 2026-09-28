@@ -47,20 +47,22 @@ async function seedBuiltins(repo: SqliteSystemSettingRepository, clock: Clock): 
   await repo.seedIfEmpty("agents.specs" as Parameters<typeof repo.seedIfEmpty>[0], { specs }, clock);
 }
 
-Deno.test("SqliteBackedSubAgentRegistry — seed 后 list 包含 6 个 builtin", async () => {
+Deno.test("SqliteBackedSubAgentRegistry — seed 后 list 包含 7 个 builtin", async () => {
   const { repo, registry, clock, tmpRoot } = await setup();
   try {
     await seedBuiltins(repo, clock);
     await registry.refreshSyncCacheAsync();
     const names = registry.names();
-    // 阶段 7.5（H4）新增 markdown-author，故总数从 5 增至 6
-    assertEquals(names.length, 6);
+    // 阶段 7.5（H4）新增 markdown-author，故总数从 5 增至 6；
+    // 阶段 H 新增 project-editor，故 7。
     assert(names.includes("project-creator"));
     assert(names.includes("survey-researcher"));
     assert(names.includes("proposal-drafter"));
     assert(names.includes("ppt-designer"));
     assert(names.includes("business-email-writer"));
     assert(names.includes("markdown-author"));
+    assert(names.includes("project-editor"));
+    assertEquals(names.length, 7);
   } finally {
     SqliteBackedSubAgentRegistry.clearCacheForTests();
     await Deno.remove(tmpRoot, { recursive: true });

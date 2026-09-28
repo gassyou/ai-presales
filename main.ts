@@ -22,10 +22,12 @@ import { ProjectService } from "@backend/application/project/project.service.ts"
 import { SdkTransport } from "@backend/ai/transport.sdk.ts";
 import { createLlmClient } from "@backend/ai/client/client.factory.ts";
 import type { ILLMClient } from "@backend/ai/client/llm-client.ts";
-import { buildBuiltinToolRegistry } from "@backend/ai/tool/builtin-tools.ts";
+import { buildBuiltinToolRegistry, registerWriteableTools } from "@backend/ai/tool/builtin-tools.ts";
 import { buildBuiltinSubAgentRegistry } from "@backend/application/sub-agent/builtin-sub-agents.ts";
 import { InvokeSubAgentUseCase } from "@backend/application/sub-agent/invoke-sub-agent.usecase.ts";
 import { collectStreamToString } from "@backend/application/shared/stream-helpers.ts";
+// 阶段 H：写工具注册（写在 getProjectMeta 里需要 ProjectId 类型）
+import type { ProjectId } from "@shared/types/ids.ts";
 // 阶段 6.0 装配
 import { SystemClock } from "@backend/domain/shared/clock.ts";
 import { SqliteAiSessionRepository } from "@backend/persistence/sqlite/sqlite-ai-session.repository.ts";
@@ -419,6 +421,45 @@ function buildInvokeSubAgentClosure(defaultProfileName: string): void {
     };
   };
 }
+
+// 阶段 H：把 7 个写工具注册到 registry
+// 在 deps 装配之前，先建出 write tools 需要的 service
+const businessModuleServiceForWrites = new BusinessModuleService({
+  repo: new SqliteBusinessModuleRepository(database),
+  clock,
+  invokeSubAgent,
+  getProjectMeta: async (projectId: ProjectId) => {
+    const r = await projectService.getProject(projectId);
+    if (!r.ok) return null;
+    return { name: r.value.name, clientName: r.value.clientName };
+  },
+});
+const surveyTaskUseCaseForWrites = new SurveyTaskUseCase({
+  businessModuleService: new BusinessModuleService({
+    repo: new SqliteBusinessModuleRepository(database),
+    clock,
+  }),
+  clock,
+  invokeSubAgent,
+});
+const surveyQuestionnaireUseCaseForWrites = new SurveyQuestionnaireUseCase({
+  businessModuleService: new BusinessModuleService({
+    repo: new SqliteBusinessModuleRepository(database),
+    clock,
+  }),
+  clock,
+  invokeSubAgent,
+});
+registerWriteableTools(toolRegistry, {
+  projectService,
+  businessModuleService: businessModuleServiceForWrites,
+  surveyTaskUseCase: surveyTaskUseCaseForWrites,
+  surveyQuestionnaireUseCase: surveyQuestionnaireUseCaseForWrites,
+  contactsRepo: projectContactsRepo,
+  projectRepo,
+  clock,
+  logger,
+});
 
 // Tool registry 包一层 ConfigurableToolRegistry（settings 改 tool config 后会 push 给 tool.configure）
 const configurableToolRegistry = new ConfigurableToolRegistry(toolRegistry, systemSettingsRepo);

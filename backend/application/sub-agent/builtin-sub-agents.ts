@@ -78,7 +78,39 @@ const MARKDOWN_AUTHOR_SYSTEM = `你是"Markdown 章节写手" sub-agent。
 - 篇幅适度（300~1500 字）；能列点就列点，避免长段落堆砌
 - 输出中文（除非系统提示词明确要求其他语言）`;
 
-/** 阶段 7.4h + 7.5（H4）：导出 6 个 builtin spec 数据（用于 settings 启动 seed） */
+// 阶段 H：写入型 sub-agent。专做"按自然语言下达命令 → 调写工具落库"。
+// 注意：写工具本身要求 projectCodeOrName / contactName / kind / 等强标识；
+// 这里提示词教会模型从自然语言里提取这些字段，避免误调错项目。
+const PROJECT_EDITOR_SYSTEM = `你是"项目编辑" sub-agent（阶段 H 新增）。
+用户会用自然语言告诉你"要做的事"（例如："把 2026-00005 项目的状态改成提案中"、
+"给『enrich-test』项目加一条推进活动：明天拜访客户王总"、"把方案构想方案的正文
+改成 Markdown 三段：第一段目标，第二段范围，第三段风险"）。
+
+**你必须按以下流程响应**：
+
+1. **先解析项目标识**：用 read_module 或 project 相关的查询工具拿到 projectId / projectCode。
+   如果用户给的标识（项目编号 / 项目名称）找不到对应项目，用 fail 风格的回复明确告知。
+
+2. **按用户意图选工具**。可用写工具：
+   - write_project_status     —— 修改项目状态（新建/提案中/暂停/中标/未中标）
+   - create_activity          —— 新增项目推进活动
+   - create_function_list_item —— 功能清单加一条
+   - update_markdown_module   —— 写入 11 个 markdown_* 模块正文
+   - save_questionnaire_outline —— 保存调查问卷脑图
+   - set_primary_contact      —— 把某个联系人设为主联系人
+   - create_survey_task       —— 新增调查任务
+
+3. **dryRun 习惯**：金额 / 标题 / 正文这类用户没明确给但你猜的内容，**先用 dryRun=true
+   跑一遍**，把"将要做的事"展示给用户，由用户确认后再用 dryRun=false 执行。
+   状态切换、活动创建、联系人操作这类用户意图明确的，直接 dryRun=false。
+
+4. **出错时**：不要重复同一个工具调用。读 Tool 错误信息调整参数或问用户。
+
+5. **不要杜撰**：人名 / 金额 / 日期这类不确定的，先问用户。
+
+只调用写工具；读操作仍走 read_module / search_knowledge。`;
+
+/** 阶段 7.4h + 7.5（H4）+ 阶段 H：导出 7 个 builtin spec 数据（用于 settings 启动 seed） */
 export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
   return [
     {
@@ -128,6 +160,24 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       description: "为业务模块生成指定章节的 Markdown 正文（11 个 kind 复用）。",
       systemPrompt: MARKDOWN_AUTHOR_SYSTEM,
       toolNames: ["read_module", "search_knowledge"],
+      profileHint: "fast",
+    },
+    // 阶段 H：项目编辑（写入操作）
+    {
+      name: "project-editor",
+      displayName: "项目编辑",
+      description: "按自然语言调写工具落库：改项目状态 / 新增活动 / 新增功能 / 写 markdown / 保存问卷脑图 / 设主联系人 / 新增调查任务。",
+      systemPrompt: PROJECT_EDITOR_SYSTEM,
+      toolNames: [
+        "read_module",
+        "write_project_status",
+        "create_activity",
+        "create_function_list_item",
+        "update_markdown_module",
+        "save_questionnaire_outline",
+        "set_primary_contact",
+        "create_survey_task",
+      ],
       profileHint: "fast",
     },
   ];
