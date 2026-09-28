@@ -1,16 +1,16 @@
 <!--
   PptView.vue
   ==========
-  提案 PPT 设计容器（阶段 7.4c）。
+  提案 PPT 设计容器（阶段 7.4c 重构）。
 
   形态：
-    - 顶部：AI 生成 / 新增便签 / 导出 Markdown 三个按钮
-    - 中部：便签网格（vuedraggable 实现拖拽排序）
-    - 空态：引导文案
-    - PptAiGenerateDialog 弹窗
+    - 顶部：AI 生成 / 新增便签 / 导出 Markdown
+    - 主体：mac 风格便签照片墙（masonry / flex-wrap 布局）
+    - 便签大小随内容自适应
+    - 每个便签背景色由 id 哈希决定（黄/粉/蓝/绿/紫/橙/灰）
 -->
 <template>
-  <section class="flex flex-col gap-3">
+  <section class="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">提案 PPT 设计（{{ pages.length }} 页）</h2>
       <div class="flex flex-wrap gap-2">
@@ -31,28 +31,24 @@
 
     <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
 
-    <div v-if="pages.length === 0" class="rounded border border-border bg-white/50 p-6 text-center text-xs text-slate-600">
+    <div v-if="pages.length === 0" class="rounded border border-dashed border-border bg-white/30 p-6 text-center text-xs text-slate-500">
       暂无 PPT 页。点击「AI 生成」让 AI 设计 8~15 页提案 PPT，或「新增便签」手工创建。
     </div>
 
-    <div v-else class="rounded border border-border bg-white/30 p-3">
-      <draggable
-        :model-value="pages"
-        @update:model-value="onDragEnd"
-        item-key="id"
-        :animation="150"
-        ghost-class="opacity-40"
-        handle=".drag-handle"
-        class="flex flex-wrap gap-3"
-      >
-        <template #item="{ element }">
+    <div v-else class="flex-1 min-h-0 overflow-auto">
+      <div class="columns-1 gap-3 sm:columns-2 lg:columns-3 xl:columns-4">
+        <div
+          v-for="page in pages"
+          :key="page.id"
+          class="mb-3 break-inside-avoid"
+        >
           <PptNote
-            :page="element"
+            :page="page"
             @update="onUpdate"
             @delete="onDelete"
           />
-        </template>
-      </draggable>
+        </div>
+      </div>
     </div>
 
     <PptAiGenerateDialog
@@ -65,7 +61,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import draggable from "vuedraggable";
 import { usePptStore } from "../stores/ppt.store.ts";
 import type { PptPagePatch } from "../api/ppt.api.ts";
 import PptNote from "./PptNote.vue";
@@ -99,12 +94,6 @@ async function onUpdate(id: string, patch: PptPagePatch): Promise<void> {
 
 async function onDelete(id: string): Promise<void> {
   await store.deletePage(props.projectId, id);
-}
-
-/** draggable 把整个数组返出来 → 拿到新顺序的 ids 调 reorder */
-async function onDragEnd(next: { id: string }[]): Promise<void> {
-  const ids = next.map((p) => p.id);
-  await store.reorder(props.projectId, ids);
 }
 
 async function onExport(): Promise<void> {

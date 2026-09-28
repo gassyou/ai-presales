@@ -82,6 +82,16 @@ function onChange(v: string): void {
   border-radius: 6px;
   background: #fff;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.md-editor-wrapper :deep(.bytemd) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Bytemd 默认主题偏暗，与本系统浅色商务风冲突，做轻量覆写 */

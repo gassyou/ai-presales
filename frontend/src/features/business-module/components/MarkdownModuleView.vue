@@ -12,7 +12,7 @@
     - 自动保存：编辑时 800ms debounce 后 PUT
 -->
 <template>
-  <section class="card flex flex-col gap-3">
+  <section class="card flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="flex items-center gap-2 text-sm font-medium text-slate-700">
         {{ title }}

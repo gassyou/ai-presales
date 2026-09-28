@@ -71,46 +71,46 @@
       @toggle-scope="onToggleScope"
     />
 
-    <!-- 新建 / 编辑抽屉 -->
+    <!-- 新建 / 编辑抽屉（纵向布局） -->
     <el-dialog
       :model-value="editing !== null"
       :title="editing && editing.id ? '编辑功能' : '新建功能'"
-      width="640px"
+      width="560px"
       :close-on-click-modal="false"
       @update:model-value="(v) => !v && cancelEdit()"
     >
       <template v-if="editing">
-        <div class="grid grid-cols-2 gap-2">
-          <label class="block">
-            <span class="text-xs text-slate-600">分类</span>
-            <el-input v-model="editing.category" placeholder="订单" class="mt-1" />
+        <div class="flex flex-col gap-3">
+          <label class="flex flex-col gap-1 text-xs text-slate-600">
+            <span>分类</span>
+            <el-input v-model="editing.category" placeholder="订单" />
           </label>
-          <label class="block">
-            <span class="text-xs text-slate-600">模块</span>
-            <el-input v-model="editing.module" placeholder="下单" class="mt-1" />
+          <label class="flex flex-col gap-1 text-xs text-slate-600">
+            <span>模块</span>
+            <el-input v-model="editing.module" placeholder="下单" />
           </label>
-        </div>
-        <label class="mt-2 block">
-          <span class="text-xs text-slate-600">功能名 *</span>
-          <el-input v-model="editing.name" class="mt-1" />
-        </label>
-        <label class="mt-2 block">
-          <span class="text-xs text-slate-600">功能详细</span>
-          <el-input v-model="editing.detail" type="textarea" :rows="3" class="mt-1" />
-        </label>
-        <label class="mt-2 block">
-          <span class="text-xs text-slate-600">备注</span>
-          <el-input v-model="editing.remarks" type="textarea" :rows="2" class="mt-1" />
-        </label>
-        <div class="mt-2 flex items-center gap-3">
-          <label class="block">
-            <span class="text-xs text-slate-600">CP</span>
-            <el-select v-model="editing.cp" class="mt-1">
-              <el-option :value="0" label="未设" />
-              <el-option v-for="cp in CP_VALUES" :key="cp" :value="cp" :label="String(cp)" />
-            </el-select>
+          <label class="flex flex-col gap-1 text-xs text-slate-600">
+            <span>功能名 *</span>
+            <el-input v-model="editing.name" />
           </label>
-          <el-checkbox v-model="editing.inScope" class="mt-3">项目范围内</el-checkbox>
+          <label class="flex flex-col gap-1 text-xs text-slate-600">
+            <span>功能详细</span>
+            <el-input v-model="editing.detail" type="textarea" :rows="3" />
+          </label>
+          <label class="flex flex-col gap-1 text-xs text-slate-600">
+            <span>备注</span>
+            <el-input v-model="editing.remarks" type="textarea" :rows="2" />
+          </label>
+          <div class="flex items-center gap-4">
+            <label class="flex flex-col gap-1 text-xs text-slate-600">
+              <span>CP</span>
+              <el-select v-model="editing.cp">
+                <el-option :value="0" label="未设" />
+                <el-option v-for="cp in CP_VALUES" :key="cp" :value="cp" :label="String(cp)" />
+              </el-select>
+            </label>
+            <el-checkbox v-model="editing.inScope" class="mt-3">项目范围内</el-checkbox>
+          </div>
         </div>
       </template>
       <template #footer>
@@ -209,9 +209,16 @@ function cancelEdit(): void {
 async function onSave(): Promise<void> {
   const ed = editing.value;
   if (!ed) return;
+  // 后端 CreateBusinessModuleItemDTO 要求非空 title；前端用「分类/模块/功能名」合成
+  const parts: string[] = [];
+  for (const s of [ed.category, ed.module, ed.name]) {
+    if (typeof s === "string" && s.trim().length > 0) parts.push(s);
+  }
+  const composedTitle = parts.join(" / ") || `未命名功能 #${Math.floor(Math.random() * 1000)}`;
   saving.value = true;
   try {
-    const body: FunctionListInput = {
+    const body: FunctionListInput & { title: string } = {
+      title: composedTitle,
       category: ed.category,
       module: ed.module,
       name: ed.name,
@@ -220,7 +227,7 @@ async function onSave(): Promise<void> {
       cp: ed.cp,
       inScope: ed.inScope,
     };
-    if (ed.id) {
+    if (ed.id.length > 0) {
       await store.updateFunction(props.projectId, ed.id, body);
     } else {
       await store.createFunction(props.projectId, body);

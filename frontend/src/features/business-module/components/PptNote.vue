@@ -1,25 +1,22 @@
 <!--
   PptNote.vue
   ===========
-  单张 PPT 便签（阶段 7.4c）。
+  单张 PPT 便签（阶段 7.4c 重构）。
 
   形态：
-    - 顶部：拖拽 handle + 序号 + 标题（双击进编辑态）
-    - 中部：prompt 内容（双击编辑；textarea autosize）
-    - 右下角：删除按钮
-    - 默认 220×140；位置由父容器 grid / draggable 决定
+    - mac 便签风格，背景色由 id 哈希决定（黄/粉/蓝/绿/紫/橙/灰）
+    - 便签大小**随内容自适应**（去掉固定 width/height，改由 min-h + 内容驱动）
+    - 顶部：序号 + 标题（双击编辑）
+    - 中部：prompt markdown 预览（点击编辑）
+    - 右下：删除按钮
 -->
 <template>
   <div
-    class="flex flex-col gap-1 rounded border border-border bg-surface-alt p-2 text-xs text-slate-900 shadow"
-    :style="{ width: `${page.width}px`, height: `${page.height}px` }"
+    class="group relative flex min-h-[150px] cursor-text flex-col gap-2 rounded-md border border-black/5 p-3 text-xs shadow-sm transition hover:shadow-md"
+    :class="noteBgClass(page.id)"
   >
-    <div class="flex items-center gap-1">
-      <span
-        class="drag-handle cursor-move select-none rounded bg-surface-sunken px-1 text-slate-600"
-        title="拖拽排序"
-      >⠿</span>
-      <span class="rounded bg-accent/20 px-1 text-[10px] text-accent">#{{ page.ordinal + 1 }}</span>
+    <div class="flex items-center gap-2">
+      <span class="rounded bg-black/10 px-1 text-[10px] text-black/60">#{{ page.ordinal + 1 }}</span>
       <el-input
         v-if="editingTitle"
         v-model="titleDraft"
@@ -28,10 +25,11 @@
         @blur="commitTitle"
         @keydown.enter="commitTitle"
         @keydown.esc="editingTitle = false"
+        @click.stop
       />
       <span
         v-else
-        class="flex-1 cursor-text truncate"
+        class="flex-1 cursor-text truncate text-sm font-semibold text-black/85"
         :title="page.title"
         @dblclick="startEditTitle"
       >{{ page.title || "（未命名）" }}</span>
@@ -40,15 +38,28 @@
         type="danger"
         size="small"
         title="删除"
-        @click="onDelete"
+        @click.stop="onDelete"
       >✕</el-button>
     </div>
+
+    <!-- 内容预览（默认） -->
+    <div
+      v-if="!editingPrompt"
+      class="prose prose-sm max-w-none flex-1 whitespace-pre-wrap text-[11px] leading-relaxed text-black/75"
+      @dblclick="startEditPrompt"
+    >{{ page.prompt || "双击编辑该页 AI 提示词…" }}</div>
+
+    <!-- 内容编辑 -->
     <el-input
+      v-else
       v-model="promptDraft"
       type="textarea"
+      :rows="5"
       class="flex-1"
-      :placeholder="'该页 AI 提示词…'"
+      :autosize="{ minRows: 3, maxRows: 20 }"
       @blur="commitPrompt"
+      @keydown.esc="editingPrompt = false"
+      @click.stop
     />
   </div>
 </template>
@@ -64,8 +75,28 @@ const emit = defineEmits<{
 }>();
 
 const editingTitle = ref(false);
+const editingPrompt = ref(false);
 const titleDraft = ref(props.page.title);
 const promptDraft = ref(props.page.prompt);
+
+/** mac 便签背景色板（7 种） */
+const NOTE_COLORS = [
+  "bg-yellow-100",
+  "bg-pink-100",
+  "bg-blue-100",
+  "bg-green-100",
+  "bg-purple-100",
+  "bg-orange-100",
+  "bg-slate-100",
+];
+
+function noteBgClass(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  }
+  return NOTE_COLORS[Math.abs(hash) % NOTE_COLORS.length] ?? "bg-yellow-100";
+}
 
 function startEditTitle(): void {
   titleDraft.value = props.page.title;
@@ -79,7 +110,13 @@ function commitTitle(): void {
   }
 }
 
+function startEditPrompt(): void {
+  promptDraft.value = props.page.prompt;
+  editingPrompt.value = true;
+}
+
 function commitPrompt(): void {
+  editingPrompt.value = false;
   if (promptDraft.value !== props.page.prompt) {
     emit("update", props.page.id, { prompt: promptDraft.value });
   }

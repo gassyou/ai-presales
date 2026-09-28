@@ -14,7 +14,7 @@
     - 阶段 7.4b：功能清单 + 成本计算设置 + 预算汇总
     - 阶段 7.4c：提案 PPT 设计
     - 阶段 7.4d：自定义页面（CustomPagesView，多份可重名）
-    - 阶段 7.4e：联系人 / 团队成员（ContactsPanel） + 邮件历史（EmailHistoryPanel）
+    - 阶段 7.4e：联系人 / 团队成员（ContactsView / TeamMembersView） + 邮件历史（EmailHistoryPanel）
     - 阶段 7.4e：邮件撰写弹窗由 WorkspaceShell 浮动按钮触发（pinia 全局开关）
     - 阶段 7.4f：硬件清单（HardwareItemsView） + 报价单（QuoteView）
     - 阶段 7.4f：报价单生成弹窗由 WorkspaceShell 浮动按钮触发（pinia 全局开关）
@@ -103,7 +103,7 @@
       </dl>
     </article>
 
-    <!-- 业务模块：左侧导航 + 右侧主区 -->
+    <!-- 业务模块：左侧导航 + 右侧主区（占满剩余高度） -->
     <div class="flex min-h-0 flex-1 items-stretch">
       <ProjectNavSidebar
         :groups="navGroups"
@@ -113,25 +113,19 @@
         @update:width="onResizeSidebar"
       />
       <div class="splitter" @mousedown="onSidebarMouseDown"></div>
-      <div class="flex-1 min-w-0 overflow-y-auto pl-4">
-        <template v-if="activeModule === 'contacts' || activeModule === 'team-members'">
-          <ContactsPanel
-            :project-id="project.id"
-            :initial-contacts="project.contacts"
-            :initial-members="project.teamMembers"
-            @updated="refreshProject"
-          />
-        </template>
-        <template v-else-if="markdownModule">
-          <MarkdownModuleView
-            :project-id="project.id"
-            :kind="markdownModule.kind"
-            :title="markdownModule.title"
-          />
-        </template>
-        <template v-else-if="activeComponent">
-          <component :is="activeComponent" :project-id="project.id" />
-        </template>
+      <div class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden pl-4">
+        <div class="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+          <template v-if="markdownModule">
+            <MarkdownModuleView
+              :project-id="project.id"
+              :kind="markdownModule.kind"
+              :title="markdownModule.title"
+            />
+          </template>
+          <template v-else-if="activeComponent">
+            <component :is="activeComponent" :project-id="project.id" />
+          </template>
+        </div>
       </div>
     </div>
 
@@ -178,7 +172,8 @@ import BudgetSettingsView from "@frontend/features/business-module/components/Bu
 import BudgetSummaryView from "@frontend/features/business-module/components/BudgetSummaryView.vue";
 import PptView from "@frontend/features/business-module/components/PptView.vue";
 import CustomPagesView from "@frontend/features/business-module/components/CustomPagesView.vue";
-import ContactsPanel from "./components/ContactsPanel.vue";
+import ContactsView from "@frontend/features/business-module/components/ContactsView.vue";
+import TeamMembersView from "@frontend/features/business-module/components/TeamMembersView.vue";
 import EmailHistoryPanel from "./components/EmailHistoryPanel.vue";
 import EmailComposerDialog from "./components/EmailComposerDialog.vue";
 import HardwareItemsView from "@frontend/features/business-module/components/HardwareItemsView.vue";
@@ -330,13 +325,13 @@ const navGroups: Array<{ key: string; label: string; items: Array<{ key: ModuleK
       { key: "use-case", label: "核心系统用例" },
       { key: "deliverable", label: "交付物清单" },
       { key: "review", label: "方案 Review" },
+      { key: "custom-pages", label: "自定义页面" },
     ],
   },
   {
     key: "quote",
     label: "报价",
     items: [
-      { key: "md_hardware_cost", label: "硬件设备成本" },
       { key: "hardware-items", label: "硬件清单" },
       { key: "function-list", label: "功能清单" },
       { key: "budget-settings", label: "预算设置" },
@@ -349,14 +344,13 @@ const navGroups: Array<{ key: string; label: string; items: Array<{ key: ModuleK
     label: "交付物",
     items: [
       { key: "ppt", label: "提案 PPT 设计" },
-      { key: "custom-pages", label: "自定义页面" },
     ],
   },
   {
     key: "communication",
     label: "沟通",
     items: [
-      { key: "contacts", label: "联系人" },
+      { key: "contacts", label: "客户联系人" },
       { key: "team-members", label: "团队成员" },
       { key: "email-history", label: "邮件历史" },
     ],
@@ -378,7 +372,6 @@ const MARKDOWN_MODULES: Record<string, { kind: BusinessModuleKind; title: string
   md_hardware_cost: { kind: "markdown_hardware_cost", title: "硬件设备成本" },
 };
 
-const ContactsPanelCmp = markRaw(ContactsPanel);
 const MarkdownModuleViewCmp = markRaw(MarkdownModuleView);
 
 const markdownModule = computed(() => MARKDOWN_MODULES[activeModule.value] ?? null);
@@ -400,9 +393,8 @@ const activeComponent = computed(() => {
     case "hardware-items": return markRaw(HardwareItemsView);
     case "quote": return markRaw(QuoteView);
     case "email-history": return markRaw(EmailHistoryPanel);
-    case "contacts":
-    case "team-members":
-      return ContactsPanelCmp;
+    case "contacts": return markRaw(ContactsView);
+    case "team-members": return markRaw(TeamMembersView);
     default:
       // 11 个 markdown_* 共用一个 MarkdownModuleView
       if (key in MARKDOWN_MODULES) return MarkdownModuleViewCmp;
@@ -424,7 +416,7 @@ async function load(id: string): Promise<void> {
   }
 }
 
-/** ContactsPanel updated 后同步刷新（contacts / teamMembers 变了） */
+/** ContactsView / TeamMembersView updated 后同步刷新（contacts / teamMembers 变了） */
 async function refreshProject(): Promise<void> {
   if (project.value) {
     project.value = await projectApi.get(project.value.id);

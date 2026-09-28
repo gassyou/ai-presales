@@ -1,40 +1,24 @@
 <!--
   SurveyTaskListView.vue
   =====================
-  「调查任务」列表页（阶段 7.1）。
+  「调查任务」表格视图 + 调查结果 markdown 编辑（阶段 7.1 + 重构）。
 
-  需求文档「2. 调查任务页面」覆盖：
-    1. 新建（任务名 + 详细调查内容）+ 主题示例
-    2. 列表 + 状态
-    3. 删除
-    4. 预览调查结果（markdown）
-    5. 采纳 / 不采用
-    6. 异步执行 + 进度
-    7. 终止任务
-    8. AI 一键批量生成（基于示例主题）
-
-  行为：
-    - 启动后自动轮询直到 taskStatus 变 completed / aborted
-    - 调查结果显示为 markdown 预览（折叠）
-    - 采纳 = 进 RAG；不采用 = 跳过
+  需求：
+    1. 表格列：任务名 / 主题 / 状态 / 调查结果摘要 / 操作
+    2. 每个任务可点开抽屉查看/编辑调查结果（markdown）
+    3. 一键批量 / 新建 / 执行 / 终止 / 采纳 / 不采用 / 删除
 -->
 <template>
-  <section class="card flex flex-col gap-3">
-    <header class="flex items-center justify-between">
+  <section class="card flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+    <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">
         调查任务（{{ tasks.length }}）
       </h2>
       <div class="flex gap-2">
-        <el-button
-          size="small"
-          @click="showBatchDialog = true"
-        >
+        <el-button size="small" @click="showBatchDialog = true">
           一键批量
         </el-button>
-        <el-button
-          size="small"
-          @click="showCreate = true"
-        >
+        <el-button size="small" @click="showCreate = true">
           + 新建调查
         </el-button>
       </div>
@@ -42,83 +26,78 @@
 
     <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
 
-    <ul v-if="tasks.length > 0" class="space-y-2">
-      <li
-        v-for="t in tasks"
-        :key="t.id"
-        class="flex flex-col gap-2 rounded border border-border bg-white/40 p-3 text-xs"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-2">
-              <span class="font-medium text-slate-900">{{ t.title }}</span>
-              <span :class="taskStatusClass(effectiveStatus(t))">
-                {{ taskStatusLabel(effectiveStatus(t)) }}
-              </span>
-              <span :class="adoptionClass(t.adoptionStatus)">
-                {{ adoptionLabel(t.adoptionStatus) }}
-              </span>
-            </div>
-            <div v-if="t.topicHint" class="text-slate-500">
-              主题：{{ t.topicHint }}
-            </div>
-            <div v-if="t.startedAt" class="text-slate-500">
-              开始：{{ formatTime(t.startedAt) }}
-              <span v-if="t.completedAt"> · 完成：{{ formatTime(t.completedAt) }}</span>
-            </div>
-          </div>
-          <div class="flex shrink-0 flex-col gap-1">
-            <el-button
-              v-if="effectiveStatus(t) === 'idle'"
-              size="small"
-              @click="onStart(t.id)"
-            >
-              执行
-            </el-button>
-            <el-button
-              v-if="effectiveStatus(t) === 'running'"
-              size="small"
-              @click="onStop(t.id)"
-            >
-              终止
-            </el-button>
-            <el-button
-              v-if="effectiveStatus(t) === 'completed' && t.resultContent"
-              size="small"
-              @click="togglePreview(t.id)"
-            >
-              {{ previewOpen === t.id ? "收起" : "预览" }}
-            </el-button>
-            <el-button
-              v-if="t.adoptionStatus !== 'adopted'"
-              size="small"
-              @click="onAdopt(t.id)"
-            >
-              采用
-            </el-button>
-            <el-button
-              v-if="t.adoptionStatus !== 'unadopted'"
-              size="small"
-              @click="onUnadopt(t.id)"
-            >
-              不采用
-            </el-button>
-            <el-button
-              size="small"
-              @click="onDelete(t.id)"
-            >
-              删除
-            </el-button>
-          </div>
-        </div>
-        <pre
-          v-if="previewOpen === t.id && t.resultContent"
-          class="max-h-72 overflow-auto whitespace-pre-wrap rounded bg-canvas/60 p-2 font-mono text-[11px] text-slate-800"
-        >{{ t.resultContent }}</pre>
-      </li>
-    </ul>
+    <div v-if="tasks.length === 0" class="rounded border border-dashed border-border bg-white/30 p-4 text-center text-xs text-slate-500">
+      暂无调查任务。点击右上角新建或一键批量。
+    </div>
 
-    <p v-else class="text-xs text-slate-500">暂无调查任务。点击右上角新建或一键批量。</p>
+    <div v-else class="flex-1 min-h-0 overflow-auto">
+      <table class="w-full text-xs">
+        <thead class="sticky top-0 bg-surface-alt/90 text-left text-slate-600 backdrop-blur">
+          <tr class="border-b border-border">
+            <th class="py-2 pl-2">任务名称</th>
+            <th class="w-36 py-2">主题</th>
+            <th class="w-24 py-2">状态</th>
+            <th class="w-20 py-2">采用</th>
+            <th class="w-32 py-2">开始 / 完成</th>
+            <th class="w-20 py-2 text-right pr-2">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="t in tasks"
+            :key="t.id"
+            class="border-b border-border/60 hover:bg-surface-alt/40"
+          >
+            <td class="py-2 pl-2 font-medium text-slate-900">{{ t.title }}</td>
+            <td class="py-2 text-slate-600 line-clamp-1 max-w-[180px]" :title="t.topicHint">
+              {{ t.topicHint || "—" }}
+            </td>
+            <td class="py-2">
+              <span :class="taskStatusClass(effectiveStatus(t))">{{ taskStatusLabel(effectiveStatus(t)) }}</span>
+            </td>
+            <td class="py-2">
+              <span :class="adoptionClass(t.adoptionStatus)">{{ adoptionLabel(t.adoptionStatus) }}</span>
+            </td>
+            <td class="py-2 text-slate-500 text-[11px]">
+              <div>{{ t.startedAt ? formatTime(t.startedAt) : "—" }}</div>
+              <div v-if="t.completedAt">→ {{ formatTime(t.completedAt) }}</div>
+            </td>
+            <td class="py-2 text-right pr-2">
+              <el-button link type="primary" size="small" @click="openResult(t)">结果</el-button>
+              <el-button
+                v-if="effectiveStatus(t) === 'idle'"
+                link
+                type="success"
+                size="small"
+                @click="onStart(t.id)"
+              >执行</el-button>
+              <el-button
+                v-else-if="effectiveStatus(t) === 'running'"
+                link
+                type="warning"
+                size="small"
+                @click="onStop(t.id)"
+              >终止</el-button>
+              <el-button
+                v-if="t.adoptionStatus !== 'adopted'"
+                link
+                type="primary"
+                size="small"
+                @click="onAdopt(t.id)"
+              >采用</el-button>
+              <el-button
+                v-if="t.adoptionStatus !== 'unadopted'"
+                link
+                type="info"
+                size="small"
+                @click="onUnadopt(t.id)"
+              >不采用</el-button>
+              <el-button link type="danger" size="small" @click="onDelete(t.id)">删</el-button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <!-- 新建对话框 -->
     <el-dialog
@@ -135,19 +114,11 @@
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           主题提示
-          <el-input
-            v-model="form.topicHint"
-            placeholder="如：客户背景信息、行业背景"
-          />
+          <el-input v-model="form.topicHint" placeholder="如：客户背景信息、行业背景" />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           详细调查内容
-          <el-input
-            v-model="form.content"
-            type="textarea"
-            :rows="4"
-            placeholder="需要 AI 调查的要点"
-          />
+          <el-input v-model="form.content" type="textarea" :rows="4" placeholder="需要 AI 调查的要点" />
         </label>
       </form>
       <template #footer>
@@ -186,18 +157,49 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 调查结果抽屉（markdown 编辑 + 保存） -->
+    <el-drawer
+      v-model="drawerOpen"
+      :title="drawerTitle"
+      direction="rtl"
+      size="720px"
+      :close-on-click-modal="false"
+    >
+      <div v-if="drawerTask" class="flex h-full flex-col gap-3 px-1">
+        <div class="rounded border border-border bg-surface-alt/40 p-3 text-xs text-slate-600">
+          <div class="font-medium text-slate-700">{{ drawerTask.title }}</div>
+          <div class="mt-1">主题：{{ drawerTask.topicHint || "—" }}</div>
+        </div>
+
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          调查结果（Markdown）
+          <div class="mt-1 flex-1 overflow-hidden rounded border border-border">
+            <MarkdownEditor v-model="resultDraft" placeholder="调查结果 / 关键发现…" />
+          </div>
+        </label>
+
+        <p v-if="drawerError" class="text-xs text-red-300">{{ drawerError }}</p>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <el-button @click="drawerOpen = false">取消</el-button>
+          <el-button type="primary" :loading="drawerSaving" @click="onSaveResult">保存</el-button>
+        </div>
+      </div>
+    </el-drawer>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useSurveyTaskStore } from "../stores/survey-task.store.ts";
+import { businessModuleApi } from "../api/business-module.api.ts";
 import type { SurveyTaskResult, SurveyTaskStatus } from "../api/survey-task.api.ts";
+import MarkdownEditor from "@frontend/shared/ui/MarkdownEditor.vue";
 
 const props = defineProps<{ projectId: string }>();
 const store = useSurveyTaskStore();
 const tasks = computed(() => store.getList(props.projectId));
-const previewOpen = ref<string | null>(null);
 
 const showCreate = ref(false);
 const form = reactive({ title: "", topicHint: "", content: "" });
@@ -212,6 +214,16 @@ const batchTopics = ref<string[]>([
   "最新的前沿技术",
 ]);
 const batchSelected = ref<boolean[]>(batchTopics.value.map(() => true));
+
+const drawerOpen = ref(false);
+const drawerTask = ref<SurveyTaskResult | null>(null);
+const drawerSaving = ref(false);
+const drawerError = ref<string | null>(null);
+const resultDraft = ref<string>("");
+
+const drawerTitle = computed(() =>
+  drawerTask.value ? `调查结果 · ${drawerTask.value.title}` : "调查结果",
+);
 
 function effectiveStatus(t: SurveyTaskResult): SurveyTaskStatus {
   return store.getLiveStatus(t.id) ?? t.taskStatus;
@@ -250,10 +262,6 @@ function adoptionClass(s: "pending" | "adopted" | "unadopted"): string {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString("zh-CN", { hour12: false });
-}
-
-function togglePreview(id: string): void {
-  previewOpen.value = previewOpen.value === id ? null : id;
 }
 
 async function onCreate(): Promise<void> {
@@ -312,6 +320,30 @@ async function onBatchGenerate(): Promise<void> {
   if (chosen.length === 0) return;
   await store.batchGenerate(props.projectId, chosen);
   showBatchDialog.value = false;
+}
+
+function openResult(t: SurveyTaskResult): void {
+  drawerTask.value = t;
+  resultDraft.value = t.resultContent ?? "";
+  drawerError.value = null;
+  drawerOpen.value = true;
+}
+
+async function onSaveResult(): Promise<void> {
+  const t = drawerTask.value;
+  if (!t) return;
+  drawerSaving.value = true;
+  drawerError.value = null;
+  try {
+    // 后端 PATCH /api/modules/items/{id} body.content 即可
+    await businessModuleApi.update(t.id, { content: resultDraft.value });
+    await store.load(props.projectId);
+    drawerOpen.value = false;
+  } catch (e) {
+    drawerError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    drawerSaving.value = false;
+  }
 }
 
 onMounted(() => {

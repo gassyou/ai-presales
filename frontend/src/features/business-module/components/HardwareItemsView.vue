@@ -29,14 +29,14 @@
     @delete="onDelete"
   />
 
-  <!-- 新增弹窗 -->
+  <!-- 新增弹窗（纵向布局） -->
   <el-dialog
     v-model="showAddDialog"
     title="新增硬件"
     width="520px"
     :close-on-click-modal="false"
   >
-    <div class="grid grid-cols-2 gap-3">
+    <div class="flex flex-col gap-3">
       <label class="block text-xs text-slate-700">
         <span>类别</span>
         <el-input v-model="draft.category" placeholder="服务器 / 网络 / 存储" class="mt-1" />
@@ -45,7 +45,7 @@
         <span>设备</span>
         <el-input v-model="draft.device" class="mt-1" />
       </label>
-      <label class="col-span-2 block text-xs text-slate-700">
+      <label class="block text-xs text-slate-700">
         <span>规格 / 型号</span>
         <el-input v-model="draft.spec" class="mt-1" />
       </label>
@@ -57,7 +57,7 @@
         <span>单价（元）</span>
         <el-input-number v-model="draft.unitPrice" :min="0" :step="0.01" class="mt-1" />
       </label>
-      <label class="col-span-2 block text-xs text-slate-700">
+      <label class="block text-xs text-slate-700">
         <span>备注</span>
         <el-input v-model="draft.remarks" class="mt-1" />
       </label>
