@@ -35,6 +35,9 @@ export interface ChatRequestBody {
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   /** 阶段 6.0f：当前绑定项目（自动带入 ContextAssembler） */
   projectId?: string;
+  /** 阶段 H：启用一组工具名（来自 ToolRegistry.names()）。带 tools 的请求走 agent loop，
+   *  解析 tool_use 并自动执行；SSE 收到 tool_call / tool_result 事件。 */
+  toolNames?: readonly string[];
 }
 
 export const aiChatApi = {

@@ -59,6 +59,21 @@
           :model-value="store.subAgentName"
           @update:model-value="store.setSubAgent"
         />
+        <!-- 阶段 H：tools 开关。开启后 chat 自动启用 agent loop，可下达项目修改命令 -->
+        <el-tooltip
+          v-if="!store.subAgentName"
+          :content="store.toolsEnabled ? '已启用工具：AI 可直接修改项目数据' : '关闭中：AI 只能回答，不能改数据'"
+          placement="top"
+        >
+          <el-button
+            :type="store.toolsEnabled ? 'primary' : 'default'"
+            size="small"
+            :title="store.toolsEnabled ? '工具已启用' : '工具已禁用'"
+            @click="store.setToolsEnabled(!store.toolsEnabled)"
+          >
+            <span class="text-xs">{{ store.toolsEnabled ? "🛠 工具" : "💬 纯聊" }}</span>
+          </el-button>
+        </el-tooltip>
         <el-select
           :model-value="store.profile"
           size="small"

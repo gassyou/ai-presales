@@ -20,7 +20,20 @@ export const useAiChatStore = defineStore("aiChat", () => {
   const profile = ref<string>("fast");
   /** 当前选中的 sub-agent；空 = 走直 chat */
   const subAgentName = ref<string>("");
-  /** 阶段 6.0f：当前绑定的项目（来自 ProjectDetailView）。null = 全局对话 */
+  /** 阶段 H：是否启用 chat 内 tools（带 toolNames 调 agent loop） */
+  const toolsEnabled = ref<boolean>(false);
+  /** 阶段 H：tools 名称集合（来自 ToolRegistry.names()，chat 启用时注入） */
+  const toolNames = ref<string[]>([
+    "read_module",
+    "write_project_status",
+    "create_activity",
+    "create_function_list_item",
+    "update_markdown_module",
+    "save_questionnaire_outline",
+    "set_primary_contact",
+    "create_survey_task",
+  ]);
+  /** 阶段 H：当前绑定的项目（来自 ProjectDetailView）。null = 全局对话 */
   const currentProject = ref<ProjectDTO | null>(null);
   /** @ 项目候选池（来自 mention autocomplete） */
   const mentionCandidates = ref<ProjectDTO[]>([]);
@@ -75,6 +88,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
             profile: profile.value,
             messages: toRequestMessages(),
             ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
+            ...(toolsEnabled.value ? { toolNames: toolNames.value } : {}),
           },
           abort.signal,
         );
@@ -172,6 +186,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     error,
     profile,
     subAgentName,
+    toolsEnabled,
+    toolNames,
     currentProject,
     mentionCandidates,
     send,
@@ -179,6 +195,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
     clear,
     setProfile,
     setSubAgent,
+    setToolsEnabled: (v: boolean) => {
+      toolsEnabled.value = v;
+    },
     setCurrentProject,
     setCurrentProjectId,
     setMentionCandidates,

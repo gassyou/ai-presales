@@ -159,7 +159,14 @@ export function createApp(deps: AppDeps): App {
     : undefined;
 
   const aiRouteDeps: AiChatRouteDeps | undefined = deps.clientResolver
-    ? { logger, config: deps.config, clientResolver: deps.clientResolver }
+    ? {
+      logger,
+      config: deps.config,
+      clientResolver: deps.clientResolver,
+      ...(deps.toolRegistry ? { toolRegistry: deps.toolRegistry } : {}),
+      ...(deps.toolCwd !== undefined ? { toolCwd: deps.toolCwd } : {}),
+      ...(deps.toolAllowedPaths !== undefined ? { toolAllowedPaths: deps.toolAllowedPaths } : {}),
+    }
     : undefined;
 
   const subAgentRouteDeps: SubAgentRouteDeps | undefined =

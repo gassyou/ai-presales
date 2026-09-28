@@ -28,8 +28,10 @@ import type { AppConfig } from "@backend/infrastructure/config/types.ts";
 import { ChatUseCase } from "@backend/application/ai/chat.usecase.ts";
 import { StreamChatUseCase } from "@backend/application/ai/stream-chat.usecase.ts";
 import type { ILLMClient } from "@backend/ai/client/llm-client.ts";
-import type { CanonicalMessage } from "@backend/ai/message/canonical-message.ts";
+import type { CanonicalMessage, ToolSpec } from "@backend/ai/message/canonical-message.ts";
 import type { ProfileConfig } from "@backend/infrastructure/config/types.ts";
+import { ToolExecutor } from "@backend/ai/tool/tool-executor.ts";
+import { chatWithToolsLoop, pickToolSpecs } from "@backend/ai/chat/chat-with-tools-loop.ts";
 import { LlmError } from "@backend/ai/transport.ts";
 import { ErrorCode, type ErrorEnvelope } from "@shared/types/common.ts";
 import { buildSseResponse } from "../sse/sse-writer.ts";
@@ -38,6 +40,11 @@ export interface AiChatRouteDeps {
   logger: Logger;
   config: AppConfig;
   clientResolver: (profileName: string) => Promise<ILLMClient>;
+  /** 阶段 H：可选的 tool registry（带 writeableTools 已注册）。chat 启用 tools 时用。 */
+  toolRegistry?: import("@backend/ai/tool/tool-registry.ts").IToolRegistry;
+  /** tool loop 需要的 cwd / allowedPaths（可选；不传则用空值） */
+  toolCwd?: string;
+  toolAllowedPaths?: readonly string[];
 }
 
 interface AiChatRequestBody {
@@ -47,10 +54,15 @@ interface AiChatRequestBody {
     role: "system" | "user" | "assistant";
     content: string;
   }>;
+  /**
+   * 阶段 H：启用一组工具名（来自 ToolRegistry.names()）。带 tools 的请求走 agent loop，
+   * 解析 tool_use 并自动执行；前端 SSE 收到 tool_call / tool_result 事件。
+   */
+  toolNames?: readonly string[];
 }
 
 type ParsedBody =
-  | { ok: true; profileName: string; profile: ProfileConfig; messages: CanonicalMessage[]; systemPrompt?: string }
+  | { ok: true; profileName: string; profile: ProfileConfig; messages: CanonicalMessage[]; systemPrompt?: string; toolNames?: readonly string[] }
   | { ok: false; response: Response };
 
 function err(status: number, code: string, message: string): Response {
@@ -89,13 +101,15 @@ function parseRequest(
     }
     canonical.push({ role: m.role, content: [{ type: "text", text: m.content }] });
   }
-  return {
+  const result: { ok: true; profileName: string; profile: ProfileConfig; messages: CanonicalMessage[]; systemPrompt?: string; toolNames?: readonly string[] } = {
     ok: true,
     profileName: body.profile,
     profile,
     messages: canonical,
-    ...(body.systemPrompt !== undefined ? { systemPrompt: body.systemPrompt } : {}),
   };
+  if (body.systemPrompt !== undefined) result.systemPrompt = body.systemPrompt;
+  if (body.toolNames !== undefined) result.toolNames = body.toolNames;
+  return result;
 }
 
 export async function handleAiChat(req: Request, deps: AiChatRouteDeps): Promise<Response> {
@@ -158,6 +172,41 @@ export async function handleAiChatStream(req: Request, deps: AiChatRouteDeps): P
   } catch (e) {
     deps.logger.warn("client resolver failed (stream)", { profile: parsed.profileName, message: e instanceof Error ? e.message : String(e) });
     return err(400, ErrorCode.VALIDATION_FAILED, e instanceof Error ? e.message : "no client");
+  }
+
+  // 阶段 H：带 toolNames → agent loop；否则原 StreamChatUseCase
+  if (parsed.toolNames && parsed.toolNames.length > 0) {
+    if (!deps.toolRegistry) {
+      return err(503, ErrorCode.INTERNAL, "tool registry not wired for this chat route");
+    }
+    const toolSpecs = pickToolSpecs(deps.toolRegistry, parsed.toolNames);
+    if (toolSpecs.length === 0) {
+      return err(400, ErrorCode.VALIDATION_FAILED, `none of toolNames found in registry: ${parsed.toolNames.join(",")}`);
+    }
+    const executor = new ToolExecutor({
+      registry: deps.toolRegistry,
+      logger: deps.logger,
+      cwd: deps.toolCwd ?? Deno.cwd(),
+      allowedPaths: deps.toolAllowedPaths ?? [],
+      defaultTimeoutMs: 30_000,
+    });
+
+    const stream = chatWithToolsLoop({
+      client,
+      profile: parsed.profile,
+      messages: parsed.messages,
+      ...(parsed.systemPrompt !== undefined ? { systemPrompt: parsed.systemPrompt } : {}),
+      tools: toolSpecs,
+      executor,
+      ...(req.signal !== undefined ? { signal: req.signal } : {}),
+      logger: deps.logger,
+    });
+
+    return buildSseResponse(stream, req.signal, {
+      logger: {
+        warn: (msg, meta) => deps.logger.warn(msg, meta ?? {}),
+      },
+    });
   }
 
   const usecase = new StreamChatUseCase(client);
