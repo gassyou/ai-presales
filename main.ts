@@ -502,15 +502,15 @@ buildContextAssemblerFromSettings();
 
 // 阶段 7.5：报价 AI 起草回调（H7 修复）—— 调 proposal-drafter sub-agent + 抽干成 markdown
 const aiGenerateMarkdown = async (args: {
-  snapshot: import("./backend/application/quote/quote.usecase.ts").QuoteSnapshot;
+  snapshot: import("@backend/domain/quote/quote-snapshot.ts").QuoteSnapshot;
   userInput: string;
   projectCode: string;
   projectName: string;
   clientName: string;
 }): Promise<string> => {
   const budgetSummary = JSON.stringify(args.snapshot.top, null, 2);
-  const hardwareList = args.snapshot.hardware.items.map((it: { name: string; quantity: number; amount: number }) =>
-    `- ${it.name} ×${it.quantity} ¥${it.amount}`
+  const hardwareList = args.snapshot.hardware.items.map((it: { device: string; qty: number; subtotal: number }) =>
+    `- ${it.device} ×${it.qty} ¥${it.subtotal}`
   ).join("\n");
   const prompt = `项目编号：${args.projectCode}
 项目名称：${args.projectName}
@@ -607,7 +607,7 @@ const app = createApp({
       clock,
     }),
     invokeSubAgent, // 阶段 7.5（H1）：让功能列表 AI 生成真调 LLM
-    getProjectMeta: async (projectId) => {
+    getProjectMeta: async (projectId: ProjectId) => {
       const r = await projectService.getProject(projectId);
       if (!r.ok) return null;
       return { name: r.value.name, clientName: r.value.clientName };
