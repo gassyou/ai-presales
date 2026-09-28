@@ -24,7 +24,7 @@ export interface TeamMemberDTO {
 
 export interface ProjectDTO {
   id: string;
-  code: string;             // 业务编号：年+5位流水
+  code: string; // 业务编号：年+5位流水
   name: string;
   clientName: string;
   clientWebsite?: string;
@@ -53,13 +53,21 @@ export interface CreateProjectInput {
   clientIntro?: string;
   projectIntro?: string;
   startDate?: IsoDateTime;
+  endDate?: IsoDateTime;
 }
 
 export interface UpdateProjectInput {
   name?: string;
   clientName?: string;
-  clientWebsite?: string;
-  clientIntro?: string;
-  projectIntro?: string;
-  startDate?: IsoDateTime;
+  /**
+   * 阶段 7.5：编辑语义
+   *   - 字段缺失（undefined）= 不修改
+   *   - null = 清空字段
+   *   - string = 写入（trim 后写入；空字符串后端会视为清空）
+   */
+  clientWebsite?: string | null;
+  clientIntro?: string | null;
+  projectIntro?: string | null;
+  startDate?: IsoDateTime | null;
+  endDate?: IsoDateTime | null;
 }

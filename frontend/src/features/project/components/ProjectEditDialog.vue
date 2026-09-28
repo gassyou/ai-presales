@@ -1,24 +1,34 @@
 <!--
-  ProjectCreateDialog.vue
-  =======================
-  新建项目对话框（Element Plus 版）。
+  ProjectEditDialog.vue
+  =====================
+  编辑项目元信息对话框（Element Plus 版）。
 
-  字段（与编辑对话框保持一致）：
+  字段：
     - name           项目名称（必填）
     - clientName     客户名称（必填）
     - clientWebsite  客户网站
-    - startDate      开始时间
-    - endDate        结束时间
     - clientIntro    客户简介
     - projectIntro   项目简介
+    - startDate      开始时间
+    - endDate        结束时间
+
+  日期字段用 el-date-picker value-format="YYYY-MM-DDTHH:mm:ss"，
+  与后端 IsoDateTime 类型一致。
+
+  提交流程：
+    - 前端做必填 + 日期顺序校验，失败时直接在 dialog 内展示错误
+      并阻止 emit submit。
+    - 通过校验后 emit submit(UpdateProjectInput)；父组件负责调 API。
+    - 父组件在调用过程中通过 props.submitting 控制按钮 loading。
+    - 父组件产生的网络错误经 props.error 传回展示。
 -->
 <template>
   <el-dialog
     :model-value="true"
-    title="新建项目"
+    title="编辑项目信息"
     width="560"
-    :close-on-click-modal="!submitting"
-    :show-close="!submitting"
+    :close-on-click-modal="!isSubmitting"
+    :show-close="!isSubmitting"
     @update:model-value="(v) => !v && emit('close')"
   >
     <el-form :model="form" label-position="top" @submit.prevent>
@@ -28,7 +38,7 @@
           placeholder="ERP 升级提案"
           maxlength="120"
           show-word-limit
-          :disabled="submitting"
+          :disabled="isSubmitting"
         />
       </el-form-item>
 
@@ -38,7 +48,7 @@
           placeholder="ACME 集团"
           maxlength="120"
           show-word-limit
-          :disabled="submitting"
+          :disabled="isSubmitting"
         />
       </el-form-item>
 
@@ -46,7 +56,7 @@
         <el-input
           v-model="form.clientWebsite"
           placeholder="https://www.example.com"
-          :disabled="submitting"
+          :disabled="isSubmitting"
         />
       </el-form-item>
 
@@ -58,7 +68,7 @@
             value-format="YYYY-MM-DDTHH:mm:ss"
             placeholder="开始日期"
             class="!flex-1"
-            :disabled="submitting"
+            :disabled="isSubmitting"
           />
           <span class="text-slate-400">~</span>
           <el-date-picker
@@ -67,7 +77,7 @@
             value-format="YYYY-MM-DDTHH:mm:ss"
             placeholder="结束日期"
             class="!flex-1"
-            :disabled="submitting"
+            :disabled="isSubmitting"
           />
         </div>
       </el-form-item>
@@ -80,7 +90,7 @@
           :maxlength="2000"
           show-word-limit
           placeholder="客户背景、规模、行业等信息"
-          :disabled="submitting"
+          :disabled="isSubmitting"
         />
       </el-form-item>
 
@@ -92,39 +102,45 @@
           :maxlength="2000"
           show-word-limit
           placeholder="项目目标、范围、关键节点"
-          :disabled="submitting"
+          :disabled="isSubmitting"
         />
       </el-form-item>
 
       <el-alert
-        v-if="error"
-        :title="error"
+        v-if="displayError"
+        :title="displayError"
         type="error"
         :closable="false"
         show-icon
       />
     </el-form>
     <template #footer>
-      <el-button :disabled="submitting" @click="emit('close')">取消</el-button>
+      <el-button :disabled="isSubmitting" @click="emit('close')">取消</el-button>
       <el-button
         type="primary"
-        :loading="submitting"
+        :loading="isSubmitting"
         :disabled="!form.name.trim() || !form.clientName.trim()"
         @click="onSubmit"
       >
-        {{ submitting ? "创建中…" : "创建" }}
+        {{ isSubmitting ? "保存中…" : "保存" }}
       </el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from "vue";
-import type { CreateProjectInput } from "@shared/types/dto/project.ts";
+import { computed, reactive, ref, watch } from "vue";
+import type { ProjectDTO, UpdateProjectInput } from "@shared/types/dto/project.ts";
+
+const props = defineProps<{
+  project: ProjectDTO;
+  submitting?: boolean;
+  error?: string | null;
+}>();
 
 const emit = defineEmits<{
   (e: "close"): void;
-  (e: "submit", input: CreateProjectInput): void;
+  (e: "submit", input: UpdateProjectInput): void;
 }>();
 
 interface FormState {
@@ -137,54 +153,65 @@ interface FormState {
   projectIntro: string;
 }
 
-const form = reactive<FormState>({
-  name: "",
-  clientName: "",
-  clientWebsite: "",
-  startDate: "",
-  endDate: "",
-  clientIntro: "",
-  projectIntro: "",
-});
-const submitting = ref(false);
-const error = ref<string | null>(null);
+function buildForm(p: ProjectDTO): FormState {
+  return {
+    name: p.name ?? "",
+    clientName: p.clientName ?? "",
+    clientWebsite: p.clientWebsite ?? "",
+    startDate: p.startDate ?? "",
+    endDate: p.endDate ?? "",
+    clientIntro: p.clientIntro ?? "",
+    projectIntro: p.projectIntro ?? "",
+  };
+}
 
-async function onSubmit(): Promise<void> {
-  error.value = null;
+const form = reactive<FormState>(buildForm(props.project));
+const localError = ref<string | null>(null);
+const isSubmitting = computed(() => props.submitting ?? false);
+const displayError = computed(() => props.error ?? localError.value);
+
+// project prop 变化时重新同步表单（如父组件换了项目）
+watch(
+  () => props.project,
+  (p) => {
+    Object.assign(form, buildForm(p));
+    localError.value = null;
+  },
+);
+
+/** 点击保存 —— 前端校验失败时本地展示并阻止 emit；成功则 emit submit。 */
+function onSubmit(): void {
+  if (isSubmitting.value) return;
+  localError.value = null;
   const name = form.name.trim();
   const clientName = form.clientName.trim();
   if (!name) {
-    error.value = "请输入项目名称";
+    localError.value = "请输入项目名称";
     return;
   }
   if (!clientName) {
-    error.value = "请输入客户名称";
+    localError.value = "请输入客户名称";
     return;
   }
   if (form.startDate && form.endDate) {
     const s = new Date(form.startDate).getTime();
     const e = new Date(form.endDate).getTime();
     if (!isNaN(s) && !isNaN(e) && e < s) {
-      error.value = "结束日期不能早于开始日期";
+      localError.value = "结束日期不能早于开始日期";
       return;
     }
   }
 
-  const input: CreateProjectInput = {
+  const input: UpdateProjectInput = {
     name,
     clientName,
-    clientWebsite: form.clientWebsite.trim() || undefined,
-    clientIntro: form.clientIntro.trim() || undefined,
-    projectIntro: form.projectIntro.trim() || undefined,
-    startDate: form.startDate || undefined,
-    endDate: form.endDate || undefined,
+    clientWebsite: form.clientWebsite.trim() ? form.clientWebsite.trim() : null,
+    clientIntro: form.clientIntro.trim() ? form.clientIntro.trim() : null,
+    projectIntro: form.projectIntro.trim() ? form.projectIntro.trim() : null,
+    startDate: form.startDate || null,
+    endDate: form.endDate || null,
   };
 
-  submitting.value = true;
-  try {
-    emit("submit", input);
-  } finally {
-    submitting.value = false;
-  }
+  emit("submit", input);
 }
 </script>

@@ -73,7 +73,7 @@ import { useProjectStore } from "./stores/project.store.ts";
 import ProjectCard from "./components/ProjectCard.vue";
 import ProjectCreateDialog from "./components/ProjectCreateDialog.vue";
 import { useAiChatStore } from "@frontend/features/ai-chat/stores/ai-chat.store.ts";
-import type { ProjectStatusValue } from "@shared/types/dto/project.ts";
+import type { CreateProjectInput, ProjectStatusValue } from "@shared/types/dto/project.ts";
 
 const store = useProjectStore();
 const aiStore = useAiChatStore();
@@ -103,7 +103,7 @@ function openCreate(): void {
   creating.value = true;
 }
 
-async function onCreateSubmit(input: { name: string; clientName: string }): Promise<void> {
+async function onCreateSubmit(input: CreateProjectInput): Promise<void> {
   try {
     await store.create(input);
     creating.value = false;

@@ -16,7 +16,7 @@
  */
 
 import type { ProjectId } from "@shared/types/ids.ts";
-import { SystemClock, type Clock } from "@backend/domain/shared/clock.ts";
+import { type Clock, SystemClock } from "@backend/domain/shared/clock.ts";
 import { domainErr, domainOk, type DomainResult } from "@backend/domain/shared/result.ts";
 import {
   Project,
@@ -58,7 +58,17 @@ export class ProjectService {
     this.teamRepo = deps.teamRepo;
   }
 
-  async createProject(input: { name: string; clientName: string }): Promise<DomainResult<ProjectSnapshot>> {
+  async createProject(
+    input: {
+      name: string;
+      clientName: string;
+      clientWebsite?: string;
+      clientIntro?: string;
+      projectIntro?: string;
+      startDate?: Date;
+      endDate?: Date;
+    },
+  ): Promise<DomainResult<ProjectSnapshot>> {
     if (!input.name || input.name.trim().length === 0) {
       return domainErr("INVALID_INPUT", "name is required");
     }
@@ -72,6 +82,11 @@ export class ProjectService {
       name: input.name,
       clientName: input.clientName,
       clock: this.clock,
+      clientWebsite: input.clientWebsite,
+      clientIntro: input.clientIntro,
+      projectIntro: input.projectIntro,
+      startDate: input.startDate,
+      endDate: input.endDate,
     });
     if (!r.ok) return r;
     const saveR = await this.repo.save(r.value);
@@ -85,6 +100,58 @@ export class ProjectService {
     if (!found.ok) return found;
     const r = found.value.rename(newName, this.clock);
     if (!r.ok) return r;
+    const saveR = await this.repo.save(found.value);
+    if (!saveR.ok) return saveR;
+    return domainOk(found.value.snapshot());
+  }
+
+  /**
+   * 阶段 7.5：原子更新项目元信息。
+   *
+   * 任意字段不传 / undefined = 保持原值；传 null = 清空；传字符串 = trim 后写入；
+   * Date 校验 + end<start 校验在聚合根内完成。
+   *
+   * 改 name / clientName 走专用命令；其余字段走 updateProfile 一次原子写。
+   */
+  async updateProjectProfile(
+    id: ProjectId,
+    input: {
+      name?: string;
+      clientName?: string;
+      clientWebsite?: string | null;
+      clientIntro?: string | null;
+      projectIntro?: string | null;
+      startDate?: Date | null;
+      endDate?: Date | null;
+    },
+  ): Promise<DomainResult<ProjectSnapshot>> {
+    const found = await this.repo.findById(id);
+    if (!found.ok) return found;
+    if (input.name !== undefined) {
+      const r = found.value.rename(input.name, this.clock);
+      if (!r.ok) return r;
+    }
+    if (input.clientName !== undefined) {
+      const r = found.value.changeClientName(input.clientName, this.clock);
+      if (!r.ok) return r;
+    }
+    // 其余字段统一走 updateProfile，单独传 Date | null 的语义
+    const profileArgs: {
+      clientWebsite?: string | null;
+      clientIntro?: string | null;
+      projectIntro?: string | null;
+      startDate?: Date | null;
+      endDate?: Date | null;
+    } = {};
+    if (input.clientWebsite !== undefined) profileArgs.clientWebsite = input.clientWebsite;
+    if (input.clientIntro !== undefined) profileArgs.clientIntro = input.clientIntro;
+    if (input.projectIntro !== undefined) profileArgs.projectIntro = input.projectIntro;
+    if (input.startDate !== undefined) profileArgs.startDate = input.startDate;
+    if (input.endDate !== undefined) profileArgs.endDate = input.endDate;
+    if (Object.keys(profileArgs).length > 0) {
+      const r = found.value.updateProfile(profileArgs, this.clock);
+      if (!r.ok) return r;
+    }
     const saveR = await this.repo.save(found.value);
     if (!saveR.ok) return saveR;
     return domainOk(found.value.snapshot());
@@ -123,7 +190,9 @@ export class ProjectService {
         r = found.value.markLost({
           lostDate: payload?.lostDate ?? this.clock.now(),
           lostReason: reason,
-          ...(payload?.improvementNote !== undefined ? { improvementNote: payload.improvementNote } : {}),
+          ...(payload?.improvementNote !== undefined
+            ? { improvementNote: payload.improvementNote }
+            : {}),
         }, this.clock);
         break;
       }

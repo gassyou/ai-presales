@@ -10,16 +10,18 @@
  */
 
 import type { Logger } from "@backend/infrastructure/logging/logger.ts";
-import {
-  type DomainErrorCode,
-  type DomainResult,
-} from "@backend/domain/shared/result.ts";
-import type { ErrorEnvelope, ErrorCodeValue } from "@shared/types/common.ts";
+import { type DomainErrorCode, type DomainResult } from "@backend/domain/shared/result.ts";
+import type { ErrorCodeValue, ErrorEnvelope } from "@shared/types/common.ts";
 import { ErrorCode } from "@shared/types/common.ts";
 import type { ProjectService } from "@backend/application/project/project.service.ts";
 import type { ProjectId } from "@shared/types/ids.ts";
 import { ProjectId as toProjectId } from "@shared/types/ids.ts";
-import type { ProjectDTO, CreateProjectInput, ProjectStatusValue } from "@shared/types/dto/project.ts";
+import type {
+  CreateProjectInput,
+  ProjectDTO,
+  ProjectStatusValue,
+  UpdateProjectInput,
+} from "@shared/types/dto/project.ts";
 
 export interface ProjectRouteDeps {
   logger: Logger;
@@ -77,6 +79,11 @@ function snapshotToDTO(s: {
     isPrimary: boolean;
   }[];
   teamMembers?: readonly { id: string; name: string; email: string; phone: string }[];
+  clientWebsite?: string | null;
+  clientIntro?: string | null;
+  projectIntro?: string | null;
+  startDate?: Date | null;
+  endDate?: Date | null;
 }): ProjectDTO {
   const contacts = s.contacts ?? [];
   const teamMembers = s.teamMembers ?? [];
@@ -85,6 +92,11 @@ function snapshotToDTO(s: {
     code: s.code,
     name: s.name,
     clientName: s.clientName,
+    clientWebsite: s.clientWebsite ?? undefined,
+    clientIntro: s.clientIntro ?? undefined,
+    projectIntro: s.projectIntro ?? undefined,
+    startDate: s.startDate ? s.startDate.toISOString() : undefined,
+    endDate: s.endDate ? s.endDate.toISOString() : undefined,
     status: s.status,
     contacts: contacts.map((c) => ({
       id: c.id,
@@ -117,7 +129,11 @@ async function readJson(req: Request): Promise<unknown> {
   }
 }
 
-export async function handleProjects(req: Request, deps: ProjectRouteDeps, url: URL): Promise<Response> {
+export async function handleProjects(
+  req: Request,
+  deps: ProjectRouteDeps,
+  url: URL,
+): Promise<Response> {
   const path = url.pathname;
   const method = req.method;
 
@@ -166,7 +182,11 @@ async function createProject(req: Request, deps: ProjectRouteDeps): Promise<Resp
   try {
     raw = await readJson(req);
   } catch (e) {
-    return err(400, ErrorCode.VALIDATION_FAILED, e instanceof Error ? e.message : "invalid request");
+    return err(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      e instanceof Error ? e.message : "invalid request",
+    );
   }
   if (!raw || typeof raw !== "object") {
     return err(400, ErrorCode.VALIDATION_FAILED, "expected JSON object body");
@@ -175,7 +195,28 @@ async function createProject(req: Request, deps: ProjectRouteDeps): Promise<Resp
   if (typeof input.name !== "string" || typeof input.clientName !== "string") {
     return err(400, ErrorCode.VALIDATION_FAILED, "name and clientName are required strings");
   }
-  const r = await deps.service.createProject({ name: input.name, clientName: input.clientName });
+  const serviceInput: {
+    name: string;
+    clientName: string;
+    clientWebsite?: string;
+    clientIntro?: string;
+    projectIntro?: string;
+    startDate?: Date;
+    endDate?: Date;
+  } = {
+    name: input.name,
+    clientName: input.clientName,
+  };
+  if (typeof input.clientWebsite === "string") serviceInput.clientWebsite = input.clientWebsite;
+  if (typeof input.clientIntro === "string") serviceInput.clientIntro = input.clientIntro;
+  if (typeof input.projectIntro === "string") serviceInput.projectIntro = input.projectIntro;
+  const startDate = parseIsoDate(input.startDate, "startDate");
+  if (startDate.error) return startDate.error;
+  if (startDate.value) serviceInput.startDate = startDate.value;
+  const endDate = parseIsoDate(input.endDate, "endDate");
+  if (endDate.error) return endDate.error;
+  if (endDate.value) serviceInput.endDate = endDate.value;
+  const r = await deps.service.createProject(serviceInput);
   const u = unwrap(r);
   if (u.response) return u.response;
   deps.logger.info("project created", { id: u.value!.id, code: u.value!.code });
@@ -195,35 +236,98 @@ async function getProject(deps: ProjectRouteDeps, id: ProjectId): Promise<Respon
   });
 }
 
-async function updateProject(req: Request, deps: ProjectRouteDeps, id: ProjectId): Promise<Response> {
+async function updateProject(
+  req: Request,
+  deps: ProjectRouteDeps,
+  id: ProjectId,
+): Promise<Response> {
   let raw: unknown;
   try {
     raw = await readJson(req);
   } catch (e) {
-    return err(400, ErrorCode.VALIDATION_FAILED, e instanceof Error ? e.message : "invalid request");
+    return err(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      e instanceof Error ? e.message : "invalid request",
+    );
   }
   if (!raw || typeof raw !== "object") {
     return err(400, ErrorCode.VALIDATION_FAILED, "expected JSON object body");
   }
-  const input = raw as { name?: string };
-  if (typeof input.name === "string" && input.name.length > 0) {
-    const r = await deps.service.renameProject(id, input.name);
-    const u = unwrap(r);
-    if (u.response) return u.response;
-    return new Response(JSON.stringify(snapshotToDTO(u.value!)), {
-      status: 200,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    });
+  const input = raw as Partial<UpdateProjectInput>;
+  const serviceInput: {
+    name?: string;
+    clientName?: string;
+    clientWebsite?: string | null;
+    clientIntro?: string | null;
+    projectIntro?: string | null;
+    startDate?: Date | null;
+    endDate?: Date | null;
+  } = {};
+  if (input.name !== undefined) {
+    if (typeof input.name !== "string" || input.name.length === 0) {
+      return err(400, ErrorCode.VALIDATION_FAILED, "name must be a non-empty string");
+    }
+    serviceInput.name = input.name;
   }
-  return err(400, ErrorCode.VALIDATION_FAILED, "no supported fields to update (name)");
+  if (input.clientName !== undefined) {
+    if (typeof input.clientName !== "string" || input.clientName.length === 0) {
+      return err(400, ErrorCode.VALIDATION_FAILED, "clientName must be a non-empty string");
+    }
+    serviceInput.clientName = input.clientName;
+  }
+  if (input.clientWebsite !== undefined) {
+    if (input.clientWebsite !== null && typeof input.clientWebsite !== "string") {
+      return err(400, ErrorCode.VALIDATION_FAILED, "clientWebsite must be a string or null");
+    }
+    serviceInput.clientWebsite = input.clientWebsite;
+  }
+  if (input.clientIntro !== undefined) {
+    if (input.clientIntro !== null && typeof input.clientIntro !== "string") {
+      return err(400, ErrorCode.VALIDATION_FAILED, "clientIntro must be a string or null");
+    }
+    serviceInput.clientIntro = input.clientIntro;
+  }
+  if (input.projectIntro !== undefined) {
+    if (input.projectIntro !== null && typeof input.projectIntro !== "string") {
+      return err(400, ErrorCode.VALIDATION_FAILED, "projectIntro must be a string or null");
+    }
+    serviceInput.projectIntro = input.projectIntro;
+  }
+  // 日期字段：null 表示清空；string 表示写入；undefined 表示不修改
+  const startR = parseOptionalIsoDate(input.startDate, "startDate");
+  if (startR.error) return startR.error;
+  if (input.startDate !== undefined) serviceInput.startDate = startR.value;
+  const endR = parseOptionalIsoDate(input.endDate, "endDate");
+  if (endR.error) return endR.error;
+  if (input.endDate !== undefined) serviceInput.endDate = endR.value;
+  // 至少要有一个字段
+  if (Object.keys(serviceInput).length === 0) {
+    return err(400, ErrorCode.VALIDATION_FAILED, "no fields to update");
+  }
+  const r = await deps.service.updateProjectProfile(id, serviceInput);
+  const u = unwrap(r);
+  if (u.response) return u.response;
+  return new Response(JSON.stringify(snapshotToDTO(u.value!)), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }
 
-async function changeStatus(req: Request, deps: ProjectRouteDeps, id: ProjectId): Promise<Response> {
+async function changeStatus(
+  req: Request,
+  deps: ProjectRouteDeps,
+  id: ProjectId,
+): Promise<Response> {
   let raw: unknown;
   try {
     raw = await readJson(req);
   } catch (e) {
-    return err(400, ErrorCode.VALIDATION_FAILED, e instanceof Error ? e.message : "invalid request");
+    return err(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      e instanceof Error ? e.message : "invalid request",
+    );
   }
   if (!raw || typeof raw !== "object") {
     return err(400, ErrorCode.VALIDATION_FAILED, "expected JSON object body");
@@ -250,4 +354,56 @@ async function deleteProject(deps: ProjectRouteDeps, id: ProjectId): Promise<Res
   const u = unwrap(r);
   if (u.response) return u.response;
   return new Response(null, { status: 204 });
+}
+
+/**
+ * 解析创建场景下的 ISO 日期（必填型 —— 未传或空字符串视为 undefined）。
+ * 返回 { value?: Date; error?: Response }：
+ *   - value: undefined 表示未提供（不应写入 serviceInput）
+ *   - value: Date 表示合法日期
+ *   - error: Response 表示返回 400
+ */
+function parseIsoDate(
+  raw: unknown,
+  field: string,
+): { value?: Date; error?: Response } {
+  if (raw === undefined || raw === null || raw === "") return { value: undefined };
+  if (typeof raw !== "string") {
+    return {
+      error: err(400, ErrorCode.VALIDATION_FAILED, `${field} must be a string in ISO format`),
+    };
+  }
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) {
+    return {
+      error: err(400, ErrorCode.VALIDATION_FAILED, `${field} is not a valid ISO date: ${raw}`),
+    };
+  }
+  return { value: d };
+}
+
+/**
+ * 解析更新场景下的可选 ISO 日期：null = 清空；undefined = 不修改；
+ * string = 写入。返回 { value: Date | null | undefined, error?: Response }。
+ */
+function parseOptionalIsoDate(
+  raw: unknown,
+  field: string,
+): { value: Date | null | undefined; error?: Response } {
+  if (raw === undefined) return { value: undefined };
+  if (raw === null) return { value: null };
+  if (typeof raw !== "string") {
+    return {
+      value: undefined,
+      error: err(400, ErrorCode.VALIDATION_FAILED, `${field} must be a string or null`),
+    };
+  }
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) {
+    return {
+      value: undefined,
+      error: err(400, ErrorCode.VALIDATION_FAILED, `${field} is not a valid ISO date: ${raw}`),
+    };
+  }
+  return { value: d };
 }

@@ -4,9 +4,15 @@
 
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { projectApi, type ProjectListQuery } from "@frontend/features/project/api/project.api.ts";
+import {
+  projectApi,
+  type ProjectListQuery,
+} from "@frontend/features/project/api/project.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
-import type { ProjectDTO } from "@shared/types/dto/project.ts";
+import type {
+  CreateProjectInput,
+  ProjectDTO,
+} from "@shared/types/dto/project.ts";
 
 export const useProjectStore = defineStore("project", () => {
   const items = ref<ProjectDTO[]>([]);
@@ -37,7 +43,7 @@ export const useProjectStore = defineStore("project", () => {
     }
   }
 
-  async function create(input: { name: string; clientName: string }): Promise<ProjectDTO> {
+  async function create(input: CreateProjectInput): Promise<ProjectDTO> {
     const dto = await projectApi.create(input);
     // prepend so user sees it immediately
     items.value = [dto, ...items.value];
@@ -51,7 +57,10 @@ export const useProjectStore = defineStore("project", () => {
     return dto;
   }
 
-  async function changeStatus(id: string, target: ProjectDTO["status"]): Promise<ProjectDTO> {
+  async function changeStatus(
+    id: string,
+    target: ProjectDTO["status"],
+  ): Promise<ProjectDTO> {
     const dto = await projectApi.changeStatus(id, target);
     replace(dto);
     return dto;
@@ -69,5 +78,16 @@ export const useProjectStore = defineStore("project", () => {
     else items.value.unshift(dto);
   }
 
-  return { items, total, loading, error, lastQuery, load, create, rename, changeStatus, remove };
+  return {
+    items,
+    total,
+    loading,
+    error,
+    lastQuery,
+    load,
+    create,
+    rename,
+    changeStatus,
+    remove,
+  };
 });

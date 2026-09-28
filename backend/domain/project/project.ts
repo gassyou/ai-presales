@@ -8,7 +8,7 @@
 import { newId, type ProjectId, ProjectId as toProjectId } from "@shared/types/ids.ts";
 import { AggregateRoot } from "../shared/aggregate-root.ts";
 import type { Clock } from "../shared/domain-event.ts";
-import { type DomainResult, domainErr, domainOk } from "../shared/result.ts";
+import { domainErr, domainOk, type DomainResult } from "../shared/result.ts";
 import { ClientName } from "./client-name.ts";
 import {
   ProjectArchivedEvent,
@@ -61,15 +61,27 @@ export interface ProjectSnapshot {
   readonly bestPractice: string | null;
   readonly improvementNote: string | null;
   readonly pauseReason: string | null;
+  /** 阶段 7.5：项目元信息编辑 —— 全部可空 */
+  readonly clientWebsite: string | null;
+  readonly clientIntro: string | null;
+  readonly projectIntro: string | null;
+  readonly startDate: Date | null;
+  readonly endDate: Date | null;
 }
 
 export interface CreateProjectArgs {
-  code: string;            // 业务编号（应用层生成）
+  code: string; // 业务编号（应用层生成）
   name: string;
   clientName: string;
   clock: Clock;
   /** 测试用：固定 ID（默认生成） */
   id?: ProjectId;
+  /** 阶段 7.5：可编辑元信息（创建时即可填）—— 全部可选 */
+  clientWebsite?: string;
+  clientIntro?: string;
+  projectIntro?: string;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 export class Project extends AggregateRoot<ProjectId> {
@@ -86,6 +98,12 @@ export class Project extends AggregateRoot<ProjectId> {
   private _bestPractice: string | null;
   private _improvementNote: string | null;
   private _pauseReason: string | null;
+  /** 阶段 7.5：项目元信息编辑字段 */
+  private _clientWebsite: string | null;
+  private _clientIntro: string | null;
+  private _projectIntro: string | null;
+  private _startDate: Date | null;
+  private _endDate: Date | null;
 
   private constructor(
     id: ProjectId,
@@ -102,6 +120,11 @@ export class Project extends AggregateRoot<ProjectId> {
       bestPractice: string | null;
       improvementNote: string | null;
       pauseReason: string | null;
+      clientWebsite: string | null;
+      clientIntro: string | null;
+      projectIntro: string | null;
+      startDate: Date | null;
+      endDate: Date | null;
     } = {
       wonDate: null,
       lostDate: null,
@@ -109,6 +132,11 @@ export class Project extends AggregateRoot<ProjectId> {
       bestPractice: null,
       improvementNote: null,
       pauseReason: null,
+      clientWebsite: null,
+      clientIntro: null,
+      projectIntro: null,
+      startDate: null,
+      endDate: null,
     },
   ) {
     super(id);
@@ -124,6 +152,11 @@ export class Project extends AggregateRoot<ProjectId> {
     this._bestPractice = init.bestPractice;
     this._improvementNote = init.improvementNote;
     this._pauseReason = init.pauseReason;
+    this._clientWebsite = init.clientWebsite;
+    this._clientIntro = init.clientIntro;
+    this._projectIntro = init.projectIntro;
+    this._startDate = init.startDate;
+    this._endDate = init.endDate;
   }
 
   // ---------- factory ----------
@@ -136,6 +169,17 @@ export class Project extends AggregateRoot<ProjectId> {
     if (!args.code || args.code.trim().length === 0) {
       return domainErr("INVALID_INPUT", "project code is required");
     }
+    const startR = normalizeOptionalDate(args.startDate, "startDate");
+    if (!startR.ok) return startR;
+    const endR = normalizeOptionalDate(args.endDate, "endDate");
+    if (!endR.ok) return endR;
+    if (startR.value && endR.value && endR.value.getTime() < startR.value.getTime()) {
+      return domainErr(
+        "INVALID_INPUT",
+        "endDate must be on or after startDate",
+        { startDate: startR.value.toISOString(), endDate: endR.value.toISOString() },
+      );
+    }
     const now = args.clock.now();
     const id = args.id ?? toProjectId(newId<"ProjectId">());
     const p = new Project(
@@ -146,6 +190,19 @@ export class Project extends AggregateRoot<ProjectId> {
       ProjectStatus.initial(),
       now,
       now,
+      {
+        wonDate: null,
+        lostDate: null,
+        lostReason: null,
+        bestPractice: null,
+        improvementNote: null,
+        pauseReason: null,
+        clientWebsite: trimToNull(args.clientWebsite),
+        clientIntro: trimToNull(args.clientIntro),
+        projectIntro: trimToNull(args.projectIntro),
+        startDate: startR.value,
+        endDate: endR.value,
+      },
     );
     p.addDomainEvent(new ProjectCreatedEvent(id, nameR.value.value, clientR.value.value, now));
     return domainOk(p);
@@ -172,6 +229,11 @@ export class Project extends AggregateRoot<ProjectId> {
     bestPractice?: string | null;
     improvementNote?: string | null;
     pauseReason?: string | null;
+    clientWebsite?: string | null;
+    clientIntro?: string | null;
+    projectIntro?: string | null;
+    startDate?: Date | null;
+    endDate?: Date | null;
   }): Project {
     // 持久层应当只存合法值；这里故意 fail-fast 不再校验
     const nameR = ProjectName.create(snap.name);
@@ -195,6 +257,11 @@ export class Project extends AggregateRoot<ProjectId> {
         bestPractice: snap.bestPractice ?? null,
         improvementNote: snap.improvementNote ?? null,
         pauseReason: snap.pauseReason ?? null,
+        clientWebsite: snap.clientWebsite ?? null,
+        clientIntro: snap.clientIntro ?? null,
+        projectIntro: snap.projectIntro ?? null,
+        startDate: snap.startDate ?? null,
+        endDate: snap.endDate ?? null,
       },
     );
   }
@@ -366,6 +433,119 @@ export class Project extends AggregateRoot<ProjectId> {
     return domainOk(undefined);
   }
 
+  // ---------- 阶段 7.5：项目元信息编辑 ----------
+
+  /** 改名（沿用） —— 调用方按需触发，不强制 */
+  // rename() 已在上方定义
+
+  /** 改客户名 —— 通过 ClientName 值对象校验 */
+  changeClientName(newClientName: string, clock: Clock): DomainResult<void> {
+    const r = ClientName.create(newClientName);
+    if (!r.ok) return r;
+    if (r.value.equals(this._clientName)) {
+      return domainErr("INVALID_INPUT", "new client name must be different");
+    }
+    this._clientName = r.value;
+    const now = clock.now();
+    this._updatedAt = now;
+    return domainOk(undefined);
+  }
+
+  /**
+   * 原子更新可选元信息 —— 仅修改传入的字段。
+   *
+   * 字段语义：
+   *   - undefined：保持原值（不修改）
+   *   - 字符串：trim 后写入；trim 后为空 → 清空为 null
+   *   - 起始/结束时间：传 null 视为清空；传 Date 校验有效性；end < start 拒绝
+   *
+   * 调用方应保证至少一个字段被传入；空调用直接当作无操作（updatedAt 不变）。
+   */
+  updateProfile(
+    args: {
+      clientWebsite?: string | null;
+      clientIntro?: string | null;
+      projectIntro?: string | null;
+      startDate?: Date | null;
+      endDate?: Date | null;
+    },
+    clock: Clock,
+  ): DomainResult<void> {
+    const updates: {
+      clientWebsite?: string | null;
+      clientIntro?: string | null;
+      projectIntro?: string | null;
+      startDate?: Date | null;
+      endDate?: Date | null;
+    } = {};
+    if (args.clientWebsite !== undefined) {
+      updates.clientWebsite = trimToNull(args.clientWebsite);
+    }
+    if (args.clientIntro !== undefined) {
+      updates.clientIntro = trimToNull(args.clientIntro);
+    }
+    if (args.projectIntro !== undefined) {
+      updates.projectIntro = trimToNull(args.projectIntro);
+    }
+    if (args.startDate !== undefined) {
+      const r = normalizeOptionalDate(args.startDate, "startDate");
+      if (!r.ok) return r;
+      updates.startDate = r.value;
+    }
+    if (args.endDate !== undefined) {
+      const r = normalizeOptionalDate(args.endDate, "endDate");
+      if (!r.ok) return r;
+      updates.endDate = r.value;
+    }
+    // end < start 校验（结合已有 startDate + 即将写入的 endDate）
+    const effectiveStart = updates.startDate !== undefined ? updates.startDate : this._startDate;
+    const effectiveEnd = updates.endDate !== undefined ? updates.endDate : this._endDate;
+    if (effectiveStart && effectiveEnd && effectiveEnd.getTime() < effectiveStart.getTime()) {
+      return domainErr(
+        "INVALID_INPUT",
+        "endDate must be on or after startDate",
+        {
+          startDate: effectiveStart.toISOString(),
+          endDate: effectiveEnd.toISOString(),
+        },
+      );
+    }
+
+    let changed = false;
+    if (
+      updates.clientWebsite !== undefined &&
+      updates.clientWebsite !== this._clientWebsite
+    ) {
+      this._clientWebsite = updates.clientWebsite;
+      changed = true;
+    }
+    if (updates.clientIntro !== undefined && updates.clientIntro !== this._clientIntro) {
+      this._clientIntro = updates.clientIntro;
+      changed = true;
+    }
+    if (
+      updates.projectIntro !== undefined && updates.projectIntro !== this._projectIntro
+    ) {
+      this._projectIntro = updates.projectIntro;
+      changed = true;
+    }
+    if (updates.startDate !== undefined && !datesEqual(updates.startDate, this._startDate)) {
+      this._startDate = updates.startDate;
+      changed = true;
+    }
+    if (updates.endDate !== undefined && !datesEqual(updates.endDate, this._endDate)) {
+      this._endDate = updates.endDate;
+      changed = true;
+    }
+
+    if (!changed) {
+      // 无字段实际变化 —— 不更新 updatedAt，避免无谓触发更新事件
+      return domainOk(undefined);
+    }
+    this._updatedAt = clock.now();
+    return domainOk(undefined);
+  }
+
   // ---------- snapshot ----------
 
   snapshot(): ProjectSnapshot {
@@ -385,6 +565,40 @@ export class Project extends AggregateRoot<ProjectId> {
       bestPractice: this._bestPractice,
       improvementNote: this._improvementNote,
       pauseReason: this._pauseReason,
+      clientWebsite: this._clientWebsite,
+      clientIntro: this._clientIntro,
+      projectIntro: this._projectIntro,
+      startDate: this._startDate,
+      endDate: this._endDate,
     };
   }
+}
+
+// ---------- 模块级辅助 ----------
+
+/** trim 字符串；trim 后为空返回 null（视为"清空字段"） */
+function trimToNull(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/** 校验可选 Date：null/undefined 通过；Date 必须有效；其余类型报错 */
+function normalizeOptionalDate(
+  value: Date | null | undefined,
+  field: string,
+): DomainResult<Date | null> {
+  if (value === null || value === undefined) return domainOk(null);
+  if (!(value instanceof Date) || isNaN(value.getTime())) {
+    return domainErr("INVALID_INPUT", `${field} must be a valid Date`);
+  }
+  return domainOk(value);
+}
+
+/** 两个 Date 是否表示同一时刻（容忍 null） */
+function datesEqual(a: Date | null, b: Date | null): boolean {
+  if (a === null && b === null) return true;
+  if (a === null || b === null) return false;
+  return a.getTime() === b.getTime();
 }

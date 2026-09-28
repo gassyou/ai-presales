@@ -38,6 +38,13 @@
               ~
               {{ project.endDate ? formatDate(project.endDate) : "—" }}
           </span>
+          <button
+            type="button"
+            class="ml-3 align-middle text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+            @click="openEditDialog"
+          >
+            编辑
+          </button>
         </h1>
         <span class="text-xs text-slate-500">客户：{{ project.clientName }}</span>
         <span class="text-xs ml-3" v-if="project.clientWebsite">
@@ -130,6 +137,16 @@
 
     <!-- 阶段 7.4e：邮件撰写弹窗（全局） -->
     <EmailComposerDialog v-if="emailComposerStore.open && emailComposerStore.projectId === project.id" />
+
+    <!-- 阶段 7.5：编辑项目信息弹窗 -->
+    <ProjectEditDialog
+      v-if="editing"
+      :project="project"
+      :submitting="editSubmitting"
+      :error="editError"
+      @close="closeEditDialog"
+      @submit="onSubmitEdit"
+    />
   </section>
 
   <section v-else-if="!loading" class="mx-auto p-6 text-sm text-slate-500">
@@ -166,8 +183,11 @@ import EmailHistoryPanel from "./components/EmailHistoryPanel.vue";
 import EmailComposerDialog from "./components/EmailComposerDialog.vue";
 import HardwareItemsView from "@frontend/features/business-module/components/HardwareItemsView.vue";
 import QuoteView from "@frontend/features/quote/components/QuoteView.vue";
+import ProjectEditDialog from "./components/ProjectEditDialog.vue";
 import { useEmailComposerStore } from "./stores/email-composer.store.ts";
 import { useQuoteComposerStore } from "@frontend/features/quote/stores/quote-composer.store.ts";
+import { ElMessage } from "element-plus";
+import type { UpdateProjectInput } from "@shared/types/dto/project.ts";
 
 const route = useRoute();
 const emailComposerStore = useEmailComposerStore();
@@ -178,6 +198,39 @@ const project = ref<ProjectDTO | null>(null);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
 const activeModule = ref<string>("activity");
+
+/* ===== 编辑项目信息 ===== */
+const editing = ref(false);
+const editError = ref<string | null>(null);
+const editSubmitting = ref(false);
+
+function openEditDialog(): void {
+  if (!project.value) return;
+  editError.value = null;
+  editing.value = true;
+}
+
+function closeEditDialog(): void {
+  if (editSubmitting.value) return;
+  editing.value = false;
+  editError.value = null;
+}
+
+async function onSubmitEdit(input: UpdateProjectInput): Promise<void> {
+  if (!project.value) return;
+  editError.value = null;
+  editSubmitting.value = true;
+  try {
+    const updated = await projectApi.update(project.value.id, input);
+    project.value = updated;
+    editing.value = false;
+    ElMessage.success("项目信息已更新");
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    editSubmitting.value = false;
+  }
+}
 
 /* ===== 侧边栏宽度 ===== */
 const NAV_WIDTH_MIN = 160;

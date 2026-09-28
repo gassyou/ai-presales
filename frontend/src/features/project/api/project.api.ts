@@ -8,6 +8,7 @@ import type {
   CreateProjectInput,
   ProjectDTO,
   ProjectStatusValue,
+  UpdateProjectInput,
 } from "@shared/types/dto/project.ts";
 
 export interface ProjectListQuery {
@@ -43,6 +44,10 @@ export const projectApi = {
   },
   rename(id: string, name: string) {
     return http.patch<ProjectDTO>(Endpoints.project(id), { name });
+  },
+  /** 阶段 7.5：更新项目元信息 —— 任意字段都可省略 */
+  update(id: string, input: UpdateProjectInput) {
+    return http.patch<ProjectDTO>(Endpoints.project(id), input);
   },
   changeStatus(id: string, target: ProjectStatusValue, reason?: string) {
     return http.post<ProjectDTO>(`${Endpoints.project(id)}/status`, { target, reason });

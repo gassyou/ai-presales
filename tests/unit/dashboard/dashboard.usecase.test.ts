@@ -27,10 +27,7 @@ import type {
 } from "@backend/domain/business-module/business-module-item.ts";
 import type { BusinessModuleKind } from "@backend/domain/business-module/business-module.ts";
 import { DashboardUseCase } from "@backend/application/dashboard/dashboard.usecase.ts";
-import {
-  domainOk,
-  type DomainResult,
-} from "@backend/domain/shared/result.ts";
+import { domainOk, type DomainResult } from "@backend/domain/shared/result.ts";
 
 // ---------- Fake Project Repo ----------
 
@@ -128,7 +125,13 @@ class FakeBusinessModuleRepo implements IBusinessModuleRepository {
   async save(item: BusinessModuleItemSnapshot) {
     const idx = this.rows.findIndex((r) => r.id === item.id);
     if (idx >= 0) this.rows[idx] = { ...this.rows[idx], ...item };
-    else this.rows.push({ ...item, projectName: "", clientName: "", planDate: null, clientContactName: null });
+    else {this.rows.push({
+        ...item,
+        projectName: "",
+        clientName: "",
+        planDate: null,
+        clientContactName: null,
+      });}
   }
   async findById(id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
@@ -196,6 +199,11 @@ function makeSnap(args: {
     bestPractice: null,
     improvementNote: null,
     pauseReason: null,
+    clientWebsite: null,
+    clientIntro: null,
+    projectIntro: null,
+    startDate: null,
+    endDate: null,
   };
 }
 

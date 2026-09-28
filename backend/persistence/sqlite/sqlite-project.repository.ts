@@ -43,12 +43,17 @@ interface ProjectRow {
   best_practice: string | null;
   improvement_note: string | null;
   pause_reason: string | null;
+  client_website: string | null;
+  client_intro: string | null;
+  project_intro: string | null;
+  start_date: string | null;
+  end_date: string | null;
 }
 
-/** SELECT 列表 —— 所有查询都返回全 13 列，避免多次维护。 */
-const SELECT_COLUMNS =
-  "id, code, name, client_name, status, created_at, updated_at, " +
-  "won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason";
+/** SELECT 列表 —— 所有查询都返回全 18 列，避免多次维护。 */
+const SELECT_COLUMNS = "id, code, name, client_name, status, created_at, updated_at, " +
+  "won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason, " +
+  "client_website, client_intro, project_intro, start_date, end_date";
 
 function baseRowToSnapshot(row: ProjectRow): ProjectSnapshot {
   return {
@@ -67,6 +72,11 @@ function baseRowToSnapshot(row: ProjectRow): ProjectSnapshot {
     bestPractice: row.best_practice,
     improvementNote: row.improvement_note,
     pauseReason: row.pause_reason,
+    clientWebsite: row.client_website,
+    clientIntro: row.client_intro,
+    projectIntro: row.project_intro,
+    startDate: row.start_date ? new Date(row.start_date) : null,
+    endDate: row.end_date ? new Date(row.end_date) : null,
   };
 }
 
@@ -84,9 +94,10 @@ export class SqliteProjectRepository implements IProjectRepository {
         this.db.run(
           `INSERT INTO projects (
              id, code, name, client_name, status, created_at, updated_at,
-             won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason
+             won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason,
+             client_website, client_intro, project_intro, start_date, end_date
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              code = excluded.code,
              name = excluded.name,
@@ -98,7 +109,12 @@ export class SqliteProjectRepository implements IProjectRepository {
              lost_reason = excluded.lost_reason,
              best_practice = excluded.best_practice,
              improvement_note = excluded.improvement_note,
-             pause_reason = excluded.pause_reason`,
+             pause_reason = excluded.pause_reason,
+             client_website = excluded.client_website,
+             client_intro = excluded.client_intro,
+             project_intro = excluded.project_intro,
+             start_date = excluded.start_date,
+             end_date = excluded.end_date`,
           [
             snap.id,
             snap.code,
@@ -113,6 +129,11 @@ export class SqliteProjectRepository implements IProjectRepository {
             snap.bestPractice,
             snap.improvementNote,
             snap.pauseReason,
+            snap.clientWebsite,
+            snap.clientIntro,
+            snap.projectIntro,
+            snap.startDate ? snap.startDate.toISOString() : null,
+            snap.endDate ? snap.endDate.toISOString() : null,
           ] as QueryParam[],
         );
         // 丢弃 pending events —— 由调用方（UnitOfWork / handler）来 dispatch
@@ -120,7 +141,10 @@ export class SqliteProjectRepository implements IProjectRepository {
       });
       return domainOk(undefined);
     } catch (e) {
-      return domainErr("INTERNAL", `save project failed: ${e instanceof Error ? e.message : String(e)}`);
+      return domainErr(
+        "INTERNAL",
+        `save project failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -135,6 +159,17 @@ export class SqliteProjectRepository implements IProjectRepository {
       status: snap.status,
       createdAt: snap.createdAt,
       updatedAt: snap.updatedAt,
+      wonDate: snap.wonDate,
+      lostDate: snap.lostDate,
+      lostReason: snap.lostReason,
+      bestPractice: snap.bestPractice,
+      improvementNote: snap.improvementNote,
+      pauseReason: snap.pauseReason,
+      clientWebsite: snap.clientWebsite,
+      clientIntro: snap.clientIntro,
+      projectIntro: snap.projectIntro,
+      startDate: snap.startDate,
+      endDate: snap.endDate,
     }));
   }
 
