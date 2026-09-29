@@ -21,7 +21,13 @@
       </div>
       <div v-if="message.content" class="whitespace-pre-wrap break-words">{{ message.content }}</div>
       <div v-if="toolCalls.length > 0" class="mt-2 space-y-2">
-        <ToolCallCard v-for="(tc, i) in toolCalls" :key="`${message.id}-tc-${i}`" :call="tc" />
+        <ToolCallCard
+          v-for="(tc, i) in toolCalls"
+          :key="`${message.id}-tc-${i}`"
+          :call="tc"
+          @approve="onApprove(tc.name)"
+          @reject="onReject(tc.name)"
+        />
       </div>
       <div class="mt-1 text-right text-[10px] text-slate-600">
         {{ formatTime(message.createdAt) }}
@@ -34,8 +40,21 @@
 import { computed } from "vue";
 import type { ChatMessage } from "./types.ts";
 import ToolCallCard from "./ToolCallCard.vue";
+import { useAiChatStore } from "./stores/ai-chat.store.ts";
 
 const props = defineProps<{ message: ChatMessage }>();
+const store = useAiChatStore();
+
+// 阶段 H+2：审批按钮回调。把 tool 名加进 pendingApprove/Reject，立即 send 一条 user
+// 消息让 LLM 在下一轮重试该 tool（forceApprove/Reject 一次性）。
+function onApprove(toolName: string): void {
+  store.approveTool(toolName);
+  void store.send("✅ 用户已批准此操作，请继续按计划执行");
+}
+function onReject(toolName: string): void {
+  store.rejectTool(toolName);
+  void store.send("✗ 用户拒绝此操作，请改用其他方式或向用户报告");
+}
 
 const isUser = computed(() => props.message.role === "user");
 const isTool = computed(() => props.message.role === "tool");

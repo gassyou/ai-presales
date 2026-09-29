@@ -20,6 +20,12 @@ export const useAiChatStore = defineStore("aiChat", () => {
   const profile = ref<string>("fast");
   /** 当前选中的 sub-agent；空 = 走直 chat */
   const subAgentName = ref<string>("");
+  /** 阶段 H+2：chat store 内 force 决策（一组 tool 名）。
+ *  setApprovePending(name) 把 name 加进 approve set；
+ *  下次 send() 时把 forceApproveNames 注入 chat request body，executor 真执行该 tool。
+ *  类似 rejectForce set。LLM 在下一轮如不再调那个 tool，决策自然过期。 */
+  const pendingApprove = ref<Set<string>>(new Set());
+  const pendingReject = ref<Set<string>>(new Set());
   /** 阶段 H：是否启用 chat 内 tools（带 toolNames 调 agent loop） */
   const toolsEnabled = ref<boolean>(false);
   /** 阶段 H：tools 名称集合（来自 ToolRegistry.names()，chat 启用时注入） */
@@ -73,25 +79,33 @@ export const useAiChatStore = defineStore("aiChat", () => {
     ];
 
     try {
-      const source = subAgentName.value
-        ? subAgentApi.invoke(
-          subAgentName.value,
-          {
-            input: content,
-            ...(profile.value ? { profileName: profile.value } : {}),
-            ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
-          },
-          abort.signal,
-        )
-        : aiChatApi.streamChat(
-          {
-            profile: profile.value,
-            messages: toRequestMessages(),
-            ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
-            ...(toolsEnabled.value ? { toolNames: toolNames.value } : {}),
-          },
-          abort.signal,
-        );
+      // 阶段 H+2：把 pending force 决策注入 body，并清空（一轮用完）
+          const forceApproveNames = Array.from(pendingApprove.value);
+          const forceRejectNames = Array.from(pendingReject.value);
+          pendingApprove.value = new Set();
+          pendingReject.value = new Set();
+
+          const source = subAgentName.value
+            ? subAgentApi.invoke(
+              subAgentName.value,
+              {
+                input: content,
+                ...(profile.value ? { profileName: profile.value } : {}),
+                ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
+              },
+              abort.signal,
+            )
+            : aiChatApi.streamChat(
+              {
+                profile: profile.value,
+                messages: toRequestMessages(),
+                ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
+                ...(toolsEnabled.value ? { toolNames: toolNames.value } : {}),
+                ...(forceApproveNames.length > 0 ? { forceApproveNames } : {}),
+                ...(forceRejectNames.length > 0 ? { forceRejectNames } : {}),
+              },
+              abort.signal,
+            );
 
       for await (const ev of source) {
         if (ev.type === "chunk") {
@@ -109,6 +123,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
             m.id === asstId ? { ...m, toolCalls: [...(m.toolCalls ?? []), entry] } : m
           );
         } else if (ev.type === "tool_result") {
+          // 阶段 H+2：approval pending 推断（ok=false + error=APPROVAL_REQUIRED）
+          const isAwaitingApproval = !ev.ok && ev.error === "APPROVAL_REQUIRED";
           messages.value = messages.value.map((m) => {
             if (m.id !== asstId) return m;
             const updated = (m.toolCalls ?? []).map((tc) =>
@@ -120,6 +136,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
                     ? { result: typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result) }
                     : {}),
                   ...(ev.error !== undefined ? { error: ev.error } : {}),
+                  ...(isAwaitingApproval ? { awaitingApproval: true } : {}),
                   durationMs: ev.durationMs,
                 }
                 : tc
@@ -198,6 +215,26 @@ export const useAiChatStore = defineStore("aiChat", () => {
     setToolsEnabled: (v: boolean) => {
       toolsEnabled.value = v;
     },
+    approveTool: (toolName: string) => {
+      // 阶段 H+2：把 toolName 加入 forceApprove set；触发新一轮 send 让 LLM 重试。
+      // 清掉同一 tool 的 reject 决策（以最后一次为准）。
+      const r = new Set(pendingApprove.value);
+      r.add(toolName);
+      pendingApprove.value = r;
+      const rj = new Set(pendingReject.value);
+      rj.delete(toolName);
+      pendingReject.value = rj;
+    },
+    rejectTool: (toolName: string) => {
+      const rj = new Set(pendingReject.value);
+      rj.add(toolName);
+      pendingReject.value = rj;
+      const r = new Set(pendingApprove.value);
+      r.delete(toolName);
+      pendingApprove.value = r;
+    },
+    pendingApprove,
+    pendingReject,
     setCurrentProject,
     setCurrentProjectId,
     setMentionCandidates,

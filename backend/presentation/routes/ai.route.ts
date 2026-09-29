@@ -59,10 +59,28 @@ interface AiChatRequestBody {
    * 解析 tool_use 并自动执行；前端 SSE 收到 tool_call / tool_result 事件。
    */
   toolNames?: readonly string[];
+  /**
+   * 阶段 H+2：force 决策一组 tool 名（一次性，仅本次请求生效）。
+   * - approveNames：忽略 requiresApproval 检查，真执行
+   * - rejectNames：返 USER_REJECTED（不真执行）
+   * 一次性 force（不像 token 那样粘在 toolCallId 上）是因为 LLM 重试时通常换
+   * toolCallId，所以前端按 tool 名决策最稳。
+   */
+  forceApproveNames?: readonly string[];
+  forceRejectNames?: readonly string[];
 }
 
 type ParsedBody =
-  | { ok: true; profileName: string; profile: ProfileConfig; messages: CanonicalMessage[]; systemPrompt?: string; toolNames?: readonly string[] }
+  | {
+    ok: true;
+    profileName: string;
+    profile: ProfileConfig;
+    messages: CanonicalMessage[];
+    systemPrompt?: string;
+    toolNames?: readonly string[];
+    forceApproveNames?: readonly string[];
+    forceRejectNames?: readonly string[];
+  }
   | { ok: false; response: Response };
 
 function err(status: number, code: string, message: string): Response {
@@ -101,7 +119,16 @@ function parseRequest(
     }
     canonical.push({ role: m.role, content: [{ type: "text", text: m.content }] });
   }
-  const result: { ok: true; profileName: string; profile: ProfileConfig; messages: CanonicalMessage[]; systemPrompt?: string; toolNames?: readonly string[] } = {
+  const result: {
+    ok: true;
+    profileName: string;
+    profile: ProfileConfig;
+    messages: CanonicalMessage[];
+    systemPrompt?: string;
+    toolNames?: readonly string[];
+    forceApproveNames?: readonly string[];
+    forceRejectNames?: readonly string[];
+  } = {
     ok: true,
     profileName: body.profile,
     profile,
@@ -109,6 +136,18 @@ function parseRequest(
   };
   if (body.systemPrompt !== undefined) result.systemPrompt = body.systemPrompt;
   if (body.toolNames !== undefined) result.toolNames = body.toolNames;
+  if (body.forceApproveNames !== undefined) {
+    if (!Array.isArray(body.forceApproveNames) || body.forceApproveNames.some((n) => typeof n !== "string")) {
+      return { ok: false, response: err(400, ErrorCode.VALIDATION_FAILED, "forceApproveNames must be string[]") };
+    }
+    result.forceApproveNames = body.forceApproveNames;
+  }
+  if (body.forceRejectNames !== undefined) {
+    if (!Array.isArray(body.forceRejectNames) || body.forceRejectNames.some((n) => typeof n !== "string")) {
+      return { ok: false, response: err(400, ErrorCode.VALIDATION_FAILED, "forceRejectNames must be string[]") };
+    }
+    result.forceRejectNames = body.forceRejectNames;
+  }
   return result;
 }
 
@@ -189,6 +228,8 @@ export async function handleAiChatStream(req: Request, deps: AiChatRouteDeps): P
       cwd: deps.toolCwd ?? Deno.cwd(),
       allowedPaths: deps.toolAllowedPaths ?? [],
       defaultTimeoutMs: 30_000,
+      ...(parsed.forceApproveNames !== undefined ? { forceApproveNames: parsed.forceApproveNames } : {}),
+      ...(parsed.forceRejectNames !== undefined ? { forceRejectNames: parsed.forceRejectNames } : {}),
     });
 
     const stream = chatWithToolsLoop({

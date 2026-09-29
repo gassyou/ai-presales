@@ -11,6 +11,8 @@ export interface ToolCallEntry {
   readonly ok?: boolean;
   readonly error?: string;
   readonly durationMs?: number;
+  /** 阶段 H+2：true = 等待用户在前端点批准/拒绝 */
+  readonly awaitingApproval?: boolean;
 }
 
 export interface ChatMessage {

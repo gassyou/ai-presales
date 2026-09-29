@@ -23,6 +23,13 @@ export interface ToolExecutorOptions {
   readonly cwd: string;
   readonly allowedPaths: readonly string[];
   readonly defaultTimeoutMs?: number;
+  /**
+   * 阶段 H+2：force 决策（一次性，按 tool 名）。
+   * - forceApproveNames 中的 tool 名 → 跳过 requiresApproval 检查
+   * - forceRejectNames 中的 tool 名 → 返 USER_REJECTED
+   */
+  readonly forceApproveNames?: readonly string[];
+  readonly forceRejectNames?: readonly string[];
 }
 
 export class ToolExecutor {
@@ -56,6 +63,45 @@ export class ToolExecutor {
     };
 
     const startedAt = Date.now();
+
+    // 阶段 H+2：审批流
+    // - tool 在 forceRejectNames → 拒绝
+    // - tool 在 forceApproveNames → 真执行（跳过 requiresApproval 检查）
+    // - tool 有 requiresApproval=true 且不在 force approve set → 等用户决定
+    const isForceApprove = this.opts.forceApproveNames?.includes(tool.name) === true;
+    const isForceReject = this.opts.forceRejectNames?.includes(tool.name) === true;
+    if (isForceReject) {
+      const durationMs = Date.now() - startedAt;
+      this.opts.logger.info("tool force-rejected", {
+        tool: tool.name,
+        toolCallId: invocation.toolCallId,
+      });
+      return {
+        toolCallId: invocation.toolCallId,
+        name: tool.name,
+        ok: false,
+        content: "",
+        error: "USER_REJECTED",
+        durationMs,
+      };
+    }
+    if (tool.requiresApproval && !isForceApprove) {
+      const durationMs = Date.now() - startedAt;
+      this.opts.logger.info("tool awaiting approval", {
+        tool: tool.name,
+        toolCallId: invocation.toolCallId,
+      });
+      return {
+        toolCallId: invocation.toolCallId,
+        name: tool.name,
+        ok: false,
+        content: "",
+        error: "APPROVAL_REQUIRED",
+        durationMs,
+        awaitingApproval: true,
+      };
+    }
+
     this.opts.logger.info("tool invoke", {
       tool: tool.name,
       toolCallId: invocation.toolCallId,

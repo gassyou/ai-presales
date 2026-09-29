@@ -63,6 +63,11 @@ export interface ToolOutcome {
   readonly content: string;
   readonly error?: string;
   readonly durationMs: number;
+  /**
+   * 阶段 H+2：true = 此调用在等待用户审批（tool 有 requiresApproval=true，
+   * 且 invocation 没带 approval 决策）。前端应该渲染"批准/拒绝"按钮。
+   */
+  readonly awaitingApproval?: boolean;
 }
 
 export const ok = <R>(value: R): ToolResult<R> => ({ ok: true, value });
