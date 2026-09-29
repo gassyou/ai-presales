@@ -162,7 +162,9 @@ export async function handleProjects(
   }
 
   // 子资源
-  const sub = path.match(/^\/api\/projects\/([0-9a-fA-F-]{36})(\/status|\/workspace)?$/);
+  const sub = path.match(
+    /^\/api\/projects\/([0-9a-fA-F-]{36})(\/status|\/workspace(?:\/ensure)?)?$/,
+  );
   if (!sub) {
     return err(404, ErrorCode.NOT_FOUND, `route ${path} not found`);
   }
@@ -175,6 +177,14 @@ export async function handleProjects(
   if (sub[2] === "/workspace") {
     if (method === "POST") return setWorkspace(req, deps, id);
     if (method === "GET") return resolveWorkspace(req, deps, id);
+    return err(405, ErrorCode.INTERNAL, `method ${method} not allowed`);
+  }
+
+  // 阶段 13（PR #2）：POST /api/projects/:id/workspace/ensure
+  //   body: { workspacePath?: string | null }  —— null/undefined 走默认
+  //   mkdir(recursive: true) 跨平台；已存在则直接落库不创建
+  if (sub[2] === "/workspace/ensure") {
+    if (method === "POST") return ensureWorkspaceRoute(req, deps, id);
     return err(405, ErrorCode.INTERNAL, `method ${method} not allowed`);
   }
 
@@ -418,6 +428,89 @@ async function changeStatus(
     status: 200,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
+}
+
+// 阶段 13（PR #2）：POST /api/projects/:id/workspace/ensure
+//   body: { workspacePath?: string | null }
+//   - null/undefined → resolveWorkspacePath() 默认路径
+//   - mkdir(recursive: true)；已存在 → 直接落库不创建
+//   - 跨平台：macOS / Windows / Linux 都走 Deno.mkdir native
+async function ensureWorkspaceRoute(
+  req: Request,
+  deps: ProjectRouteDeps,
+  id: ProjectId,
+): Promise<Response> {
+  let raw: unknown;
+  try {
+    raw = await readJson(req);
+  } catch (e) {
+    return err(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      e instanceof Error ? e.message : "invalid request",
+    );
+  }
+  // body 为空也允许（undefined → 用默认路径）
+  if (raw === null || raw === undefined) raw = {};
+  if (typeof raw !== "object") {
+    return err(400, ErrorCode.VALIDATION_FAILED, "expected JSON object body");
+  }
+  const input = raw as { workspacePath?: unknown };
+  let workspacePath: string | null | undefined;
+  if (input.workspacePath !== undefined && input.workspacePath !== null) {
+    if (typeof input.workspacePath !== "string") {
+      return err(
+        400,
+        ErrorCode.VALIDATION_FAILED,
+        "workspacePath must be a string or null",
+      );
+    }
+    // 绝对路径校验（与 setWorkspace 一致：/ 开头或 Windows 盘符 C:\）
+    const trimmed = input.workspacePath.trim();
+    if (trimmed.length > 0) {
+      const isAbs = trimmed.startsWith("/") ||
+        /^[A-Za-z]:[\\/]/.test(trimmed);
+      if (!isAbs) {
+        return err(
+          400,
+          ErrorCode.VALIDATION_FAILED,
+          "workspacePath must be absolute (/Users/... or C:\\Users\\...)",
+        );
+      }
+      workspacePath = trimmed;
+    }
+  }
+  const r = await deps.service.ensureWorkspace(id, {
+    createIfMissing: true,
+    workspacePath: workspacePath ?? null,
+  });
+  if (!r.ok) {
+    return err(
+      r.error.code === "WORKSPACE_CREATE_FAILED"
+        ? 500
+        : r.error.code === "WORKSPACE_NOT_EXISTS"
+        ? 404
+        : 400,
+      ErrorCode.INTERNAL,
+      r.error.message,
+      r.error.details,
+    );
+  }
+  // ensureWorkspace 不写 ProjectDTO；客户端需要拿最新 ProjectDTO
+  const snapR = await deps.service.getProject(id);
+  if (!snapR.ok) {
+    return err(500, ErrorCode.INTERNAL, "project not found after ensure");
+  }
+  return new Response(
+    JSON.stringify({
+      project: snapshotToDTO(snapR.value!),
+      workspace: r.value, // { path, created, existed }
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    },
+  );
 }
 
 // 阶段 13（PR #2）：POST /api/projects/:id/workspace

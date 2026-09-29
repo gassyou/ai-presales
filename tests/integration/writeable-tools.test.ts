@@ -583,7 +583,7 @@ Deno.test("create_survey_task — dryRun 不写", async () => {
 
 // ========== 装配校验 ==========
 
-Deno.test("buildWriteableTools — 7 个工具注册到 registry", async () => {
+Deno.test("buildWriteableTools — 9 个工具注册到 registry", async () => {
   const { deps } = await setup();
   // 动态 import 避免循环依赖
   const { buildWriteableTools } = await import("@backend/ai/tool/builtin/writeable-tools.ts");
@@ -591,13 +591,15 @@ Deno.test("buildWriteableTools — 7 个工具注册到 registry", async () => {
   const r = new ToolRegistry();
   const tools = buildWriteableTools(deps);
   for (const t of tools) r.register(t);
-  // 7 个写工具 + 0 个 builtin（没调 buildBuiltinToolRegistry）
-  assertEquals(tools.length, 7);
-  assertEquals(r.names().length, 7);
+  // 9 个写工具（7 原始 + SetProjectWorkspaceTool + ResolveProjectWorkspaceTool）
+  assertEquals(tools.length, 9);
+  assertEquals(r.names().length, 9);
   assert(r.has("write_project_status"));
   assert(r.has("create_activity"));
   assert(r.has("create_function_list_item"));
   assert(r.has("update_markdown_module"));
+  assert(r.has("set_project_workspace"));
+  assert(r.has("resolve_project_workspace"));
   assert(r.has("save_questionnaire_outline"));
   assert(r.has("set_primary_contact"));
   assert(r.has("create_survey_task"));

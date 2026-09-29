@@ -84,6 +84,24 @@ export const useProjectStore = defineStore("project", () => {
     return resolvedPath;
   }
 
+  /**
+   * 阶段 13（PR #2）：一键创建工作区文件夹。
+   * 后端会 mkdir(recursive: true)；已存在则只落库不创建。
+   * workspacePath 缺省 = 用项目自带或默认 (~/Desktop/<code>)。
+   * 返回最新 ProjectDTO + workspace 状态 { path, created, existed }。
+   */
+  async function ensureWorkspace(
+    id: string,
+    workspacePath?: string | null,
+  ): Promise<{
+    project: ProjectDTO;
+    workspace: { path: string; created: boolean; existed: boolean };
+  }> {
+    const r = await projectApi.ensureWorkspace(id, workspacePath);
+    replace(r.project);
+    return r;
+  }
+
   async function remove(id: string): Promise<void> {
     await projectApi.remove(id);
     items.value = items.value.filter((p) => p.id !== id);
@@ -108,6 +126,7 @@ export const useProjectStore = defineStore("project", () => {
     changeStatus,
     setWorkspace,
     resolveWorkspace,
+    ensureWorkspace,
     remove,
   };
 });

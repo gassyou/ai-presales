@@ -112,16 +112,33 @@
       <span v-else class="text-slate-500">
         ~/Desktop/{{ project.name }}
       </span>
-      <button type="button"
-        class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
-        @click="openWorkspaceDialog">
-        变更
-      </button>
-      <button type="button"
-        class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
-        @click="openWorkspaceDialog">
-        创建
-      </button>
+      <!-- 阶段 13（PR #2）：「变更」按钮触发隐藏文件夹选择 input；
+           「创建文件夹」按钮调后端 mkdir(recursive) 跨平台创建 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button"
+          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+          @click="openFolderPicker">
+          变更
+        </button>
+        <button type="button"
+          :disabled="creatingWorkspace"
+          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline disabled:opacity-50"
+          @click="onCreateWorkspace">
+          {{ creatingWorkspace ? "创建中…" : "创建文件夹" }}
+        </button>
+        <!-- 隐藏的文件夹选择 input；用 webkitdirectory 跨 WebView2/WKWebView/WebKitGTK 兼容；
+             选完目录后 File.path 给出绝对路径（Chromium/WebKit 行为，依赖 webview 形态） -->
+        <input
+          ref="folderInputRef"
+          type="file"
+          webkitdirectory
+          directory
+          multiple
+          class="hidden"
+          @change="onFolderPicked"
+        />
+      </div>
+      <p v-if="workspaceError" class="text-xs text-red-500">{{ workspaceError }}</p>
     </div>
 
     <div v-if="loadError" class="rounded border border-red-700 bg-red-900/20 px-4 py-2 text-sm text-red-300">
@@ -362,6 +379,8 @@ async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<vo
 const workspaceDialog = ref(false);
 const workspaceSubmitting = ref(false);
 const workspaceError = ref<string | null>(null);
+const folderInputRef = ref<HTMLInputElement | null>(null);
+const creatingWorkspace = ref(false);
 
 function openWorkspaceDialog(): void {
   if (!project.value) return;
@@ -373,6 +392,74 @@ function closeWorkspaceDialog(): void {
   if (workspaceSubmitting.value) return;
   workspaceDialog.value = false;
   workspaceError.value = null;
+}
+
+/**
+ * 阶段 13（PR #2）：「变更」按钮 → 触发隐藏的 <input type="file" webkitdirectory>。
+ * 跨 webview 兼容：WebView2（Win）、WKWebView（macOS）、WebKitGTK（Linux）。
+ * 选完目录后由 onFolderPicked 读取 File.path（Chromium/WebKit 暴露给 JS 的绝对路径）。
+ */
+function openFolderPicker(): void {
+  if (!project.value) return;
+  workspaceError.value = null;
+  // 重置 value 让用户重选同一目录也能触发 change
+  if (folderInputRef.value) folderInputRef.value.value = "";
+  folderInputRef.value?.click();
+}
+
+/**
+ * 阶段 13（PR #2）：文件夹选完后取 File.path 作为绝对路径，赋值给 workspace。
+ * File.path 是非标准但 Chromium/WebKit 都暴露的属性。
+ */
+async function onFolderPicked(event: Event): Promise<void> {
+  if (!project.value) return;
+  const input = event.target as HTMLInputElement;
+  const files = input.files;
+  if (!files || files.length === 0) return;
+  // 第一个文件的 .path 即选中的文件夹路径（webkit 行为）
+  const first = files[0] as File & { path?: string };
+  const pickedPath = first.path;
+  if (!pickedPath || pickedPath.length === 0) {
+    workspaceError.value =
+      "当前环境不支持从文件选择器读取绝对路径，请改用「创建文件夹」或手动输入。";
+    return;
+  }
+  workspaceSubmitting.value = true;
+  try {
+    const updated = await projectStore.setWorkspace(project.value.id, pickedPath);
+    project.value = updated;
+    ElMessage.success(`工作区路径已更新：${pickedPath}`);
+  } catch (e) {
+    workspaceError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    workspaceSubmitting.value = false;
+    input.value = "";
+  }
+}
+
+/**
+ * 阶段 13（PR #2）：「创建文件夹」按钮 → 后端 mkdir(recursive) 跨平台创建；
+ * 已存在则只落库不创建；返回最新 ProjectDTO。
+ */
+async function onCreateWorkspace(): Promise<void> {
+  if (!project.value || creatingWorkspace.value) return;
+  creatingWorkspace.value = true;
+  workspaceError.value = null;
+  try {
+    const r = await projectStore.ensureWorkspace(project.value.id);
+    project.value = r.project;
+    if (r.workspace.existed) {
+      ElMessage.info(`工作区已存在：${r.workspace.path}`);
+    } else if (r.workspace.created) {
+      ElMessage.success(`已创建工作区：${r.workspace.path}`);
+    } else {
+      ElMessage.success(`工作区路径已更新：${r.workspace.path}`);
+    }
+  } catch (e) {
+    workspaceError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    creatingWorkspace.value = false;
+  }
 }
 
 async function onSubmitWorkspace(

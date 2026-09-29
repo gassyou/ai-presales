@@ -63,6 +63,21 @@ export const projectApi = {
   resolveWorkspace(id: string) {
     return http.get<{ resolvedPath: string }>(Endpoints.projectWorkspace(id));
   },
+  /** 阶段 13（PR #2）：一键创建工作区文件夹（mac/win/linux 跨平台 mkdir recursive）
+   *  - workspacePath 缺省 = 用项目自带或默认 (~/Desktop/<code>)
+   *  - 已存在 → 只落库不创建
+   *  - 不存在 → mkdir(recursive) 后落库
+   * 返回 { project: ProjectDTO, workspace: { path, created, existed } }
+   */
+  ensureWorkspace(id: string, workspacePath?: string | null) {
+    const body = workspacePath !== undefined
+      ? { workspacePath }
+      : {};
+    return http.post<{
+      project: ProjectDTO;
+      workspace: { path: string; created: boolean; existed: boolean };
+    }>(`${Endpoints.projectWorkspace(id)}/ensure`, body);
+  },
   remove(id: string) {
     return http.del<void>(Endpoints.project(id));
   },

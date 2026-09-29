@@ -333,42 +333,61 @@ export class ProjectService {
   /**
    * 一键创建工作区：若路径不存在则 mkdir(recursive: true)，
    * 已存在则不动。返回最终路径 + created(bool) 让前端区分。
+   * @param opts.workspacePath 可选：要写入的具体绝对路径；缺省 = 用项目自带或默认 (~/Desktop/<code>)
    */
   async ensureWorkspace(
     id: ProjectId,
-    opts?: { createIfMissing?: boolean; homeDir?: string },
+    opts?: {
+      createIfMissing?: boolean;
+      homeDir?: string;
+      workspacePath?: string | null;
+    },
   ): Promise<DomainResult<{ path: string; created: boolean; existed: boolean }>> {
     const found = await this.repo.findById(id);
     if (!found.ok) return found;
-    const path = found.value.resolveWorkspacePath(opts?.homeDir);
+
+    // 如果传了 workspacePath，先 setWorkspace（不创建）让项目落库该路径
+    let targetPath: string;
+    if (opts?.workspacePath) {
+      // 先 setWorkspace 落库（让后续 resolve 用新值）
+      const setR = found.value.setWorkspace(opts.workspacePath, this.clock);
+      if (!setR.ok) return setR;
+      await this.repo.save(found.value);
+      targetPath = opts.workspacePath;
+    } else {
+      targetPath = found.value.resolveWorkspacePath(opts?.homeDir);
+    }
+
     // 检查路径是否已存在
-    const stat = await this.workspaceFs.stat(path);
+    const stat = await this.workspaceFs.stat(targetPath);
     if (stat.isDirectory) {
-      return domainOk({ path, created: false, existed: true });
+      return domainOk({ path: targetPath, created: false, existed: true });
     }
     if (opts?.createIfMissing === false) {
       return domainErr(
         "WORKSPACE_NOT_EXISTS",
-        `workspace path does not exist: ${path}`,
-        { path },
+        `workspace path does not exist: ${targetPath}`,
+        { path: targetPath },
       );
     }
     // 用户要求"可以一键创建"——默认创建
     try {
-      await this.workspaceFs.mkdir(path, { recursive: true });
+      await this.workspaceFs.mkdir(targetPath, { recursive: true });
     } catch (e) {
       return domainErr(
         "WORKSPACE_CREATE_FAILED",
         e instanceof Error ? e.message : String(e),
-        { path },
+        { path: targetPath },
       );
     }
-    // 同时持久化到 DB（用户"选择"了此路径）
-    const setR = found.value.setWorkspace(path, this.clock);
-    if (setR.ok) {
-      await this.repo.save(found.value);
+    // 如果上面没 setWorkspace 落库（默认路径场景），这里落
+    if (!opts?.workspacePath) {
+      const setR = found.value.setWorkspace(targetPath, this.clock);
+      if (setR.ok) {
+        await this.repo.save(found.value);
+      }
     }
-    return domainOk({ path, created: true, existed: false });
+    return domainOk({ path: targetPath, created: true, existed: false });
   }
 
 }
