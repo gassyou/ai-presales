@@ -584,6 +584,77 @@ const defaultProfileNameFromSettings = settingsUseCase.cachedLLMProfiles()?.valu
 buildInvokeSubAgentClosure(defaultProfileNameFromSettings);
 buildContextAssemblerFromSettings();
 
+// 阶段 13（PR #9）：auto-mode 全流水线 —— 把 InvokeSubAgentUseCase 包装成 SubAgentRunner 形状，
+// 串 DefaultAutoModeContextProvider + SubAgentAutoModeWorker + 双 SubAgentReviewer + AutoModeOrchestrator，
+// 注入 server "/api/ai/auto-mode" 路由。
+import { AutoModeOrchestrator } from "@backend/ai/auto-mode/orchestrator.ts";
+import { DefaultAutoModeContextProvider } from "@backend/ai/auto-mode/default-context-provider.ts";
+import { SubAgentAutoModeWorker } from "@backend/ai/auto-mode/sub-agent-worker.ts";
+import { makeSubAgentReviewer } from "@backend/ai/auto-mode/sub-agent-reviewer.ts";
+import {
+  asSubAgentRunner,
+  AutoModeRunnerAdapter,
+} from "@backend/ai/auto-mode/invoke-sub-agent-runner.adapter.ts";
+const autoModeContextProvider = new DefaultAutoModeContextProvider({
+  projectService,
+  markdownModuleService: new MarkdownModuleService({
+    businessModuleService: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+    clock,
+  }),
+  structuredModulesUseCase: new StructuredModulesUseCase({
+    bm: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+  }),
+  surveyQuestionnaireUseCase: new SurveyQuestionnaireUseCase({
+    businessModuleService: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+    clock,
+  }),
+  surveyTaskUseCase: new SurveyTaskUseCase({
+    businessModuleService: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+    clock,
+  }),
+});
+const autoModeRunner = asSubAgentRunner(
+  new AutoModeRunnerAdapter({
+    invokeUseCase: invokeSubAgentUseCase,
+    toolRegistry,
+  }),
+);
+const autoModeWorker = new SubAgentAutoModeWorker({
+  registry: subAgentRegistry,
+  runner: autoModeRunner,
+  toolRegistry,
+});
+const autoModeCustomerReviewer = makeSubAgentReviewer({
+  role: "customer",
+  registry: subAgentRegistry,
+  runner: autoModeRunner,
+  toolRegistry,
+});
+const autoModeDirectorReviewer = makeSubAgentReviewer({
+  role: "director",
+  registry: subAgentRegistry,
+  runner: autoModeRunner,
+  toolRegistry,
+});
+const autoModeOrchestrator = new AutoModeOrchestrator({
+  worker: autoModeWorker,
+  customerReviewer: autoModeCustomerReviewer,
+  directorReviewer: autoModeDirectorReviewer,
+  contextProvider: autoModeContextProvider,
+});
+
 // 阶段 7.5：报价 AI 起草回调（H7 修复）—— 调 proposal-drafter sub-agent + 抽干成 markdown
 const aiGenerateMarkdown = async (args: {
   snapshot: import("@backend/domain/quote/quote-snapshot.ts").QuoteSnapshot;
@@ -858,6 +929,11 @@ const app = createApp({
   },
   // 阶段 13（PR #5）：把 skillRegistry 注入 server；ai.route.ts 的 slash dispatcher 用它
   skillRegistry,
+  // 阶段 13（PR #9）：auto-mode 全流水线入口（SubAgentRunner adapter + orchestrator）
+  autoModeRoute: {
+    logger,
+    orchestrator: autoModeOrchestrator,
+  },
   // 阶段 7.4h：sub-agent invoke 时读取当前 default profile 快照
   profileSnapshot,
   // 阶段 7.5（H8）：route 改走 use case 单点入口

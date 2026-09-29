@@ -48,12 +48,18 @@
       </div>
     </div>
 
+    <!-- 阶段 13（PR #9）：auto-mode 全流水线面板（仅绑定项目时显示） -->
+    <div v-if="store.currentProject" class="mx-3 mt-2">
+      <AutoModePanel :project-id="store.currentProject.id" />
+    </div>
+
     <AiChatPanel class="flex-1 min-h-0" />
   </aside>
 </template>
 
 <script setup lang="ts">
 import AiChatPanel from "@frontend/features/ai-chat/AiChatPanel.vue";
+import AutoModePanel from "@frontend/features/auto-mode/components/AutoModePanel.vue";
 import { useAiChatStore } from "@frontend/features/ai-chat/stores/ai-chat.store.ts";
 
 defineProps<{ side?: "left" | "right" }>();
