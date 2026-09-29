@@ -14,13 +14,13 @@
       <h2 class="text-sm font-medium text-slate-700">功能清单</h2>
       <div class="flex flex-wrap gap-2">
         <el-radio-group v-model="viewMode" size="small">
-          <el-radio-button value="table">列表</el-radio-button>
-          <el-radio-button value="mindmap">脑图</el-radio-button>
-          <el-radio-button value="cards">卡片</el-radio-button>
+          <el-radio-button :value="'table'">列表</el-radio-button>
+          <el-radio-button :value="'mindmap'">脑图</el-radio-button>
+          <el-radio-button :value="'cards'">卡片</el-radio-button>
         </el-radio-group>
         <el-button size="small" @click="openCreate">新建功能</el-button>
-        <el-button size="small" :disabled="aiGenerating" @click="onAiGenerate">{{ aiGenerating ? "生成中…" : "AI 生成" }}</el-button>
-        <el-button size="small" @click="onExportCsv">导出 CSV</el-button>
+        <!-- 阶段 B15：取消「AI 生成」按钮（用户要求） -->
+        <el-button size="small" @click="onExportExcel">导出 Excel</el-button>
       </div>
     </header>
 
@@ -36,35 +36,41 @@
       <SummaryCell label="项目总工期 (天)" :value="filteredTop.totalPeriodDays" suffix="d" :decimals="1" />
     </div>
 
-    <!-- 过滤栏 -->
-    <div class="flex flex-wrap gap-2 text-xs">
-      <el-input v-model="filterCategory" placeholder="分类筛选" size="small" />
-      <el-input v-model="filterModule" placeholder="模块筛选" size="small" />
-      <el-input v-model="filterName" placeholder="功能名筛选" size="small" />
+    <!-- 过滤栏：仅列表模式显示（阶段 B8.11），且一行内 -->
+    <div v-if="viewMode === 'table'" class="flex flex-wrap items-center gap-2 text-xs">
+      <el-input v-model="filterCategory" placeholder="分类筛选" size="small" class="!w-44" />
+      <el-input v-model="filterModule" placeholder="模块筛选" size="small" class="!w-44" />
+      <el-input v-model="filterName" placeholder="功能名筛选" size="small" class="!w-44" />
     </div>
 
     <div v-if="items.length === 0" class="rounded border border-border bg-white/50 p-4 text-xs text-slate-600">
       暂无功能。点击「新建功能」开始。
     </div>
 
-    <!-- 视图区 -->
+    <!-- 视图区：每个 mode 包一层 flex-1 min-h-0 容器，让 mindmap / cards 占满剩余高度（阶段 B8.10） -->
     <FunctionListTable
       v-else-if="viewMode === 'table'"
       :items="filtered"
+      class="min-h-[300px] flex-1"
       @edit="openEdit"
       @delete="onDelete"
       @toggle-scope="onToggleScope"
       @change-cp="onChangeCp"
       @cell-edit="onCellEdit"
     />
-    <FunctionListMindmapEditor
+    <div
       v-else-if="viewMode === 'mindmap'"
-      :items="filtered"
-      :project-id="projectId"
-    />
+      class="flex min-h-0 flex-1 flex-col"
+    >
+      <FunctionListMindmapEditor
+        :items="filtered"
+        :project-id="projectId"
+      />
+    </div>
     <FunctionListCards
       v-else
       :items="filtered"
+      class="min-h-[300px] flex-1"
       @edit="openEdit"
       @delete="onDelete"
       @toggle-scope="onToggleScope"
@@ -92,6 +98,8 @@
             <span>功能名 *</span>
             <el-input v-model="editing.name" />
           </label>
+          <!-- 阶段 B8b：表单本地错误（必填校验 + 保存失败时回显） -->
+          <p v-if="editError" class="text-xs text-red-500">{{ editError }}</p>
           <label class="flex flex-col gap-1 text-xs text-slate-600">
             <span>功能详细</span>
             <el-input v-model="editing.detail" type="textarea" :rows="3" />
@@ -125,7 +133,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useBudgetStore } from "../stores/budget.store.ts";
-import { CP_VALUES, structuredModulesApi, type FunctionListInput } from "../api/structured-modules.api.ts";
+import { CP_VALUES, type FunctionListInput } from "../api/structured-modules.api.ts";
 import FunctionListTable from "./FunctionListTable.vue";
 import FunctionListMindmapEditor from "./FunctionListMindmapEditor.vue";
 import FunctionListCards from "./FunctionListCards.vue";
@@ -138,6 +146,8 @@ import type { FunctionListPayload } from "@backend/domain/business-module/functi
 import {
   DEFAULT_BUDGET_SETTINGS,
 } from "@backend/domain/business-module/budget-settings.ts";
+// 阶段 B16：导出 Excel（替换原 CSV）
+import ExcelJS from "exceljs";
 
 const props = defineProps<{ projectId: string }>();
 const store = useBudgetStore();
@@ -178,7 +188,8 @@ const filteredTop = computed(() => {
 
 const editing = ref<(FunctionListInput & { id: string }) | null>(null);
 const saving = ref(false);
-const aiGenerating = ref(false);
+// 阶段 B8b：新增/编辑表单的本地错误（必填、错误时阻止提交）
+const editError = ref<string | null>(null);
 
 onMounted(async () => {
   await Promise.all([store.loadFunctions(props.projectId), store.loadSettings(props.projectId)]);
@@ -186,6 +197,7 @@ onMounted(async () => {
 
 function openCreate(): void {
   editing.value = { id: "", category: "", module: "", name: "", detail: "", remarks: "", cp: 0, inScope: true };
+  editError.value = null;
 }
 
 function openEdit(it: FunctionListDTO): void {
@@ -208,12 +220,18 @@ function cancelEdit(): void {
 async function onSave(): Promise<void> {
   const ed = editing.value;
   if (!ed) return;
+  editError.value = null;
+  // 阶段 B8b：新增/编辑 都要求功能名非空（之前只依赖后端，前端无错误回显导致“新增无效”）
+  if (!ed.name || ed.name.trim().length === 0) {
+    editError.value = "请填写「功能名」";
+    return;
+  }
   // 后端 CreateBusinessModuleItemDTO 要求非空 title；前端用「分类/模块/功能名」合成
   const parts: string[] = [];
   for (const s of [ed.category, ed.module, ed.name]) {
     if (typeof s === "string" && s.trim().length > 0) parts.push(s);
   }
-  const composedTitle = parts.join(" / ") || `未命名功能 #${Math.floor(Math.random() * 1000)}`;
+  const composedTitle = parts.join(" / ");
   saving.value = true;
   try {
     const body: FunctionListInput & { title: string } = {
@@ -229,9 +247,15 @@ async function onSave(): Promise<void> {
     if (ed.id.length > 0) {
       await store.updateFunction(props.projectId, ed.id, body);
     } else {
-      await store.createFunction(props.projectId, body);
+      const created = await store.createFunction(props.projectId, body);
+      if (!created) {
+        editError.value = store.functionError ?? "新增失败，请检查网络或重试";
+        return;
+      }
     }
     editing.value = null;
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : String(e);
   } finally {
     saving.value = false;
   }
@@ -266,49 +290,44 @@ async function onChangeCp(it: FunctionListDTO, cp: number): Promise<void> {
   await store.updateFunction(props.projectId, it.id, { cp });
 }
 
-async function onAiGenerate(): Promise<void> {
-  // 阶段 7.5（H1）：真调后端 AI 一键生成（markdown-author sub-agent）；后端失败 → 弹提示，不阻塞 UI
-  if (aiGenerating.value) return;
-  aiGenerating.value = true;
-  try {
-    const prompt = window.prompt("补充你想强调的功能点 / 行业 / 受众（可留空）：", "") ?? undefined;
-    await structuredModulesApi.batchFromSubAgent(props.projectId, { prompt, count: 6 });
-    await store.loadFunctions(props.projectId);
-  } catch (e) {
-    ElMessage.error(`AI 生成失败：${e instanceof Error ? e.message : String(e)}`);
-  } finally {
-    aiGenerating.value = false;
-  }
-}
-
-function onExportCsv(): void {
-  // 仅 in-scope + 不含 CP/工时/金额（按文档）
+function onExportExcel(): void {
+  // 阶段 B16：导出 Excel（替换原 CSV）。仅 in-scope + 列出 分类/模块/功能名/功能详细/备注 5 列
   const rows = items.value.filter((it) => it.inScope);
-  const header = ["分类", "模块", "功能名", "功能详细", "备注"];
-  const lines = [header.join(",")];
+  const wb = new ExcelJS.Workbook();
+  const sheet = wb.addWorksheet("功能清单");
+  sheet.columns = [
+    { header: "分类", key: "category", width: 18 },
+    { header: "模块", key: "module", width: 18 },
+    { header: "功能名", key: "name", width: 32 },
+    { header: "功能详细", key: "detail", width: 60 },
+    { header: "备注", key: "remarks", width: 30 },
+  ];
+  // 表头样式
+  sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE0E7FF" },
+  };
   for (const it of rows) {
-    lines.push([
-      csv(it.category),
-      csv(it.module),
-      csv(it.name),
-      csv(it.detail),
-      csv(it.remarks),
-    ].join(","));
+    sheet.addRow({
+      category: it.category,
+      module: it.module,
+      name: it.name,
+      detail: it.detail,
+      remarks: it.remarks,
+    });
   }
-  const csv_text = "﻿" + lines.join("\n"); // UTF-8 BOM
-  const blob = new Blob([csv_text], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `功能清单-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function csv(s: string): string {
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
+  void wb.xlsx.writeBuffer().then((buf) => {
+    const blob = new Blob([buf], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `功能清单-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 }
 </script>
