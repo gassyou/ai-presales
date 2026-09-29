@@ -14,10 +14,7 @@
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">提案 PPT 设计（{{ pages.length }} 页）</h2>
       <div class="flex flex-wrap gap-2">
-        <button
-          class="rounded border border-accent/50 px-2 py-1 text-xs text-accent hover:bg-accent/10"
-          @click="openAi"
-        >AI 生成</button>
+        <!-- 阶段 B5：移除「AI 生成」按钮（用户要求；保留 PptAiGenerateDialog + 后端 /ppt/generate 路由供后台调用） -->
         <button
           class="rounded border border-border px-2 py-1 text-xs text-slate-700 hover:bg-surface-alt"
           @click="onCreate"
@@ -32,7 +29,7 @@
     <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
 
     <div v-if="pages.length === 0" class="rounded border border-dashed border-border bg-white/30 p-6 text-center text-xs text-slate-500">
-      暂无 PPT 页。点击「AI 生成」让 AI 设计 8~15 页提案 PPT，或「新增便签」手工创建。
+      暂无 PPT 页。点击「新增便签」手工创建提案 PPT 页面。
     </div>
 
     <div v-else class="flex-1 min-h-0 overflow-auto">
@@ -51,35 +48,23 @@
       </div>
     </div>
 
-    <PptAiGenerateDialog
-      v-if="aiOpen"
-      :project-id="projectId"
-      @close="aiOpen = false"
-    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted } from "vue";
 import { usePptStore } from "../stores/ppt.store.ts";
 import type { PptPagePatch } from "../api/ppt.api.ts";
 import PptNote from "./PptNote.vue";
-import PptAiGenerateDialog from "./PptAiGenerateDialog.vue";
 
 const props = defineProps<{ projectId: string }>();
 const store = usePptStore();
-
-const aiOpen = ref(false);
 
 const pages = computed(() => store.getList(props.projectId));
 
 onMounted(async () => {
   await store.load(props.projectId);
 });
-
-function openAi(): void {
-  aiOpen.value = true;
-}
 
 async function onCreate(): Promise<void> {
   await store.create(props.projectId, {
