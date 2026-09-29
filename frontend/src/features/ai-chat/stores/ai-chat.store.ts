@@ -48,6 +48,12 @@ export const useAiChatStore = defineStore("aiChat", () => {
   const currentProject = ref<ProjectDTO | null>(null);
   /** @ 项目候选池（来自 mention autocomplete） */
   const mentionCandidates = ref<ProjectDTO[]>([]);
+  /**
+   * 已自动重命名过的 session id 集合。
+   * 避免用户手动改名后再发消息时把手动标题覆盖掉。
+   * 仅在 autoRenameFromFirstUserMessage() 内 add；store 生命周期内有效。
+   */
+  const autoRenamedSessions = ref<Set<string>>(new Set());
   let inflightAbort: AbortController | null = null;
 
   function toRequestMessages(): Array<{ role: "system" | "user" | "assistant"; content: string }> {
@@ -77,6 +83,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     error.value = null;
     // 持久化 user 消息到当前 session（无 session / 全局对话时 helper 内空操作）
     void persistMessage("user", userMsg.content);
+    // 首条 user 消息时自动把 session 标题改为该消息前 20 字
+    void autoRenameFromFirstUserMessage(userMsg.content);
 
     const abort = new AbortController();
     inflightAbort = abort;
@@ -361,6 +369,54 @@ export const useAiChatStore = defineStore("aiChat", () => {
     }
   }
 
+  /**
+   * 把 session 标题自动改成首条 user 消息的前 20 个字符。
+   *
+   * 触发条件：
+   *   1. 当前有 session；
+   *   2. 该 session 还没被自动重命名过（避免覆盖用户手动改的标题）；
+   *   3. 当前是首条 user 消息（即消息列表里只有刚 append 的这一条 user）。
+   *
+   * 失败仅 warn，不抛。
+   */
+  async function autoRenameFromFirstUserMessage(content: string): Promise<void> {
+    const sid = currentSessionId.value;
+    if (!sid) return;
+    if (autoRenamedSessions.value.has(sid)) return;
+    // 仅在首条 user 消息时触发
+    const userMsgCount = messages.value.filter((m: ChatMessage) => m.role === "user").length;
+    if (userMsgCount !== 1) return;
+    // 标题 = 首条 user 消息前 20 字；去掉首尾空白；超长加省略号
+    const trimmed = content.trim().replace(/\s+/g, " ");
+    if (trimmed.length === 0) return;
+    const next = trimmed.length > 20 ? trimmed.slice(0, 20) + "…" : trimmed;
+    try {
+      const updated = await chatSessionApi.rename(sid, next);
+      autoRenamedSessions.value = new Set([...autoRenamedSessions.value, sid]);
+      // 同步本地 sessions 列表缓存
+      sessions.value = sessions.value.map((s: ChatSessionDTO) =>
+        s.id === sid ? { ...s, title: updated.title } : s
+      );
+    } catch (e) {
+      console.warn("auto rename session failed", e);
+    }
+  }
+
+  /** 删除指定 session（供下拉框列表行内删除按钮使用，不影响当前选中）。 */
+  async function deleteSessionById(id: string): Promise<void> {
+    try {
+      await chatSessionApi.remove(id);
+    } catch (e) {
+      console.warn("delete session failed", e);
+      throw e;
+    }
+    sessions.value = sessions.value.filter((s: ChatSessionDTO) => s.id !== id);
+    if (currentSessionId.value === id) {
+      currentSessionId.value = null;
+      messages.value = [];
+    }
+  }
+
   function setMentionCandidates(items: ProjectDTO[]): void {
     mentionCandidates.value = items;
   }
@@ -475,6 +531,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
     createSessionForProject,
     switchToSession,
     deleteCurrentSession,
+    deleteSessionById,
     persistMessage,
     loadMentionCandidates,
     executeSkill,

@@ -242,11 +242,18 @@ function onChange(v: string): void {
   flex: 1 1 auto;
 }
 
-/* fillHeight=true 时：高度占满父容器（要求父容器是 flex/min-h-0 列布局） */
+/* fillHeight=true 时：让编辑器撑满父容器剩余空间。
+   关键：不要同时设置 `height: 100%` —— 在 flex 列布局里，
+   `height: 100%` 会让子项的 main-size = 父容器内容盒高度，
+   跟 `flex: 1 1 auto` 互相冲突，反而导致高度塌陷或溢出。
+   正确做法：只靠 `flex: 1 1 auto` + `min-height: 0` 让 flex 布局
+   自行把剩余空间分给本项（前提是父容器链上有明确的 h-full/min-h-0）。 */
 .md-editor-wrapper--fill {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .md-editor-wrapper--fill :deep(.bytemd) {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 </style>

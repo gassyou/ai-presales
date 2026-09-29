@@ -1,46 +1,82 @@
 <!--
   AiChatPanel.vue
   ===============
-  AI 对话面板：左侧 session 列表 + 右侧消息列表 + 输入卡片。
+  AI 对话面板：顶部新建按钮 + 会话历史下拉 + 中部消息区 + 输入卡片。
   阶段 4：SSE 流式。
   阶段 5：sub-agent 选择器；tool_call/tool_result 渲染为 ToolCallCard。
   阶段 6.0f：项目绑定徽章；@ 项目名 自动补全；mention 高亮渲染。
   阶段重构：输入区移到独立组件 ChatComposer.vue（Claude 风格卡片）。
   阶段 13（PR #4）：左侧 session 侧边栏（+ 新建 / 改名 / 删除），header 标题用 session.title。
+  阶段 13（PR #9，布局重构）：把 session 列表从左侧侧边栏移到顶部下拉框；
+  下拉框内每行可单独删除；新建会话为独立 header 按钮；首条 user 消息时自动用前 20 字作标题。
 -->
 <template>
   <section class="flex h-full">
-    <!-- 左侧：会话侧边栏 -->
-    <aside class="flex w-56 shrink-0 flex-col border-r border-border bg-slate-50">
-      <div class="flex items-center justify-between border-b border-border px-3 py-2">
-        <span class="text-xs font-semibold uppercase text-slate-500">会话</span>
-        <el-button size="small" :disabled="busy" @click="onCreate">+ 新建</el-button>
-      </div>
-      <div class="flex-1 overflow-y-auto">
-        <button
-          v-for="s in store.sessions"
-          :key="s.id"
-          :class="[
-            'block w-full truncate px-3 py-2 text-left text-sm transition-colors hover:bg-slate-100',
-            store.currentSessionId === s.id
-              ? 'border-l-2 border-emerald-500 bg-emerald-50'
-              : 'border-l-2 border-transparent',
-          ]"
-          @click="onSwitch(s.id)"
-        >
-          <div class="truncate font-medium text-slate-800">{{ s.title }}</div>
-          <div class="truncate text-[10px] text-slate-500">{{ formatTime(s.updatedAt) }}</div>
-        </button>
-        <div v-if="store.sessions.length === 0" class="px-3 py-2 text-xs text-slate-500">
-          暂无会话
-        </div>
-      </div>
-    </aside>
-
-    <!-- 右侧：消息 + 输入 -->
     <div class="flex flex-1 flex-col">
-      <header class="flex items-center justify-between border-b border-border px-4 py-2">
-        <span class="truncate text-sm font-medium text-slate-700">{{ currentTitle }}</span>
+      <header class="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
+        <div class="flex shrink-0 items-center gap-2">
+          <el-button size="small" :disabled="busy" @click="onCreate">+ 新建会话</el-button>
+          <el-popover
+            v-model:visible="historyVisible"
+            placement="bottom-start"
+            :width="360"
+            trigger="click"
+            popper-class="ai-chat-history-popover"
+          >
+            <template #reference>
+              <el-button size="small" :disabled="busy">
+                <span class="inline-flex items-center gap-1">
+                  <span aria-hidden="true">🕐</span>
+                  <span>会话历史</span>
+                  <span class="text-slate-400">({{ store.sessions.length }})</span>
+                </span>
+              </el-button>
+            </template>
+
+            <div class="flex flex-col gap-2">
+              <el-input
+                v-model="historySearch"
+                size="small"
+                placeholder="搜索会话..."
+                clearable
+              />
+              <div class="max-h-80 overflow-y-auto rounded border border-slate-100">
+                <div v-if="filteredSessions.length === 0" class="px-3 py-3 text-center text-xs text-slate-500">
+                  {{ store.sessions.length === 0 ? "暂无会话" : "没有匹配的会话" }}
+                </div>
+                <div
+                  v-for="s in filteredSessions"
+                  :key="s.id"
+                  :class="[
+                    'group flex items-center gap-1 px-3 py-2 text-sm transition-colors hover:bg-slate-100 cursor-pointer',
+                    store.currentSessionId === s.id ? 'bg-emerald-50' : '',
+                  ]"
+                  @click="onSwitchFromHistory(s.id)"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-medium text-slate-800">{{ s.title }}</div>
+                    <div class="truncate text-[10px] text-slate-500">{{ formatTime(s.updatedAt) }}</div>
+                  </div>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    link
+                    class="opacity-0 transition-opacity group-hover:opacity-100"
+                    @click.stop="onDeleteFromHistory(s.id, s.title)"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </el-popover>
+        </div>
+
+        <span v-if="store.currentSessionId" class="truncate text-sm font-medium text-slate-700">
+          {{ currentTitle }}
+        </span>
+        <span v-else class="truncate text-sm text-slate-400">未选择会话</span>
+
         <div v-if="store.currentSessionId" class="flex shrink-0 gap-2">
           <el-button size="small" :disabled="busy" @click="onRename">改名</el-button>
           <el-button size="small" type="danger" :disabled="busy" @click="onDelete">删除</el-button>
@@ -85,12 +121,20 @@ import MessageBubble from "./MessageBubble.vue";
 const store = useAiChatStore();
 const scrollRef = ref<HTMLElement | null>(null);
 const busy = ref(false);
+const historyVisible = ref(false);
+const historySearch = ref("");
 
 const currentTitle = computed(() => {
   const id = store.currentSessionId;
   if (!id) return "未选择会话";
   const s = store.sessions.find((x) => x.id === id);
   return s?.title ?? "未选择会话";
+});
+
+const filteredSessions = computed(() => {
+  const q = historySearch.value.trim().toLowerCase();
+  if (!q) return store.sessions;
+  return store.sessions.filter((s) => s.title.toLowerCase().includes(q));
 });
 
 function formatTime(iso: string): string {
@@ -103,6 +147,22 @@ function formatTime(iso: string): string {
 // 阶段 9（任务 9）：挂载时装载 @mention 候选项目列表
 onMounted(() => {
   void store.loadMentionCandidates();
+  // 默认会话：打开 AI 对话面板时如果没有 session 就建一条，
+  // 让工具审批开关（默认关闭）始终可用；空会话不影响「新建会话」按钮的语义。
+  if (!store.currentSessionId) {
+    busy.value = true;
+    store
+      .createSessionForProject(store.currentProject?.id ?? null)
+      .catch((e) => {
+        console.warn("auto-create default session failed", e);
+        ElMessage.error(
+          e instanceof Error ? e.message : "创建默认会话失败",
+        );
+      })
+      .finally(() => {
+        busy.value = false;
+      });
+  }
 });
 
 watch(
@@ -127,12 +187,35 @@ async function onCreate(): Promise<void> {
   }
 }
 
-async function onSwitch(id: string): Promise<void> {
-  if (busy.value) return;
+async function onSwitchFromHistory(id: string): Promise<void> {
+  historyVisible.value = false;
   if (store.currentSessionId === id) return;
+  if (busy.value) return;
   busy.value = true;
   try {
     await store.switchToSession(id);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e));
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onDeleteFromHistory(id: string, title: string): Promise<void> {
+  if (busy.value) return;
+  try {
+    await ElMessageBox.confirm(`确认删除会话「${title}」？消息不可恢复。`, "删除会话", {
+      type: "warning",
+      confirmButtonText: "删除",
+      cancelButtonText: "取消",
+    });
+  } catch {
+    return;
+  }
+  busy.value = true;
+  try {
+    await store.deleteSessionById(id);
+    ElMessage.success("会话已删除");
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e));
   } finally {
@@ -189,3 +272,9 @@ async function onDelete(): Promise<void> {
   }
 }
 </script>
+
+<style scoped>
+.ai-chat-history-popover :deep(.el-popover__content) {
+  padding: 12px;
+}
+</style>
