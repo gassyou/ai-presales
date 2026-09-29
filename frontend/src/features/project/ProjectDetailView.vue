@@ -56,13 +56,7 @@
 
       <div class="flex flex-wrap items-center gap-2">
         <KnowledgeStatusBadge :project-id="project.id" />
-        <button
-          type="button"
-          class="inline-flex h-8 items-center gap-1.5 rounded bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700"
-          @click="onOpenQuote"
-        >
-          <span>生成报价单</span>
-        </button>
+        <!-- 阶段 B1：移除 ProjectDetailView 顶部「生成报价单」按钮（QuoteView 模块内部已有同名按钮；避免两个入口导致 UX 歧义） -->
         <button
           type="button"
           class="inline-flex h-8 items-center gap-1.5 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
@@ -179,13 +173,11 @@ import HardwareItemsView from "@frontend/features/business-module/components/Har
 import QuoteView from "@frontend/features/quote/components/QuoteView.vue";
 import ProjectEditDialog from "./components/ProjectEditDialog.vue";
 import { useEmailComposerStore } from "./stores/email-composer.store.ts";
-import { useQuoteComposerStore } from "@frontend/features/quote/stores/quote-composer.store.ts";
 import { ElMessage } from "element-plus";
 import type { UpdateProjectInput } from "@shared/types/dto/project.ts";
 
 const route = useRoute();
 const emailComposerStore = useEmailComposerStore();
-const quoteComposerStore = useQuoteComposerStore();
 const router = useRouter();
 
 const project = ref<ProjectDTO | null>(null);
@@ -426,10 +418,6 @@ function goBack(): void {
 
 function onOpenEmail(): void {
   if (project.value) emailComposerStore.openComposer(project.value.id);
-}
-
-function onOpenQuote(): void {
-  if (project.value) quoteComposerStore.openComposer(project.value.id);
 }
 
 function formatDate(iso: string): string {
