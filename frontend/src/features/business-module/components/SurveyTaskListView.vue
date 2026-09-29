@@ -15,9 +15,7 @@
         调查任务（{{ tasks.length }}）
       </h2>
       <div class="flex gap-2">
-        <el-button size="small" @click="showBatchDialog = true">
-          一键批量
-        </el-button>
+        <!-- 阶段 B24：移除「一键批量」按钮（用户要求；保留 store.batchGenerate + 后端 /survey_task/items?action=batchGenerate 路由供 auto-mode sub-agent 调用） -->
         <el-button size="small" @click="showCreate = true">
           + 新建调查
         </el-button>
@@ -27,7 +25,7 @@
     <p v-if="store.error" class="text-xs text-red-300">{{ store.error }}</p>
 
     <div v-if="tasks.length === 0" class="rounded border border-dashed border-border bg-white/30 p-4 text-center text-xs text-slate-500">
-      暂无调查任务。点击右上角新建或一键批量。
+      暂无调查任务。点击右上角新建。
     </div>
 
     <div v-else class="flex-1 min-h-0 overflow-auto">
@@ -129,35 +127,6 @@
       </template>
     </el-dialog>
 
-    <!-- 批量生成对话框 -->
-    <el-dialog
-      v-model="showBatchDialog"
-      title="AI 一键批量生成"
-      width="560px"
-      :close-on-click-modal="false"
-      @close="showBatchDialog = false"
-    >
-      <div class="flex flex-col gap-3">
-        <p class="text-xs text-slate-600">
-          基于常见调查主题示例勾选要生成的任务；也可手动增删。
-        </p>
-        <ul class="max-h-72 space-y-1 overflow-auto rounded border border-border p-2 text-xs text-slate-700">
-          <li v-for="(topic, i) in batchTopics" :key="i" class="flex items-center gap-2">
-            <el-checkbox v-model="batchSelected[i]" />
-            <el-input v-model="batchTopics[i]" class="flex-1" />
-            <el-button link type="danger" size="small" @click="removeBatchTopic(i)">×</el-button>
-          </li>
-        </ul>
-        <el-button class="self-start" size="small" @click="addBatchTopic">+ 添加一行</el-button>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <el-button @click="showBatchDialog = false">取消</el-button>
-          <el-button type="primary" @click="onBatchGenerate">生成</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
     <!-- 调查结果抽屉（markdown 编辑 + 保存） -->
     <el-drawer
       v-model="drawerOpen"
@@ -203,17 +172,6 @@ const tasks = computed(() => store.getList(props.projectId));
 
 const showCreate = ref(false);
 const form = reactive({ title: "", topicHint: "", content: "" });
-
-const showBatchDialog = ref(false);
-const batchTopics = ref<string[]>([
-  "客户背景信息（人数，年度营业额，组织架构，主营业务）",
-  "行业背景信息",
-  "专业术语",
-  "市场上现有的方案",
-  "相关领域相关论文",
-  "最新的前沿技术",
-]);
-const batchSelected = ref<boolean[]>(batchTopics.value.map(() => true));
 
 const drawerOpen = ref(false);
 const drawerTask = ref<SurveyTaskResult | null>(null);
@@ -303,23 +261,6 @@ async function onDelete(id: string): Promise<void> {
     return;
   }
   await store.deleteTask(id, props.projectId);
-}
-
-function addBatchTopic(): void {
-  batchTopics.value.push("");
-  batchSelected.value.push(true);
-}
-
-function removeBatchTopic(i: number): void {
-  batchTopics.value.splice(i, 1);
-  batchSelected.value.splice(i, 1);
-}
-
-async function onBatchGenerate(): Promise<void> {
-  const chosen = batchTopics.value.filter((_, i) => batchSelected.value[i] && _.trim().length > 0);
-  if (chosen.length === 0) return;
-  await store.batchGenerate(props.projectId, chosen);
-  showBatchDialog.value = false;
 }
 
 function openResult(t: SurveyTaskResult): void {

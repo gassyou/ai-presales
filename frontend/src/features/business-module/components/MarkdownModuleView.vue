@@ -21,13 +21,7 @@
         </span>
       </h2>
       <div class="flex flex-wrap gap-2">
-        <el-button
-          size="small"
-          :disabled="generating"
-          @click="onGenerate"
-        >
-          {{ generating ? "生成中…" : "AI 生成" }}
-        </el-button>
+        <!-- 阶段 B17/B18-23：移除「AI 生成」按钮（用户要求：所有 markdown 模块统一取消；保留后端 /markdown/generate 路由供 auto-mode sub-agent 调用） -->
         <el-button
           v-if="item && item.content"
           size="small"
@@ -78,7 +72,6 @@ const draft = ref<string>("");
 const error = ref<string | null>(null);
 const saving = ref(false);
 const lastSavedAt = ref<Date | null>(null);
-const generating = ref(false);
 
 let saveTimer: number | null = null;
 
@@ -136,22 +129,6 @@ function scheduleSave(): void {
       saving.value = false;
     }
   }, 800) as unknown as number;
-}
-
-async function onGenerate(): Promise<void> {
-  generating.value = true;
-  try {
-    const updated = await markdownModuleApi.generate(props.projectId, props.kind);
-    item.value = updated;
-    draft.value = updated.content;
-    lastSavedAt.value = new Date();
-  } catch (e) {
-    error.value = e instanceof ApiError
-      ? `${e.envelope.code}: ${e.envelope.message}`
-      : (e instanceof Error ? e.message : String(e));
-  } finally {
-    generating.value = false;
-  }
 }
 
 async function onAdopt(adopt: boolean): Promise<void> {

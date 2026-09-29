@@ -23,14 +23,7 @@
         </span>
       </h2>
       <div class="flex flex-wrap gap-2">
-        <el-button
-          v-if="viewMode !== 'mindmap'"
-          size="small"
-          :disabled="!outline"
-          @click="onBatchFromMindmap"
-        >
-          从脑图生成问题
-        </el-button>
+        <!-- 阶段 B25：移除「从脑图生成问题」按钮（用户要求；保留 surveyQuestionnaireApi.batchFromMindmap + 后端路由供 auto-mode sub-agent 调用） -->
         <el-button
           v-if="questions.length > 0 && viewMode !== 'mindmap'"
           size="small"
@@ -77,7 +70,7 @@
     <!-- 视图：便签贴式 -->
     <div v-else-if="viewMode === 'sticky'" class="flex-1 min-h-0 overflow-auto">
       <div v-if="questions.length === 0" class="rounded border border-dashed border-border bg-white/30 p-4 text-center text-xs text-slate-500">
-        还没有问题。点击「从脑图生成问题」批量生成占位问题，或手动添加。
+        还没有问题。点击右上角手动添加问题。
       </div>
       <div v-else class="space-y-3">
         <div
@@ -319,6 +312,7 @@ function scheduleOutlineSave(): void {
 }
 
 async function onBatchFromMindmap(): Promise<void> {
+  // 阶段 B25：UI 入口已移除；保留函数 + 后端路由以便 auto-mode sub-agent 触发
   try {
     const r = await surveyQuestionnaireApi.batchFromMindmap(props.projectId);
     questions.value = r.questions;
