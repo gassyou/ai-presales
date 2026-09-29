@@ -21,6 +21,25 @@
     class="mx-3 mb-3 mt-1 rounded-xl border border-border bg-white shadow-card"
     @submit.prevent="onSend"
   >
+    <!-- 阶段 13（PR #8）：会话级"全部自动批准工具"开关行 -->
+    <div
+      v-if="store.currentSessionId"
+      class="flex items-center justify-between gap-2 border-b border-border px-3 py-1 text-[11px] text-slate-500"
+    >
+      <span>工具审批</span>
+      <el-switch
+        :model-value="store.autoApprove"
+        size="small"
+        inline-prompt
+        active-text="🔓 全自动"
+        inactive-text="🔒 逐个"
+        :title="store.autoApprove
+          ? '当前会话：所有工具自动执行（关掉恢复逐个审批）'
+          : '当前会话：每个需审批的工具会问你（开启后全部自动执行）'"
+        @update:model-value="onAutoApproveChange"
+      />
+    </div>
+
     <div class="relative px-3 pt-2">
       <textarea
         ref="inputRef"
@@ -172,6 +191,12 @@ watch(
 
 function onProfileChange(id: string): void {
   store.setProfile(id);
+}
+
+// 阶段 13（PR #8）：切换会话级"全部自动批准工具"开关。
+// store.setAutoApprove 内部乐观更新 + 远端 PATCH + 失败回滚。
+function onAutoApproveChange(on: boolean): void {
+  void store.setAutoApprove(on);
 }
 
 const placeholder = computed(() => {

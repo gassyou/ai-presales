@@ -5,7 +5,12 @@
  * 注意：写入 chat_messages 会自动 touch chat_sessions.updated_at。
  */
 
-import { ChatMessageDTO, ChatMessageRoles, ChatSessionDTO, ChatSession } from "@backend/domain/chat-session/chat-session.ts";
+import {
+  ChatMessageDTO,
+  ChatMessageRoles,
+  ChatSession,
+  ChatSessionDTO,
+} from "@backend/domain/chat-session/chat-session.ts";
 import type { ProjectId } from "@shared/types/ids.ts";
 import type { Database } from "@backend/persistence/database/database.ts";
 
@@ -15,6 +20,8 @@ export interface IChatSessionRepository {
   listSessionsByProject(projectId: ProjectId | null, limit?: number): ChatSessionDTO[];
   listAllSessions(limit?: number): ChatSessionDTO[];
   renameSession(id: string, title: string): boolean;
+  /** 阶段 13（PR #8）：会话级"全部自动批准"开关 */
+  setAutoApprove(id: string, on: boolean): boolean;
   deleteSession(id: string): boolean;
   appendMessage(msg: ChatMessageDTO): void;
   listMessages(sessionId: string): ChatMessageDTO[];
@@ -26,6 +33,7 @@ interface SessionRow {
   title: string;
   created_at: string;
   updated_at: string;
+  auto_approve: number | null;
 }
 
 interface MessageRow {
@@ -42,21 +50,23 @@ export class SqliteChatSessionRepository implements IChatSessionRepository {
 
   createSession(s: ChatSession): void {
     this.db.run(
-      `INSERT INTO chat_sessions (id, project_id, title, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO chat_sessions (id, project_id, title, created_at, updated_at, auto_approve)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         s.id,
         s.projectId,
         s.title,
         s.createdAt.toISOString(),
         s.updatedAt.toISOString(),
+        s.autoApprove ? 1 : 0,
       ],
     );
   }
 
   findSessionById(id: string): ChatSession | null {
     const row = this.db.queryRow<SessionRow>(
-      `SELECT id, project_id, title, created_at, updated_at FROM chat_sessions WHERE id=?`,
+      `SELECT id, project_id, title, created_at, updated_at, auto_approve
+       FROM chat_sessions WHERE id=?`,
       [id],
     );
     if (!row) return null;
@@ -67,13 +77,13 @@ export class SqliteChatSessionRepository implements IChatSessionRepository {
     let rows: SessionRow[];
     if (projectId === null) {
       rows = this.db.query<SessionRow>(
-        `SELECT id, project_id, title, created_at, updated_at FROM chat_sessions
+        `SELECT id, project_id, title, created_at, updated_at, auto_approve FROM chat_sessions
          WHERE project_id IS NULL ORDER BY updated_at DESC LIMIT ?`,
         [limit],
       );
     } else {
       rows = this.db.query<SessionRow>(
-        `SELECT id, project_id, title, created_at, updated_at FROM chat_sessions
+        `SELECT id, project_id, title, created_at, updated_at, auto_approve FROM chat_sessions
          WHERE project_id=? ORDER BY updated_at DESC LIMIT ?`,
         [projectId, limit],
       );
@@ -83,7 +93,7 @@ export class SqliteChatSessionRepository implements IChatSessionRepository {
 
   listAllSessions(limit = 50): ChatSessionDTO[] {
     const rows = this.db.query<SessionRow>(
-      `SELECT id, project_id, title, created_at, updated_at FROM chat_sessions
+      `SELECT id, project_id, title, created_at, updated_at, auto_approve FROM chat_sessions
        ORDER BY updated_at DESC LIMIT ?`,
       [limit],
     );
@@ -96,6 +106,15 @@ export class SqliteChatSessionRepository implements IChatSessionRepository {
     const r = this.db.run(
       `UPDATE chat_sessions SET title=?, updated_at=? WHERE id=?`,
       [trimmed, new Date().toISOString(), id],
+    );
+    return r.changes > 0;
+  }
+
+  /** 阶段 13（PR #8）：写回 auto_approve 列。 */
+  setAutoApprove(id: string, on: boolean): boolean {
+    const r = this.db.run(
+      `UPDATE chat_sessions SET auto_approve=?, updated_at=? WHERE id=?`,
+      [on ? 1 : 0, new Date().toISOString(), id],
     );
     return r.changes > 0;
   }
@@ -148,6 +167,7 @@ export class SqliteChatSessionRepository implements IChatSessionRepository {
       r.title,
       new Date(r.created_at),
       new Date(r.updated_at),
+      (r.auto_approve ?? 0) === 1,
     );
     return s;
   }
@@ -164,9 +184,7 @@ export class SqliteChatSessionRepository implements IChatSessionRepository {
     return {
       id: r.id,
       sessionId: r.session_id,
-      role: ChatMessageRoles.includes(r.role as never)
-        ? (r.role as never)
-        : "system",
+      role: ChatMessageRoles.includes(r.role as never) ? (r.role as never) : "system",
       content: r.content,
       ...(toolCalls !== undefined ? { toolCalls } : {}),
       createdAt: new Date(r.created_at),

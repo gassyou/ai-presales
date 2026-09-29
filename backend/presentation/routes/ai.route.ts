@@ -72,6 +72,11 @@ interface AiChatRequestBody {
    */
   forceApproveNames?: readonly string[];
   forceRejectNames?: readonly string[];
+  /**
+   * 阶段 13（PR #8）：会话级"全部自动批准"开关。true → 等价于把所有 tool 名
+   * 加入 forceApproveNames（一次请求内仍尊重 forceRejectNames）。
+   */
+  autoApprove?: boolean;
 }
 
 type ParsedBody =
@@ -84,6 +89,7 @@ type ParsedBody =
     toolNames?: readonly string[];
     forceApproveNames?: readonly string[];
     forceRejectNames?: readonly string[];
+    autoApprove?: boolean;
   }
   | { ok: false; response: Response };
 
@@ -221,6 +227,7 @@ function parseRequest(
     toolNames?: readonly string[];
     forceApproveNames?: readonly string[];
     forceRejectNames?: readonly string[];
+    autoApprove?: boolean;
   } = {
     ok: true,
     profileName: body.profile,
@@ -252,6 +259,16 @@ function parseRequest(
       };
     }
     result.forceRejectNames = body.forceRejectNames;
+  }
+  // 阶段 13（PR #8）：autoApprove 布尔开关
+  if (body.autoApprove !== undefined) {
+    if (typeof body.autoApprove !== "boolean") {
+      return {
+        ok: false,
+        response: err(400, ErrorCode.VALIDATION_FAILED, "autoApprove must be boolean"),
+      };
+    }
+    result.autoApprove = body.autoApprove;
   }
   return result;
 }
@@ -364,6 +381,8 @@ export async function handleAiChatStream(req: Request, deps: AiChatRouteDeps): P
       ...(parsed.forceRejectNames !== undefined
         ? { forceRejectNames: parsed.forceRejectNames }
         : {}),
+      // 阶段 13（PR #8）：autoApprove 开关
+      ...(parsed.autoApprove === true ? { forceApproveAll: true } : {}),
     });
 
     const stream = chatWithToolsLoop({

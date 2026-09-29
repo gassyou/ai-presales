@@ -42,6 +42,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     "set_primary_contact",
     "create_survey_task",
   ]);
+  /** 阶段 13（PR #8）：当前会话"全部自动批准工具"开关。从 session.autoApprove 同步。 */
+  const autoApprove = ref<boolean>(false);
   /** 阶段 H：当前绑定的项目（来自 ProjectDetailView）。null = 全局对话 */
   const currentProject = ref<ProjectDTO | null>(null);
   /** @ 项目候选池（来自 mention autocomplete） */
@@ -116,6 +118,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
             ...(toolsEnabled.value ? { toolNames: toolNames.value } : {}),
             ...(forceApproveNames.length > 0 ? { forceApproveNames } : {}),
             ...(forceRejectNames.length > 0 ? { forceRejectNames } : {}),
+            // 阶段 13（PR #8）：会话级 auto-approve 开关
+            ...(autoApprove.value ? { autoApprove: true } : {}),
           },
           abort.signal,
         );
@@ -256,6 +260,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     sessions.value = [sess, ...sessions.value];
     currentSessionId.value = sess.id;
     messages.value = [];
+    // 阶段 13（PR #8）：新 session 默认 autoApprove=false
+    autoApprove.value = sess.autoApprove ?? false;
     return sess.id;
   }
   async function switchToSession(id: string): Promise<void> {
@@ -272,6 +278,27 @@ export const useAiChatStore = defineStore("aiChat", () => {
         ? { toolCalls: [...m.toolCalls] as unknown as ToolCallEntry[] }
         : {}),
     }));
+    // 阶段 13（PR #8）：从 sessions 列表（或重新查）读 autoApprove 状态
+    const meta = sessions.value.find((s) => s.id === id);
+    autoApprove.value = meta?.autoApprove ?? false;
+  }
+
+  /** 阶段 13（PR #8）：切换当前会话"全部自动批准"开关。乐观更新 + 远端同步。 */
+  async function setAutoApprove(on: boolean): Promise<void> {
+    const sid = currentSessionId.value;
+    if (!sid) return;
+    const prev = autoApprove.value;
+    autoApprove.value = on;
+    // 同步到本地 sessions 列表缓存
+    sessions.value = sessions.value.map((s) => s.id === sid ? { ...s, autoApprove: on } : s);
+    try {
+      await chatSessionApi.setAutoApprove(sid, on);
+    } catch (e) {
+      // 失败回滚
+      autoApprove.value = prev;
+      sessions.value = sessions.value.map((s) => s.id === sid ? { ...s, autoApprove: prev } : s);
+      console.warn("setAutoApprove failed", e);
+    }
   }
   /** 阶段 13（PR #7）：附件上传后端已自动 appendMessage；调此方法刷前端列表 */
   async function refreshMessages(sessionId: string): Promise<void> {
@@ -413,11 +440,13 @@ export const useAiChatStore = defineStore("aiChat", () => {
     toolNames,
     currentProject,
     mentionCandidates,
+    autoApprove,
     send,
     stop,
     clear,
     setProfile,
     setSubAgent,
+    setAutoApprove,
     setToolsEnabled: (v: boolean) => {
       toolsEnabled.value = v;
     },

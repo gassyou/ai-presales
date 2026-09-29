@@ -83,7 +83,9 @@ async function createSession(
   deps: ChatSessionRouteDeps,
 ): Promise<Response> {
   let raw: unknown;
-  try { raw = await req.json(); } catch (e) {
+  try {
+    raw = await req.json();
+  } catch (e) {
     return jsonErr(400, `invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
   }
   const body = (raw ?? {}) as {
@@ -125,19 +127,33 @@ async function renameSession(
   id: string,
 ): Promise<Response> {
   let raw: unknown;
-  try { raw = await req.json(); } catch (e) {
+  try {
+    raw = await req.json();
+  } catch (e) {
     return jsonErr(400, `invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const body = (raw ?? {}) as { title?: string };
-  if (typeof body.title !== "string" || body.title.trim().length === 0) {
-    return jsonErr(400, "title is required");
+  const body = (raw ?? {}) as { title?: string; autoApprove?: boolean };
+  // 阶段 13（PR #8）：PATCH 允许多字段。title / autoApprove 至少给一个。
+  const wantTitle = typeof body.title === "string" && body.title.trim().length > 0;
+  const wantAutoApprove = typeof body.autoApprove === "boolean";
+  if (!wantTitle && !wantAutoApprove) {
+    return jsonErr(400, "title (non-empty string) or autoApprove (boolean) is required");
   }
   try {
-    const r = deps.useCase.renameSession(id, body.title);
-    if (!r.ok) return jsonErr(r.error.code === "NOT_FOUND" ? 404 : 400, r.error.message);
-    return jsonOk(r.value);
+    // 阶段 13（PR #8）：先改 title，再改 auto-approve（顺序无所谓；失败第一个先返）
+    if (wantTitle) {
+      const r = deps.useCase.renameSession(id, body.title as string);
+      if (!r.ok) return jsonErr(r.error.code === "NOT_FOUND" ? 404 : 400, r.error.message);
+    }
+    if (wantAutoApprove) {
+      const r = deps.useCase.setAutoApprove(id, body.autoApprove as boolean);
+      if (!r.ok) return jsonErr(r.error.code === "NOT_FOUND" ? 404 : 400, r.error.message);
+    }
+    const got = deps.useCase.getSession(id);
+    if (!got.ok) return jsonErr(404, got.error.message);
+    return jsonOk(got.value);
   } catch (e) {
-    return jsonErrSrv(deps.logger, "rename chat session failed", e);
+    return jsonErrSrv(deps.logger, "patch chat session failed", e);
   }
 }
 
@@ -175,7 +191,9 @@ async function appendMessage(
   sessionId: string,
 ): Promise<Response> {
   let raw: unknown;
-  try { raw = await req.json(); } catch (e) {
+  try {
+    raw = await req.json();
+  } catch (e) {
     return jsonErr(400, `invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
   }
   const body = (raw ?? {}) as {
