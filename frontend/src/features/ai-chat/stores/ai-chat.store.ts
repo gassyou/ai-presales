@@ -198,6 +198,60 @@ export const useAiChatStore = defineStore("aiChat", () => {
    * 阶段 9（任务 9）：从 /api/projects 拉取候选项目列表，给 ChatComposer @mention 用。
    * 前端在 mount 时调用；用户后续创建/删除项目时再调一次刷新。
    */
+
+  // 阶段 5（任务 5）：会话管理
+  /** 当前会话 id；null = 未选（默认新对话） */
+  const currentSessionId = ref<string | null>(null);
+  /** session 列表 */
+  const sessions = ref<{ id: string; projectId: string | null; title: string; createdAt: string; updatedAt: string }[]>([]);
+  /** 加载会话列表（通常 mount 时） */
+  async function loadSessions(projectId: string | null): Promise<void> {
+    try {
+      const { chatSessionApi } = await import("../api/chat-session.api.ts");
+      const list = await chatSessionApi.list(projectId);
+      sessions.value = list;
+    } catch (e) {
+      console.warn("loadSessions failed", e);
+    }
+  }
+  /**
+   * 为某项目创建一个新会话；设 currentSessionId；清空 messages。
+   */
+  async function createSessionForProject(projectId: string | null, title?: string): Promise<string> {
+    const { chatSessionApi } = await import("../api/chat-session.api.ts");
+    const titleText = title?.trim() || `新会话 ${new Date().toLocaleString("zh-CN")}`;
+    const sess = await chatSessionApi.create({ projectId, title: titleText });
+    sessions.value = [sess, ...sessions.value];
+    currentSessionId.value = sess.id;
+    messages.value = [];
+    return sess.id;
+  }
+  async function switchToSession(id: string): Promise<void> {
+    currentSessionId.value = id;
+    const { chatSessionApi } = await import("../api/chat-session.api.ts");
+    const list = await chatSessionApi.listMessages(id);
+    messages.value = list.map((m) => ({
+      id: m.id,
+      role: m.role as never,
+      content: m.content,
+      createdAt: m.createdAt,
+      toolCalls: (m.toolCalls ?? []) as never,
+    }));
+  }
+  async function deleteCurrentSession(): Promise<void> {
+    if (!currentSessionId.value) return;
+    const id = currentSessionId.value;
+    try {
+      const { chatSessionApi } = await import("../api/chat-session.api.ts");
+      await chatSessionApi.remove(id);
+    } catch (e) {
+      console.warn("delete session failed", e);
+    }
+    sessions.value = sessions.value.filter((s) => s.id !== id);
+    currentSessionId.value = null;
+    messages.value = [];
+  }
+
   async function loadMentionCandidates(): Promise<void> {
     try {
       const { projectApi } = await import("@frontend/features/project/api/project.api.ts");
@@ -219,6 +273,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     error,
     profile,
     subAgentName,
+    currentSessionId,
+    sessions,
     toolsEnabled,
     toolNames,
     currentProject,
@@ -254,6 +310,10 @@ export const useAiChatStore = defineStore("aiChat", () => {
     setCurrentProject,
     setCurrentProjectId,
     setMentionCandidates,
+    loadSessions,
+    createSessionForProject,
+    switchToSession,
+    deleteCurrentSession,
     loadMentionCandidates,
   };
 });
