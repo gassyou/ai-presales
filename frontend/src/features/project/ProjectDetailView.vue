@@ -105,29 +105,23 @@
     </header>
 
     <div class="flex flex-col gap-1 md:col-span-2">
-      <dt class="flex items-center justify-between text-slate-500">
-        <span>工作区路径:</span>
-         <span v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
-          {{ project.workspacePath }}
-        </span>
-        <span v-else class="text-slate-500">
-          ~/Desktop/{{ project.name }}
-        </span>
-        <button
-          type="button"
-          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
-          @click="openWorkspaceDialog"
-        >
+      <span>工作区路径:</span>
+      <span v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
+        {{ project.workspacePath }}
+      </span>
+      <span v-else class="text-slate-500">
+        ~/Desktop/{{ project.name }}
+      </span>
+      <button type="button"
+        class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+        @click="openWorkspaceDialog">
         变更
-        </button>
-            <button
-          type="button"
-          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
-          @click="openWorkspaceDialog"
-        >
+      </button>
+      <button type="button"
+        class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+        @click="openWorkspaceDialog">
         创建
-        </button>
-      </dt>
+      </button>
     </div>
 
     <div v-if="loadError" class="rounded border border-red-700 bg-red-900/20 px-4 py-2 text-sm text-red-300">
