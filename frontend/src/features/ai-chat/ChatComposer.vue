@@ -45,12 +45,10 @@
     </div>
 
     <div class="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
+      <!-- 阶段 10：附件 icon 已删除（用户原话"取消附件 icon"）。改由 / 命令 + skill 系统提供附件能力 -->
       <div class="flex items-center gap-1 text-slate-500">
         <el-button link size="small" title="添加（占位）" class="!text-slate-500">
           <span class="text-base leading-none">⊕</span>
-        </el-button>
-        <el-button link size="small" title="附件（占位）" class="!text-slate-500">
-          <span class="text-base leading-none">📎</span>
         </el-button>
       </div>
 
