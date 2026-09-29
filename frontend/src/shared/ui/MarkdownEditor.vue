@@ -243,17 +243,27 @@ function onChange(v: string): void {
 }
 
 /* fillHeight=true 时：让编辑器撑满父容器剩余空间。
-   关键：不要同时设置 `height: 100%` —— 在 flex 列布局里，
-   `height: 100%` 会让子项的 main-size = 父容器内容盒高度，
-   跟 `flex: 1 1 auto` 互相冲突，反而导致高度塌陷或溢出。
-   正确做法：只靠 `flex: 1 1 auto` + `min-height: 0` 让 flex 布局
-   自行把剩余空间分给本项（前提是父容器链上有明确的 h-full/min-h-0）。 */
+   关键设计：
+   - 包装层 .md-editor-wrapper--fill 用 flex:1 1 0 + min-height:0 在父
+     flex 列里拿到「剩余空间」（header / status <p> 之外的部分）。
+     此时包装层是 relative + 高度由 flex 决定。
+   - bytemd 内部 .bytemd 默认 height:300px 硬编码，并且内部 .bytemd-body
+     用 height:calc(100% - 58px) 必须依赖父级 definite height。在纯
+     flex 链里这两个规则都不生效。
+   - 解法 —— 用 absolute 定位让 .bytemd 跟随包装层的实际尺寸：
+       .bytemd 设 position:absolute; inset:0，由相对定位的包装层包裹。
+     这样 .bytemd 始终填满包装层（与包装层是否 flex-allocated 无关），
+     .bytemd 内部的 height:300px / height:calc(100% - 58px) 都能正常
+     解算。 */
 .md-editor-wrapper--fill {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
+  position: relative;
 }
 .md-editor-wrapper--fill :deep(.bytemd) {
-  flex: 1 1 auto;
-  min-height: 0;
+  position: absolute !important;
+  inset: 0;
+  width: auto;
+  height: auto !important;
 }
 </style>
