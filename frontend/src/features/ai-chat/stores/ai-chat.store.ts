@@ -13,6 +13,8 @@ import { chatSessionApi } from "../api/chat-session.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 import type { ChatMessage, ToolCallEntry } from "../types.ts";
+import { useSkillStore } from "@frontend/features/skill/stores/skill.store.ts";
+import { ElMessage } from "element-plus";
 
 export const useAiChatStore = defineStore("aiChat", () => {
   const messages = ref<ChatMessage[]>([]);
@@ -22,9 +24,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
   /** 当前选中的 sub-agent；空 = 走直 chat */
   const subAgentName = ref<string>("");
   /** 阶段 H+2：chat store 内 force 决策（一组 tool 名）。
- *  setApprovePending(name) 把 name 加进 approve set；
- *  下次 send() 时把 forceApproveNames 注入 chat request body，executor 真执行该 tool。
- *  类似 rejectForce set。LLM 在下一轮如不再调那个 tool，决策自然过期。 */
+   *  setApprovePending(name) 把 name 加进 approve set；
+   *  下次 send() 时把 forceApproveNames 注入 chat request body，executor 真执行该 tool。
+   *  类似 rejectForce set。LLM 在下一轮如不再调那个 tool，决策自然过期。 */
   const pendingApprove = ref<Set<string>>(new Set());
   const pendingReject = ref<Set<string>>(new Set());
   /** 阶段 H：是否启用 chat 内 tools（带 toolNames 调 agent loop） */
@@ -48,7 +50,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
   function toRequestMessages(): Array<{ role: "system" | "user" | "assistant"; content: string }> {
     return messages.value
-      .filter((m): m is ChatMessage & { role: "system" | "user" | "assistant" } => m.role !== "tool")
+      .filter((m): m is ChatMessage & { role: "system" | "user" | "assistant" } =>
+        m.role !== "tool"
+      )
       .map((m) => ({ role: m.role, content: m.content }));
   }
 
@@ -89,32 +93,32 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
     try {
       // 阶段 H+2：把 pending force 决策注入 body，并清空（一轮用完）
-          const forceApproveNames = Array.from(pendingApprove.value);
-          const forceRejectNames = Array.from(pendingReject.value);
-          pendingApprove.value = new Set();
-          pendingReject.value = new Set();
+      const forceApproveNames = Array.from(pendingApprove.value);
+      const forceRejectNames = Array.from(pendingReject.value);
+      pendingApprove.value = new Set();
+      pendingReject.value = new Set();
 
-          const source = subAgentName.value
-            ? subAgentApi.invoke(
-              subAgentName.value,
-              {
-                input: content,
-                ...(profile.value ? { profileName: profile.value } : {}),
-                ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
-              },
-              abort.signal,
-            )
-            : aiChatApi.streamChat(
-              {
-                profile: profile.value,
-                messages: toRequestMessages(),
-                ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
-                ...(toolsEnabled.value ? { toolNames: toolNames.value } : {}),
-                ...(forceApproveNames.length > 0 ? { forceApproveNames } : {}),
-                ...(forceRejectNames.length > 0 ? { forceRejectNames } : {}),
-              },
-              abort.signal,
-            );
+      const source = subAgentName.value
+        ? subAgentApi.invoke(
+          subAgentName.value,
+          {
+            input: content,
+            ...(profile.value ? { profileName: profile.value } : {}),
+            ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
+          },
+          abort.signal,
+        )
+        : aiChatApi.streamChat(
+          {
+            profile: profile.value,
+            messages: toRequestMessages(),
+            ...(currentProject.value ? { projectId: currentProject.value.id } : {}),
+            ...(toolsEnabled.value ? { toolNames: toolNames.value } : {}),
+            ...(forceApproveNames.length > 0 ? { forceApproveNames } : {}),
+            ...(forceRejectNames.length > 0 ? { forceRejectNames } : {}),
+          },
+          abort.signal,
+        );
 
       for await (const ev of source) {
         if (ev.type === "chunk") {
@@ -142,7 +146,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
                   ...tc,
                   ok: ev.ok,
                   ...(ev.ok
-                    ? { result: typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result) }
+                    ? {
+                      result: typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result),
+                    }
                     : {}),
                   ...(ev.error !== undefined ? { error: ev.error } : {}),
                   ...(isAwaitingApproval ? { awaitingApproval: true } : {}),
@@ -158,7 +164,10 @@ export const useAiChatStore = defineStore("aiChat", () => {
       }
       // 阶段 13（PR #4）：流式结束后把完整 assistant 消息落盘（含 toolCalls）。
       const asstMsg = messages.value.find((m) => m.id === asstId);
-      if (asstMsg && (asstMsg.content.length > 0 || (asstMsg.toolCalls && asstMsg.toolCalls.length > 0))) {
+      if (
+        asstMsg &&
+        (asstMsg.content.length > 0 || (asstMsg.toolCalls && asstMsg.toolCalls.length > 0))
+      ) {
         void persistMessage(
           "assistant",
           asstMsg.content,
@@ -172,7 +181,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
         error.value = "已停止";
       } else {
         const err = e as { code?: string; message?: string };
-        error.value = err.code ? `${err.code}: ${err.message ?? ""}` : (e instanceof Error ? e.message : String(e));
+        error.value = err.code
+          ? `${err.code}: ${err.message ?? ""}`
+          : (e instanceof Error ? e.message : String(e));
       }
     } finally {
       loading.value = false;
@@ -211,7 +222,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
     // 轻量：只存 id；详情通过 projectApi.get 异步补全（路由层负责）
     currentProject.value = { ...(currentProject.value ?? {} as ProjectDTO), id } as ProjectDTO;
   }
-  
+
   /**
    * 阶段 9（任务 9）：从 /api/projects 拉取候选项目列表，给 ChatComposer @mention 用。
    * 前端在 mount 时调用；用户后续创建/删除项目时再调一次刷新。
@@ -221,7 +232,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
   /** 当前会话 id；null = 未选（默认新对话） */
   const currentSessionId = ref<string | null>(null);
   /** session 列表 */
-  const sessions = ref<{ id: string; projectId: string | null; title: string; createdAt: string; updatedAt: string }[]>([]);
+  const sessions = ref<
+    { id: string; projectId: string | null; title: string; createdAt: string; updatedAt: string }[]
+  >([]);
   /** 加载会话列表（通常 mount 时） */
   async function loadSessions(projectId: string | null): Promise<void> {
     try {
@@ -234,7 +247,10 @@ export const useAiChatStore = defineStore("aiChat", () => {
   /**
    * 为某项目创建一个新会话；设 currentSessionId；清空 messages。
    */
-  async function createSessionForProject(projectId: string | null, title?: string): Promise<string> {
+  async function createSessionForProject(
+    projectId: string | null,
+    title?: string,
+  ): Promise<string> {
     const titleText = title?.trim() || `新会话 ${new Date().toLocaleString("zh-CN")}`;
     const sess = await chatSessionApi.create({ projectId, title: titleText });
     sessions.value = [sess, ...sessions.value];
@@ -252,7 +268,9 @@ export const useAiChatStore = defineStore("aiChat", () => {
       role: m.role,
       content: m.content,
       createdAt: m.createdAt,
-      ...(m.toolCalls !== undefined ? { toolCalls: [...m.toolCalls] as unknown as ToolCallEntry[] } : {}),
+      ...(m.toolCalls !== undefined
+        ? { toolCalls: [...m.toolCalls] as unknown as ToolCallEntry[] }
+        : {}),
     }));
   }
   async function deleteCurrentSession(): Promise<void> {
@@ -280,7 +298,13 @@ export const useAiChatStore = defineStore("aiChat", () => {
         sessionId: sid,
         role,
         content,
-        ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls: toolCalls as unknown as Parameters<typeof chatSessionApi.appendMessage>[0]["toolCalls"] } : {}),
+        ...(toolCalls !== undefined && toolCalls.length > 0
+          ? {
+            toolCalls: toolCalls as unknown as Parameters<
+              typeof chatSessionApi.appendMessage
+            >[0]["toolCalls"],
+          }
+          : {}),
       });
     } catch (e) {
       console.warn("appendMessage failed", e);
@@ -300,6 +324,67 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
   function setMentionCandidates(items: ProjectDTO[]): void {
     mentionCandidates.value = items;
+  }
+
+  /**
+   * 阶段 13（PR #5）：执行一个 skill（不走 LLM；同步执行 + 落盘 user + assistant 两条消息）。
+   * 调用前必须有 currentSessionId；没有则用当前项目建一条。
+   */
+  async function executeSkill(name: string, args: Record<string, unknown> = {}): Promise<void> {
+    const skillStore = useSkillStore();
+    // 确保有 session
+    if (!currentSessionId.value && currentProject.value) {
+      try {
+        await createSessionForProject(currentProject.value.id);
+      } catch (e) {
+        ElMessage.error("创建会话失败：" + (e instanceof Error ? e.message : String(e)));
+        return;
+      }
+    }
+    if (!currentSessionId.value) {
+      ElMessage.error("请先选择项目，再执行 skill");
+      return;
+    }
+
+    const userText = `/skill ${name}${
+      Object.keys(args).length > 0 ? " " + JSON.stringify(args) : ""
+    }`;
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: userText,
+      createdAt: new Date().toISOString(),
+    };
+    messages.value = [...messages.value, userMsg];
+    void persistMessage("user", userText);
+
+    loading.value = true;
+    error.value = null;
+    try {
+      const resp = await skillStore.invoke(name, args);
+      if (resp.ok) {
+        const outputText = typeof resp.output === "string"
+          ? resp.output
+          : JSON.stringify(resp.output);
+        const asstMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: outputText,
+          createdAt: new Date().toISOString(),
+        };
+        messages.value = [...messages.value, asstMsg];
+        void persistMessage("assistant", outputText);
+      } else {
+        ElMessage.error(`skill 失败：${resp.error}`);
+        error.value = resp.error;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      ElMessage.error(msg);
+      error.value = msg;
+    } finally {
+      loading.value = false;
+    }
   }
 
   return {
@@ -351,5 +436,6 @@ export const useAiChatStore = defineStore("aiChat", () => {
     deleteCurrentSession,
     persistMessage,
     loadMentionCandidates,
+    executeSkill,
   };
 });

@@ -42,6 +42,29 @@
         @select="onMentionPick"
         @dismiss="closeMention"
       />
+      <div
+        v-if="slashState.visible"
+        class="absolute z-10 mt-1 max-h-56 w-72 overflow-y-auto rounded-md border border-border bg-white shadow-lg"
+        :style="{ left: '12px', top: '88px' }"
+      >
+        <div
+          v-for="(item, idx) in slashState.items"
+          :key="item.label"
+          :class="[
+            'flex cursor-pointer flex-col px-3 py-1.5 text-xs',
+            idx === slashState.activeIndex
+              ? 'bg-emerald-50 text-slate-900'
+              : 'text-slate-700 hover:bg-slate-50',
+          ]"
+          @mousedown.prevent="onSlashPick(item)"
+        >
+          <span class="font-medium">{{ item.label }}</span>
+          <span class="text-[10px] text-slate-500">{{ item.description }}</span>
+        </div>
+        <div v-if="slashState.items.length === 0" class="px-3 py-2 text-xs text-slate-500">
+          （没有可用 skill —— 后端未注册）
+        </div>
+      </div>
     </div>
 
     <div class="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
@@ -107,13 +130,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, reactive, watch } from "vue";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import MentionAutocomplete from "./MentionAutocomplete.vue";
 import SubAgentPicker from "@frontend/features/sub-agent/SubAgentPicker.vue";
+import { useSkillStore } from "@frontend/features/skill/stores/skill.store.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 
 const store = useAiChatStore();
+const skillStore = useSkillStore();
 const input = ref("");
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 
@@ -136,6 +161,23 @@ const mentionState = reactive({
   range: { start: 0, end: 0 } as { start: number; end: number },
 });
 
+// 阶段 13（PR #5）：slash 弹窗状态 —— 输入框内容以 "/" 开头（且无空格）时弹出
+interface SlashEntry {
+  label: string;
+  description: string;
+  insert: string; // 选中后插入到 textarea 的字符串
+}
+const slashState = reactive({
+  visible: false,
+  items: [] as SlashEntry[],
+  activeIndex: 0,
+});
+
+// 阶段 13（PR #5）：挂载时预加载 skill 列表，避免首次 "/" 弹空白
+onMounted(() => {
+  void skillStore.load();
+});
+
 function autosize(): void {
   const ta = inputRef.value;
   if (!ta) return;
@@ -146,9 +188,33 @@ function autosize(): void {
 
 function onSend(): void {
   if (mentionState.visible) closeMention();
+  if (slashState.visible) closeSlash();
   const v = input.value;
   if (v.length === 0) return;
   input.value = "";
+  // 阶段 13（PR #5）：/skill <name> [extra] 直调 —— 不走 LLM
+  const skillRe = /^\/skill\s+(\w+)(?:\s+([\s\S]+))?$/;
+  const m = v.match(skillRe);
+  if (m) {
+    const name = m[1];
+    const extra = (m[2] ?? "").trim();
+    let args: Record<string, unknown> = {};
+    if (extra) {
+      try {
+        const parsed = JSON.parse(extra);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          args = parsed as Record<string, unknown>;
+        } else {
+          args = { message: extra };
+        }
+      } catch {
+        args = { message: extra };
+      }
+    }
+    void store.executeSkill(name, args);
+    nextTick(autosize);
+    return;
+  }
   void store.send(v);
   // 重置 textarea 高度
   nextTick(autosize);
@@ -161,6 +227,13 @@ function onInput(): void {
   const ta = inputRef.value;
   const cursorPos = ta?.selectionStart ?? text.length;
   const before = text.slice(0, cursorPos);
+  // 阶段 13（PR #5）：slash popover 检测 —— 以 "/" 开头的整行（无白空格）→ 弹
+  if (slashState.visible || (text.startsWith("/") && !/\s/.test(text))) {
+    refreshSlashEntries();
+    slashState.visible = slashState.items.length > 0;
+  } else {
+    slashState.visible = false;
+  }
   const atIdx = before.lastIndexOf("@");
   if (atIdx < 0) {
     closeMention();
@@ -192,9 +265,65 @@ function onInput(): void {
   mentionState.visible = true;
 }
 
+function refreshSlashEntries(): void {
+  const items: SlashEntry[] = [
+    { label: "/help", description: "列出可用命令 + skill", insert: "/help " },
+    { label: "/attach <url>", description: "附加一个链接到本条消息", insert: "/attach " },
+  ];
+  for (const s of skillStore.items) {
+    items.push({
+      label: `/${s.name}`,
+      description: s.description.split("\n")[0] ?? s.description,
+      insert: `/${s.name} `,
+    });
+  }
+  slashState.items = items;
+  if (slashState.activeIndex >= items.length) slashState.activeIndex = 0;
+}
+
+function onSlashPick(entry: SlashEntry): void {
+  input.value = entry.insert;
+  slashState.visible = false;
+  nextTick(() => {
+    const ta = inputRef.value;
+    if (ta) {
+      ta.focus();
+      ta.setSelectionRange(entry.insert.length, entry.insert.length);
+      autosize();
+    }
+  });
+}
+
+function closeSlash(): void {
+  slashState.visible = false;
+  slashState.activeIndex = 0;
+}
+
 function onKeyDown(e: Event | KeyboardEvent): void {
-  if (!mentionState.visible) return;
   if (!(e instanceof KeyboardEvent)) return;
+  // 阶段 13（PR #5）：slash popover 优先级高于 @ mention
+  if (slashState.visible) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      slashState.activeIndex = (slashState.activeIndex + 1) % slashState.items.length;
+      return;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      slashState.activeIndex =
+        (slashState.activeIndex - 1 + slashState.items.length) % slashState.items.length;
+      return;
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      const pick = slashState.items[slashState.activeIndex];
+      if (pick) onSlashPick(pick);
+      return;
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeSlash();
+      return;
+    }
+  }
+  if (!mentionState.visible) return;
   if (e.key === "ArrowDown") {
     e.preventDefault();
     mentionState.activeIndex = (mentionState.activeIndex + 1) % mentionState.candidates.length;

@@ -37,6 +37,9 @@ import { SqliteAiSessionRepository } from "@backend/persistence/sqlite/sqlite-ai
 // 阶段 13（PR #4）：chat session route 接线
 import { SqliteChatSessionRepository } from "@backend/persistence/sqlite/sqlite-chat-session.repository.ts";
 import { ChatSessionUseCase } from "@backend/application/chat-session/chat-session.usecase.ts";
+// 阶段 13（PR #5）：skill 系统 —— 默认 registry + 3 个 builtin skill
+import { buildDefaultSkillRegistry, type SkillRegistry } from "@backend/ai/skill/skill.ts";
+import { makeBuiltinSkills } from "@backend/ai/skill/builtin-skills.ts";
 import { SqliteKnowledgeRepository } from "@backend/persistence/sqlite/sqlite-knowledge.repository.ts";
 import { SqliteKnowledgeChunkRepository } from "@backend/persistence/sqlite/sqlite-knowledge-chunk.repository.ts";
 import { createEmbeddingProvider } from "@backend/ai/embedding/factory.ts";
@@ -506,6 +509,27 @@ const profileSnapshot = ():
   return { temperature: def.temperature, maxTokens: def.maxTokens };
 };
 
+// 阶段 13（PR #5）：builtin skill 用的默认 profile —— 需 model + temperature + maxTokens
+// 同步读 settingsUseCase cache（5s TTL），失败兜底 config.profiles[config.defaultProfile]
+const defaultProfileConfig = ():
+  | import("@backend/infrastructure/config/types.ts").ProfileConfig
+  | undefined => {
+  const snap = settingsUseCase.cachedLLMProfiles();
+  if (snap) {
+    const def = snap.value.profiles.find((p) => p.name === snap.value.defaultProfile);
+    if (def) {
+      return {
+        provider: def.provider,
+        model: def.model,
+        temperature: def.temperature,
+        maxTokens: def.maxTokens,
+        ...(def.baseUrl !== undefined ? { baseUrl: def.baseUrl } : {}),
+      };
+    }
+  }
+  return config.profiles[config.defaultProfile];
+};
+
 // 启动期 priming：让 sync lambda 第一次访问就拿到非空值
 await settingsUseCase.getLLMProfiles();
 
@@ -551,6 +575,43 @@ ${hardwareList || "（无）"}
 
 // 给 builtin sub-agents 加上 read_module（默认不挂，让用户配；project-creator/survey-researcher/proposal-drafter 后续可挂）
 // 这里先不动 builtins（避免破坏它们的契约测试），让 read_module 可通过 toolRegistry.get('read_module') 单独选用
+
+// 阶段 13（PR #5）：构造 SkillRegistry —— 先 default 2 个 demo skill，
+// 再追加 3 个 builtin 业务 skill（status_check / summarize_project / draft_email）
+const skillRegistry: SkillRegistry = buildDefaultSkillRegistry();
+// 共享 chatSessionUseCase 实例（PR #5 builtin skill + chat-session route 同源）
+const chatSessionUseCase = new ChatSessionUseCase({
+  repo: new SqliteChatSessionRepository(database),
+  clock,
+});
+{
+  const profile = defaultProfileConfig();
+  if (profile) {
+    try {
+      const llmClient = await resolveClient(profile.model ?? config.defaultProfile);
+      const builtinBusinessModuleService = new BusinessModuleService({
+        repo: new SqliteBusinessModuleRepository(database),
+        clock,
+      });
+      for (
+        const s of makeBuiltinSkills({
+          llmClient,
+          defaultProfile: profile,
+          projectService,
+          businessModuleService: builtinBusinessModuleService,
+          chatSessionUseCase,
+          logger,
+        })
+      ) {
+        skillRegistry.register(s);
+      }
+    } catch (e) {
+      logger.warn("skill registry builtin registration skipped", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+}
 
 // 根据模式决定 serve 配置
 const app = createApp({
@@ -724,11 +785,15 @@ const app = createApp({
   // 但 server.ts 在 chatSessionRoute 未注入时返 501；本接线激活该路由。
   chatSessionRoute: {
     logger,
-    useCase: new ChatSessionUseCase({
-      repo: new SqliteChatSessionRepository(database),
-      clock,
-    }),
+    useCase: chatSessionUseCase,
   },
+  // 阶段 13（PR #5）：skill 路由（list + invoke）；与 skillRegistry 共享同一实例
+  skillRoute: {
+    logger,
+    registry: skillRegistry,
+  },
+  // 阶段 13（PR #5）：把 skillRegistry 注入 server；ai.route.ts 的 slash dispatcher 用它
+  skillRegistry,
   // 阶段 7.4h：sub-agent invoke 时读取当前 default profile 快照
   profileSnapshot,
   // 阶段 7.5（H8）：route 改走 use case 单点入口

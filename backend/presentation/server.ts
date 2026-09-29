@@ -18,16 +18,16 @@ import type { MentionResolver } from "@backend/ai/context/providers/mention-reso
 import { errorHandler } from "./middleware/error-handler.ts";
 import { requestLogMiddleware } from "./middleware/request-log.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
-import { healthHandler, type HealthDeps } from "./routes/health.route.ts";
+import { type HealthDeps, healthHandler } from "./routes/health.route.ts";
 import { handleProjects, type ProjectRouteDeps } from "./routes/project.route.ts";
-import { handleAiChat, handleAiChatStream, type AiChatRouteDeps } from "./routes/ai.route.ts";
+import { type AiChatRouteDeps, handleAiChat, handleAiChatStream } from "./routes/ai.route.ts";
 import { handleSubAgents, type SubAgentRouteDeps } from "./routes/sub-agent.route.ts";
-import { handleChatSession, type ChatSessionRouteDeps } from "./routes/chat-session.route.ts";
-import { handleAutoMode, type AutoModeRouteDeps } from "./routes/auto-mode.route.ts";
+import { type ChatSessionRouteDeps, handleChatSession } from "./routes/chat-session.route.ts";
+import { type AutoModeRouteDeps, handleAutoMode } from "./routes/auto-mode.route.ts";
 import { handleKnowledge, type KnowledgeRouteDeps } from "./routes/knowledge.route.ts";
 import {
-  handleBusinessModule,
   type BusinessModuleRouteDeps,
+  handleBusinessModule,
 } from "./routes/business-module.route.ts";
 import {
   handleSurveyQuestionnaire,
@@ -41,42 +41,23 @@ import {
   handleStructuredModules,
   type StructuredModulesRouteDeps,
 } from "./routes/structured-modules.route.ts";
-import {
-  handleBudget,
-  type BudgetRouteDeps,
-} from "./routes/budget.route.ts";
-import {
-  handlePpt,
-  type PptRouteDeps,
-} from "./routes/ppt.route.ts";
+import { type BudgetRouteDeps, handleBudget } from "./routes/budget.route.ts";
+import { handlePpt, type PptRouteDeps } from "./routes/ppt.route.ts";
 import {
   handleProjectContacts,
   type ProjectContactsRouteDeps,
 } from "./routes/project-contacts.route.ts";
-import {
-  handleEmail,
-  type EmailRouteDeps,
-} from "./routes/email.route.ts";
-import {
-  handleHardwareItems,
-  type HardwareItemsRouteDeps,
-} from "./routes/hardware-items.route.ts";
-import {
-  handleQuote,
-  type QuoteRouteDeps,
-} from "./routes/quote.route.ts";
+import { type EmailRouteDeps, handleEmail } from "./routes/email.route.ts";
+import { handleHardwareItems, type HardwareItemsRouteDeps } from "./routes/hardware-items.route.ts";
+import { handleQuote, type QuoteRouteDeps } from "./routes/quote.route.ts";
 import {
   handleQuoteTemplates,
   type QuoteTemplatesRouteDeps,
 } from "./routes/quote-templates.route.ts";
-import {
-  handleDashboard,
-  type DashboardRouteDeps,
-} from "./routes/dashboard.route.ts";
-import {
-  handleSettings,
-  type SettingsRouteDeps,
-} from "./routes/settings.route.ts";
+import { type DashboardRouteDeps, handleDashboard } from "./routes/dashboard.route.ts";
+import { handleSettings, type SettingsRouteDeps } from "./routes/settings.route.ts";
+import { handleSkillRoute, type SkillRouteDeps } from "./routes/skill.route.ts";
+import type { SkillRegistry } from "@backend/ai/skill/skill.ts";
 import type { BusinessModuleService } from "@backend/application/business-module/business-module.service.ts";
 import type { MarkdownModuleService } from "@backend/application/business-module/markdown-module.service.ts";
 
@@ -113,13 +94,16 @@ export interface AppDeps {
   /** 阶段 7.0：业务模块通用 CRUD 服务（20+ 模块共用） */
   businessModuleService?: BusinessModuleService;
   /** 阶段 7.1：调查任务专用用例（start / stop / batchGenerate） */
-  surveyTaskUseCase?: import("@backend/application/business-module/survey-task.usecase.ts").SurveyTaskUseCase;
+  surveyTaskUseCase?:
+    import("@backend/application/business-module/survey-task.usecase.ts").SurveyTaskUseCase;
   /** 阶段 7.2：调查问卷专用用例（大纲脑图 + 问题列表 + 回答保存） */
-  surveyQuestionnaireUseCase?: import("@backend/application/business-module/survey-questionnaire.usecase.ts").SurveyQuestionnaireUseCase;
+  surveyQuestionnaireUseCase?:
+    import("@backend/application/business-module/survey-questionnaire.usecase.ts").SurveyQuestionnaireUseCase;
   /** 阶段 7.3：markdown_* 模块统一用例（业务现状/痛点/改善等 11 个） */
   markdownModuleService?: MarkdownModuleService;
   /** 阶段 7.4a：用例 / 交付物 / Review 三个结构化模块统一用例 */
-  structuredModulesUseCase?: import("@backend/application/business-module/structured-modules.usecase.ts").StructuredModulesUseCase;
+  structuredModulesUseCase?:
+    import("@backend/application/business-module/structured-modules.usecase.ts").StructuredModulesUseCase;
   /** 阶段 7.4c：提案 PPT 设计 */
   pptUseCase?: import("@backend/application/business-module/ppt.usecase.ts").PptUseCase;
   /** 阶段 7.4e：项目联系人 / 团队成员 路由依赖 */
@@ -137,12 +121,19 @@ export interface AppDeps {
   /** 阶段 7.4h：系统设置（4 类）路由依赖 */
   settingsRoute?: SettingsRouteDeps;
   chatSessionRoute?: ChatSessionRouteDeps;
+  /** 阶段 13（PR #5）：skill 系统（list + invoke）路由依赖 */
+  skillRoute?: SkillRouteDeps;
   autoModeRoute?: AutoModeRouteDeps;
   // ...其他省略...
   /** 阶段 7.4h：返回当前 default profile 快照（sub-agent invoke 时读 temperature/maxTokens） */
-  profileSnapshot?: () => import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot | undefined;
+  profileSnapshot?: () =>
+    | import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot
+    | undefined;
+  /** 阶段 13（PR #5）：可选 skill registry；注入到 ai.route.ts 让 slash dispatcher 能查 skill */
+  skillRegistry?: SkillRegistry;
   /** 阶段 7.5（H8）：invoke 改走 InvokeSubAgentUseCase 单点入口；不传则 route 走原 inline 路径 */
-  invokeSubAgentUseCase?: import("@backend/application/sub-agent/invoke-sub-agent.usecase.ts").InvokeSubAgentUseCase;
+  invokeSubAgentUseCase?:
+    import("@backend/application/sub-agent/invoke-sub-agent.usecase.ts").InvokeSubAgentUseCase;
 }
 
 export interface App {
@@ -171,6 +162,7 @@ export function createApp(deps: AppDeps): App {
       ...(deps.toolRegistry ? { toolRegistry: deps.toolRegistry } : {}),
       ...(deps.toolCwd !== undefined ? { toolCwd: deps.toolCwd } : {}),
       ...(deps.toolAllowedPaths !== undefined ? { toolAllowedPaths: deps.toolAllowedPaths } : {}),
+      ...(deps.skillRegistry ? { skillRegistry: deps.skillRegistry } : {}),
     }
     : undefined;
 
@@ -189,7 +181,9 @@ export function createApp(deps: AppDeps): App {
         ...(deps.mentionResolver ? { mentionResolver: deps.mentionResolver } : {}),
         ...(deps.clock ? { clock: deps.clock } : {}),
         ...(deps.profileSnapshot ? { profileSnapshot: deps.profileSnapshot } : {}),
-        ...(deps.invokeSubAgentUseCase ? { invokeSubAgentUseCase: deps.invokeSubAgentUseCase } : {}),
+        ...(deps.invokeSubAgentUseCase
+          ? { invokeSubAgentUseCase: deps.invokeSubAgentUseCase }
+          : {}),
       }
       : undefined;
 
@@ -204,10 +198,9 @@ export function createApp(deps: AppDeps): App {
 
     // API 路由
     if (path.startsWith("/api/")) {
-      return await withError(req, () =>
-        withCors(req, () =>
-          withLog(req, () => routeApi(req, path, url))
-        )
+      return await withError(
+        req,
+        () => withCors(req, () => withLog(req, () => routeApi(req, path, url))),
       );
     }
 
@@ -223,11 +216,17 @@ export function createApp(deps: AppDeps): App {
   async function routeApi(req: Request, path: string, url: URL): Promise<Response> {
     // markdown_* 模块专用端点必须最早拦截——前面有 /api/projects/ 通配和 /modules/ 通配会吞掉它
     // 路径：/api/projects/:id/modules/:markdownKind/markdown[/action]
-    const markdownPathMatch = /^\/api\/projects\/([^/]+)\/modules\/markdown_[^/]+\/markdown/.test(path);
+    const markdownPathMatch = /^\/api\/projects\/([^/]+)\/modules\/markdown_[^/]+\/markdown/.test(
+      path,
+    );
     if (markdownPathMatch) {
       if (!deps.markdownModuleService) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "markdown module service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "markdown module service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -248,7 +247,11 @@ export function createApp(deps: AppDeps): App {
       ) {
         if (!deps.projectContactsRoute) {
           return new Response(
-            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "contacts service not wired", traceId: "" }),
+            JSON.stringify({
+              code: "NOT_IMPLEMENTED",
+              message: "contacts service not wired",
+              traceId: "",
+            }),
             { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
           );
         }
@@ -257,7 +260,11 @@ export function createApp(deps: AppDeps): App {
       if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/emails(\/|$)/.test(path)) {
         if (!deps.emailRoute) {
           return new Response(
-            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "mail service not wired", traceId: "" }),
+            JSON.stringify({
+              code: "NOT_IMPLEMENTED",
+              message: "mail service not wired",
+              traceId: "",
+            }),
             { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
           );
         }
@@ -270,7 +277,11 @@ export function createApp(deps: AppDeps): App {
       ) {
         if (!deps.hardwareItemsRoute) {
           return new Response(
-            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "hardware items service not wired", traceId: "" }),
+            JSON.stringify({
+              code: "NOT_IMPLEMENTED",
+              message: "hardware items service not wired",
+              traceId: "",
+            }),
             { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
           );
         }
@@ -279,7 +290,11 @@ export function createApp(deps: AppDeps): App {
       if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/quote(\/|$)/.test(path)) {
         if (!deps.quoteRoute) {
           return new Response(
-            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "quote service not wired", traceId: "" }),
+            JSON.stringify({
+              code: "NOT_IMPLEMENTED",
+              message: "quote service not wired",
+              traceId: "",
+            }),
             { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
           );
         }
@@ -288,7 +303,11 @@ export function createApp(deps: AppDeps): App {
       if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/quote-templates(\/|$)/.test(path)) {
         if (!deps.quoteTemplatesRoute) {
           return new Response(
-            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "quote templates service not wired", traceId: "" }),
+            JSON.stringify({
+              code: "NOT_IMPLEMENTED",
+              message: "quote templates service not wired",
+              traceId: "",
+            }),
             { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
           );
         }
@@ -299,7 +318,11 @@ export function createApp(deps: AppDeps): App {
       if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/modules\//.test(path)) {
         if (!deps.businessModuleService) {
           return new Response(
-            JSON.stringify({ code: "NOT_IMPLEMENTED", message: "business module service not wired", traceId: "" }),
+            JSON.stringify({
+              code: "NOT_IMPLEMENTED",
+              message: "business module service not wired",
+              traceId: "",
+            }),
             { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
           );
         }
@@ -307,7 +330,9 @@ export function createApp(deps: AppDeps): App {
           service: deps.businessModuleService,
           logger,
           ...(deps.surveyTaskUseCase ? { surveyTaskUseCase: deps.surveyTaskUseCase } : {}),
-          ...(deps.structuredModulesUseCase ? { structuredModulesUseCase: deps.structuredModulesUseCase } : {}),
+          ...(deps.structuredModulesUseCase
+            ? { structuredModulesUseCase: deps.structuredModulesUseCase }
+            : {}),
         };
         return await handleBusinessModule(req, bmDeps, path);
       }
@@ -320,7 +345,11 @@ export function createApp(deps: AppDeps): App {
         if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/knowledge\//.test(path)) {
           if (!deps.knowledgeRoute) {
             return new Response(
-              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "knowledge service not wired", traceId: "" }),
+              JSON.stringify({
+                code: "NOT_IMPLEMENTED",
+                message: "knowledge service not wired",
+                traceId: "",
+              }),
               { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
             );
           }
@@ -330,7 +359,11 @@ export function createApp(deps: AppDeps): App {
         if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/questionnaire\//.test(path)) {
           if (!deps.surveyQuestionnaireUseCase) {
             return new Response(
-              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "survey questionnaire use case not wired", traceId: "" }),
+              JSON.stringify({
+                code: "NOT_IMPLEMENTED",
+                message: "survey questionnaire use case not wired",
+                traceId: "",
+              }),
               { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
             );
           }
@@ -348,7 +381,11 @@ export function createApp(deps: AppDeps): App {
         ) {
           if (!deps.structuredModulesUseCase) {
             return new Response(
-              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "structured modules use case not wired", traceId: "" }),
+              JSON.stringify({
+                code: "NOT_IMPLEMENTED",
+                message: "structured modules use case not wired",
+                traceId: "",
+              }),
               { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
             );
           }
@@ -365,7 +402,11 @@ export function createApp(deps: AppDeps): App {
         ) {
           if (!deps.structuredModulesUseCase) {
             return new Response(
-              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "structured modules use case not wired", traceId: "" }),
+              JSON.stringify({
+                code: "NOT_IMPLEMENTED",
+                message: "structured modules use case not wired",
+                traceId: "",
+              }),
               { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
             );
           }
@@ -379,7 +420,11 @@ export function createApp(deps: AppDeps): App {
         if (/^\/api\/projects\/[0-9a-fA-F-]{36}\/ppt\/pages(\/|$)/.test(path)) {
           if (!deps.pptUseCase || !deps.clientResolver) {
             return new Response(
-              JSON.stringify({ code: "NOT_IMPLEMENTED", message: "ppt use case not wired", traceId: "" }),
+              JSON.stringify({
+                code: "NOT_IMPLEMENTED",
+                message: "ppt use case not wired",
+                traceId: "",
+              }),
               { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
             );
           }
@@ -395,7 +440,11 @@ export function createApp(deps: AppDeps): App {
       }
       if (!projectRouteDeps) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "project service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "project service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -406,7 +455,11 @@ export function createApp(deps: AppDeps): App {
     if (/^\/api\/modules\/items\//.test(path)) {
       if (!deps.businessModuleService) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "business module service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "business module service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -414,7 +467,9 @@ export function createApp(deps: AppDeps): App {
         service: deps.businessModuleService,
         logger,
         ...(deps.surveyTaskUseCase ? { surveyTaskUseCase: deps.surveyTaskUseCase } : {}),
-        ...(deps.structuredModulesUseCase ? { structuredModulesUseCase: deps.structuredModulesUseCase } : {}),
+        ...(deps.structuredModulesUseCase
+          ? { structuredModulesUseCase: deps.structuredModulesUseCase }
+          : {}),
       };
       return await handleBusinessModule(req, bmDeps, path);
     }
@@ -422,7 +477,11 @@ export function createApp(deps: AppDeps): App {
     if (/^\/api\/modules\/hardware-items\/[0-9a-fA-F-]{36}/.test(path)) {
       if (!deps.hardwareItemsRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "hardware items service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "hardware items service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -449,7 +508,11 @@ export function createApp(deps: AppDeps): App {
     if (path === "/api/sub-agents" || path.startsWith("/api/sub-agents/")) {
       if (!subAgentRouteDeps) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "sub-agent registry not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "sub-agent registry not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -458,7 +521,11 @@ export function createApp(deps: AppDeps): App {
     if (path.includes("/knowledge/")) {
       if (!deps.knowledgeRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "knowledge service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "knowledge service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -467,7 +534,11 @@ export function createApp(deps: AppDeps): App {
     if (path.includes("/questionnaire/")) {
       if (!deps.surveyQuestionnaireUseCase) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "survey questionnaire use case not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "survey questionnaire use case not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -485,7 +556,11 @@ export function createApp(deps: AppDeps): App {
     ) {
       if (!deps.structuredModulesUseCase) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "structured modules use case not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "structured modules use case not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -499,7 +574,11 @@ export function createApp(deps: AppDeps): App {
     if (path.includes("/budget-settings") || path.includes("/budget-summary")) {
       if (!deps.structuredModulesUseCase) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "structured modules use case not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "structured modules use case not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -513,7 +592,11 @@ export function createApp(deps: AppDeps): App {
     if (path.includes("/ppt/pages") || path.includes("/modules/ppt/pages")) {
       if (!deps.pptUseCase || !deps.clientResolver) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "ppt use case not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "ppt use case not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -529,10 +612,16 @@ export function createApp(deps: AppDeps): App {
     // 阶段 7.4e：项目联系人 / 团队成员（已上移到 /api/projects 分支内部）
     // 阶段 7.4e：邮件 + 附件（已上移到 /api/projects 分支内部）
     // 阶段 7.4f：报价单 Excel 模板（顶层路径）
-    if (path === "/api/quote-templates" || /^\/api\/quote-templates\/[0-9a-fA-F-]{36}\/?$/.test(path)) {
+    if (
+      path === "/api/quote-templates" || /^\/api\/quote-templates\/[0-9a-fA-F-]{36}\/?$/.test(path)
+    ) {
       if (!deps.quoteTemplatesRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "quote templates service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "quote templates service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -542,7 +631,11 @@ export function createApp(deps: AppDeps): App {
     if (path.startsWith("/api/dashboard")) {
       if (!deps.dashboardRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "dashboard service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "dashboard service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -552,7 +645,11 @@ export function createApp(deps: AppDeps): App {
     if (path === "/api/settings" || path.startsWith("/api/settings/")) {
       if (!deps.settingsRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "settings service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "settings service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
@@ -562,26 +659,51 @@ export function createApp(deps: AppDeps): App {
     if (path === "/api/chat/sessions" || path.startsWith("/api/chat/sessions/")) {
       if (!deps.chatSessionRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "chat session service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "chat session service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
       return await handleChatSession(req, deps.chatSessionRoute, url);
     }
+    // 阶段 13（PR #5）：skill 系统路由（list + invoke）
+    if (path === "/api/skills" || path.startsWith("/api/skills/")) {
+      if (!deps.skillRoute) {
+        return new Response(
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "skill service not wired",
+            traceId: "",
+          }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      return await handleSkillRoute(req, deps.skillRoute, url);
+    }
     // 阶段 11（任务 11）：auto-mode 多 agent 编排入口
     if (path === "/api/ai/auto-mode") {
       if (!deps.autoModeRoute) {
         return new Response(
-          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "auto-mode service not wired", traceId: "" }),
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "auto-mode service not wired",
+            traceId: "",
+          }),
           { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
         );
       }
       return await handleAutoMode(req, deps.autoModeRoute);
     }
-    return new Response(JSON.stringify({ code: "NOT_FOUND", message: `route ${path} not implemented`, traceId: "" }), {
-      status: 404,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    });
+    return new Response(
+      JSON.stringify({ code: "NOT_FOUND", message: `route ${path} not implemented`, traceId: "" }),
+      {
+        status: 404,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      },
+    );
   }
 
   return {
@@ -629,8 +751,7 @@ async function serveStatic(
       } catch (indexErr) {
         // 阶段 7.6（macOS 编译版启动修复）：index.html 缺失时给清晰错误
         const reason = indexErr instanceof Error ? indexErr.message : String(indexErr);
-        const hint =
-          `前端入口 ${root}/index.html 不存在或读不开（${reason}）。\n` +
+        const hint = `前端入口 ${root}/index.html 不存在或读不开（${reason}）。\n` +
           `请确认：(1) dist/index.html + dist/assets/ 都已就位；\n` +
           `(2) cwd 或可执行文件同目录存在 dist/；\n` +
           `(3) 文件无 macOS quarantine 隔离属性（运行 xattr -d com.apple.quarantine dist/index.html）。\n\n` +
