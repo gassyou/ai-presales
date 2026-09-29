@@ -37,29 +37,30 @@
     :close-on-click-modal="false"
   >
     <div class="flex flex-col gap-3">
-      <label class="block text-xs text-slate-700">
-        <span>类别</span>
-        <el-input v-model="draft.category" placeholder="服务器 / 网络 / 存储" class="mt-1" />
+      <!-- 阶段 B13：label + input 各占一行（用 div block 替代 span） -->
+      <label class="flex flex-col gap-1 text-xs text-slate-700">
+        <div>类别</div>
+        <el-input v-model="draft.category" placeholder="服务器 / 网络 / 存储" />
       </label>
-      <label class="block text-xs text-slate-700">
-        <span>设备</span>
-        <el-input v-model="draft.device" class="mt-1" />
+      <label class="flex flex-col gap-1 text-xs text-slate-700">
+        <div>设备</div>
+        <el-input v-model="draft.device" />
       </label>
-      <label class="block text-xs text-slate-700">
-        <span>规格 / 型号</span>
-        <el-input v-model="draft.spec" class="mt-1" />
+      <label class="flex flex-col gap-1 text-xs text-slate-700">
+        <div>规格 / 型号</div>
+        <el-input v-model="draft.spec" />
       </label>
-      <label class="block text-xs text-slate-700">
-        <span>数量</span>
-        <el-input-number v-model="draft.qty" :min="1" :step="1" class="mt-1" />
+      <label class="flex flex-col gap-1 text-xs text-slate-700">
+        <div>数量</div>
+        <el-input-number v-model="draft.qty" :min="1" :step="1" />
       </label>
-      <label class="block text-xs text-slate-700">
-        <span>单价（元）</span>
-        <el-input-number v-model="draft.unitPrice" :min="0" :step="0.01" class="mt-1" />
+      <label class="flex flex-col gap-1 text-xs text-slate-700">
+        <div>单价（元）</div>
+        <el-input-number v-model="draft.unitPrice" :min="0" :step="0.01" />
       </label>
-      <label class="block text-xs text-slate-700">
-        <span>备注</span>
-        <el-input v-model="draft.remarks" class="mt-1" />
+      <label class="flex flex-col gap-1 text-xs text-slate-700">
+        <div>备注</div>
+        <el-input v-model="draft.remarks" />
       </label>
     </div>
     <template #footer>

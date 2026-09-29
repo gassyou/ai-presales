@@ -61,7 +61,10 @@
     <!-- 当前 tab 内容 -->
     <div class="flex-1 min-h-0 overflow-hidden p-3">
       <div v-if="activeTab" class="flex h-full min-h-0 flex-col">
+        <!-- 阶段 B14：用 :key=activeTab.id 强制 MarkdownEditor 在切换 tab 后重新挂载，
+            避免 bytemd 内部状态在新旧内容间残留（用户反馈：tab 切换了但内容没变） -->
         <MarkdownEditor
+          :key="activeTab.id"
           v-model="draft"
           :placeholder="`编辑 ${activeTab.title || '未命名'}…`"
         />
