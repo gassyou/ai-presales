@@ -103,9 +103,10 @@ Deno.test("t4 — SubAgentSpecVO 非法 type → INVALID_INPUT", () => {
 
 // ===== builtin =====
 
-Deno.test("t4 — 7 个 builtin 全部 type=system", () => {
+Deno.test("t4 — 全部 builtin 仍为 type=system（含阶段 11 的 auto_*）", () => {
   const builtins = getBuiltinSubAgentSpecs();
-  assertEquals(builtins.length, 7);
+  // 阶段 7.5（H4）→ 7；阶段 11（任务 11）→ 12
+  assert(builtins.length >= 12, `expect >= 12, got ${builtins.length}`);
   for (const b of builtins) {
     assertEquals(b.type, "system", `${b.name} should be system type`);
   }

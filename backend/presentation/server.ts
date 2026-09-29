@@ -23,6 +23,7 @@ import { handleProjects, type ProjectRouteDeps } from "./routes/project.route.ts
 import { handleAiChat, handleAiChatStream, type AiChatRouteDeps } from "./routes/ai.route.ts";
 import { handleSubAgents, type SubAgentRouteDeps } from "./routes/sub-agent.route.ts";
 import { handleChatSession, type ChatSessionRouteDeps } from "./routes/chat-session.route.ts";
+import { handleAutoMode, type AutoModeRouteDeps } from "./routes/auto-mode.route.ts";
 import { handleKnowledge, type KnowledgeRouteDeps } from "./routes/knowledge.route.ts";
 import {
   handleBusinessModule,
@@ -136,6 +137,7 @@ export interface AppDeps {
   /** 阶段 7.4h：系统设置（4 类）路由依赖 */
   settingsRoute?: SettingsRouteDeps;
   chatSessionRoute?: ChatSessionRouteDeps;
+  autoModeRoute?: AutoModeRouteDeps;
   // ...其他省略...
   /** 阶段 7.4h：返回当前 default profile 快照（sub-agent invoke 时读 temperature/maxTokens） */
   profileSnapshot?: () => import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot | undefined;
@@ -565,6 +567,16 @@ export function createApp(deps: AppDeps): App {
         );
       }
       return await handleChatSession(req, deps.chatSessionRoute, url);
+    }
+    // 阶段 11（任务 11）：auto-mode 多 agent 编排入口
+    if (path === "/api/ai/auto-mode") {
+      if (!deps.autoModeRoute) {
+        return new Response(
+          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "auto-mode service not wired", traceId: "" }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      return await handleAutoMode(req, deps.autoModeRoute);
     }
     return new Response(JSON.stringify({ code: "NOT_FOUND", message: `route ${path} not implemented`, traceId: "" }), {
       status: 404,

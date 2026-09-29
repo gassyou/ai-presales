@@ -7,6 +7,7 @@
 
 import { SubAgentSpecVO, type SubAgentSpecData } from "@backend/domain/sub-agent/sub-agent-spec.ts";
 import { InMemorySubAgentRegistry } from "@backend/domain/sub-agent/sub-agent.registry.ts";
+import { AUTO_MODE_SPECS } from "@backend/ai/auto-mode/auto-mode-agents.ts";
 import { domainErr, type DomainResult } from "@backend/domain/shared/result.ts";
 
 function unwrap<T>(r: DomainResult<T>): T {
@@ -189,6 +190,8 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       profileHint: "fast",
       type: "system",
     },
+    // 阶段 11（任务 11）：auto-mode 5 个系统 sub-agent
+    ...AUTO_MODE_SPECS,
   ];
 }
 

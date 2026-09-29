@@ -47,14 +47,17 @@ async function seedBuiltins(repo: SqliteSystemSettingRepository, clock: Clock): 
   await repo.seedIfEmpty("agents.specs" as Parameters<typeof repo.seedIfEmpty>[0], { specs }, clock);
 }
 
-Deno.test("SqliteBackedSubAgentRegistry — seed 后 list 包含 7 个 builtin", async () => {
+Deno.test("SqliteBackedSubAgentRegistry — seed 后 list 包含全部 builtin", async () => {
   const { repo, registry, clock, tmpRoot } = await setup();
+  SqliteBackedSubAgentRegistry.clearCacheForTests();
   try {
     await seedBuiltins(repo, clock);
     await registry.refreshSyncCacheAsync();
     const names = registry.names();
-    // 阶段 7.5（H4）新增 markdown-author，故总数从 5 增至 6；
-    // 阶段 H 新增 project-editor，故 7。
+    const expectedNames = getBuiltinSubAgentSpecs().map((s) => s.name);
+    // 阶段 7.5（H4）新增 markdown-author；
+    // 阶段 H 新增 project-editor；
+    // 阶段 11（任务 11）新增 5 个 auto_* spec。
     assert(names.includes("project-creator"));
     assert(names.includes("survey-researcher"));
     assert(names.includes("proposal-drafter"));
@@ -62,7 +65,12 @@ Deno.test("SqliteBackedSubAgentRegistry — seed 后 list 包含 7 个 builtin",
     assert(names.includes("business-email-writer"));
     assert(names.includes("markdown-author"));
     assert(names.includes("project-editor"));
-    assertEquals(names.length, 7);
+    assert(names.includes("auto_env_init"));
+    assert(names.includes("auto_business_req"));
+    assert(names.includes("auto_survey_task"));
+    assert(names.includes("auto_customer_review"));
+    assert(names.includes("auto_director_review"));
+    assertEquals(names.length, 12);
   } finally {
     SqliteBackedSubAgentRegistry.clearCacheForTests();
     await Deno.remove(tmpRoot, { recursive: true });
