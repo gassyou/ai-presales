@@ -91,6 +91,7 @@
 
       <div class="flex items-center gap-1">
         <!-- 阶段 13（PR #8）：会话级"全部自动批准工具"开关（移到模型下拉框左边） -->
+        Auto:
         <el-switch
           v-if="store.currentSessionId"
           :model-value="store.autoApprove"
@@ -102,10 +103,10 @@
           @update:model-value="(v) => onAutoApproveChange(!!v)"
         >
           <template #active-content>
-            <span class="flex items-center gap-1"><el-icon><Unlock /></el-icon><span>全自动</span></span>
+            <span class="flex items-center gap-1"><el-icon><Unlock /></el-icon></span>
           </template>
           <template #inactive-content>
-            <span class="flex items-center gap-1"><el-icon><Lock /></el-icon><span>逐个</span></span>
+            <span class="flex items-center gap-1"><el-icon><Lock /></el-icon></span>
           </template>
         </el-switch>
 

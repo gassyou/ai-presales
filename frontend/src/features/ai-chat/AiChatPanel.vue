@@ -13,53 +13,66 @@
 <template>
   <section class="flex h-full">
     <div class="flex flex-1 flex-col">
-      <header class="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
-        <div class="flex shrink-0 items-center gap-2">
-          <el-button size="small" :disabled="busy" @click="onCreate">+ 新建会话</el-button>
-          <el-popover
-            v-model:visible="historyVisible"
-            placement="bottom-start"
-            :width="360"
-            trigger="click"
-            popper-class="ai-chat-history-popover"
-          >
+     <header class="flex items-center justify-between border-b border-border px-4 py-2">
+        <!-- 左侧：当前会话标题 -->
+        <div class="min-w-0 flex-1">
+          <span class="truncate text-sm font-medium text-slate-700">
+            {{ currentTitle }}
+          </span>
+        </div>
+
+        <!-- 右侧：操作按钮 -->
+        <div class="flex shrink-0 items-center gap-1">
+          <!-- 新建 -->
+          <el-button size="small" :disabled="busy" @click="onCreate">
+            + 新建
+          </el-button>
+
+          <!-- 历史会话 -->
+          <el-popover v-model:visible="historyVisible" placement="bottom-end" :width="360" trigger="click"
+            popper-class="ai-chat-history-popover">
             <template #reference>
               <el-button size="small" :disabled="busy">
-                <span>会话历史 ({{ store.sessions.length }})</span>
+                <span>历史 ({{ store.sessions.length }})</span>
               </el-button>
             </template>
 
+            <!-- 历史会话内容 -->
             <div class="flex flex-col gap-2">
-              <el-input
-                v-model="historySearch"
-                size="small"
-                placeholder="搜索会话..."
-                clearable
-              />
+              <!-- 搜索 -->
+              <el-input v-model="historySearch" size="small" placeholder="搜索会话..." clearable />
+
+              <!-- 会话列表 -->
               <div class="max-h-80 overflow-y-auto rounded border border-slate-100">
+                <!-- 无搜索结果 -->
                 <div v-if="filteredSessions.length === 0" class="px-3 py-3 text-center text-xs text-slate-500">
-                  {{ store.sessions.length === 0 ? "暂无会话" : "没有匹配的会话" }}
+                  {{
+                    store.sessions.length === 0
+                      ? "暂无会话"
+                      : "没有匹配的会话"
+                  }}
                 </div>
-                <div
-                  v-for="s in filteredSessions"
-                  :key="s.id"
-                  :class="[
-                    'group flex items-center gap-1 px-3 py-2 text-sm transition-colors hover:bg-slate-100 cursor-pointer',
-                    store.currentSessionId === s.id ? 'bg-emerald-50' : '',
-                  ]"
-                  @click="onSwitchFromHistory(s.id)"
-                >
+
+                <!-- 会话 -->
+                <div v-for="s in filteredSessions" :key="s.id" :class="[
+                  'group flex cursor-pointer items-center gap-1 px-3 py-2 text-sm transition-colors hover:bg-slate-100',
+                  store.currentSessionId === s.id ? 'bg-emerald-50' : '',
+                ]" @click="onSwitchFromHistory(s.id)">
+                  <!-- 会话标题和时间 -->
                   <div class="min-w-0 flex-1">
-                    <div class="truncate font-medium text-slate-800">{{ s.title }}</div>
-                    <div class="truncate text-[10px] text-slate-500">{{ formatTime(s.updatedAt) }}</div>
+                    <div class="truncate font-medium text-slate-800">
+                      {{ s.title }}
+                    </div>
+
+                    <div class="truncate text-[10px] text-slate-500">
+                      {{ formatTime(s.updatedAt) }}
+                    </div>
                   </div>
-                  <el-button
-                    size="small"
-                    type="danger"
-                    link
+
+                  <!-- 删除 -->
+                  <el-button size="small" type="danger" link
                     class="opacity-0 transition-opacity group-hover:opacity-100"
-                    @click.stop="onDeleteFromHistory(s.id, s.title)"
-                  >
+                    @click.stop="onDeleteFromHistory(s.id, s.title)">
                     删除
                   </el-button>
                 </div>
@@ -67,10 +80,6 @@
             </div>
           </el-popover>
         </div>
-
-        <span class="truncate text-sm font-medium text-slate-700">
-          {{ currentTitle }}
-        </span>
       </header>
 
       <div ref="scrollRef" class="flex-1 space-y-2 overflow-y-auto px-4 py-3">
