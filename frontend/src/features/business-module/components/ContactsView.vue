@@ -27,7 +27,7 @@
             <th class="w-24 py-2">职位</th>
             <th class="w-44 py-2">邮箱</th>
             <th class="w-28 py-2">电话</th>
-            <th class="w-16 py-2">主联系人</th>
+            <!-- 阶段 B4：移除「主联系人」列（用户要求；保留 isPrimary 字段供后台逻辑，不显示） -->
             <th class="w-32 py-2 text-right pr-2">操作</th>
           </tr>
         </thead>
@@ -44,15 +44,8 @@
               <span v-else>—</span>
             </td>
             <td class="py-2 text-slate-600">{{ c.phone || "—" }}</td>
-            <td class="py-2">
-              <span
-                v-if="c.isPrimary"
-                class="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] text-accent"
-              >主联系人</span>
-              <span v-else class="text-slate-400">—</span>
-            </td>
             <td class="py-2 text-right pr-2">
-              <el-button v-if="!c.isPrimary" link type="warning" size="small" @click="setPrimary(c.id)">设为主联系人</el-button>
+              <!-- 阶段 B4：移除「设为主联系人」按钮（用户要求：列+按钮一起删） -->
               <el-button link type="primary" size="small" @click="openEdit(c)">编辑</el-button>
               <el-button link type="danger" size="small" @click="remove(c.id)">删除</el-button>
             </td>
@@ -86,9 +79,7 @@
             电话
             <el-input v-model="modal.phone" placeholder="13800000000" />
           </label>
-          <label class="flex items-center gap-2 text-xs text-slate-600">
-            <el-checkbox v-model="modal.isPrimary">设为主联系人</el-checkbox>
-          </label>
+          <!-- 阶段 B4：移除「设为主联系人」checkbox（用户要求：列+按钮+新增窗口 checkbox 一起删） -->
           <p v-if="modalError" class="text-xs text-red-300">{{ modalError }}</p>
         </div>
       </template>
@@ -202,16 +193,6 @@ async function submitModal(): Promise<void> {
     modalError.value = errMsg(e);
   } finally {
     modalSaving.value = false;
-  }
-}
-
-async function setPrimary(id: string): Promise<void> {
-  try {
-    await contactsApi.update(props.projectId, id, { isPrimary: true });
-    await load();
-    emit("updated");
-  } catch (e) {
-    error.value = errMsg(e);
   }
 }
 
