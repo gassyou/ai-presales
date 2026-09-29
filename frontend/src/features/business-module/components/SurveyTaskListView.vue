@@ -51,7 +51,12 @@
               {{ t.topicHint || "—" }}
             </td>
             <td class="py-2">
-              <span :class="taskStatusClass(effectiveStatus(t))">{{ taskStatusLabel(effectiveStatus(t)) }}</span>
+              <span :class="taskStatusClass(effectiveStatus(t))">
+                <el-icon v-if="effectiveStatus(t) === 'running'" class="is-loading mr-1">
+                  <Loading />
+                </el-icon>
+                {{ taskStatusLabel(effectiveStatus(t), t.startedAt) }}
+              </span>
             </td>
             <td class="py-2">
               <span :class="adoptionClass(t.adoptionStatus)">{{ adoptionLabel(t.adoptionStatus) }}</span>
@@ -63,12 +68,19 @@
             <td class="py-2 text-right pr-2">
               <el-button link type="primary" size="small" @click="openResult(t)">结果</el-button>
               <el-button
+                link
+                type="primary"
+                size="small"
+                :disabled="effectiveStatus(t) === 'running'"
+                @click="openEdit(t)"
+              >编辑</el-button>
+              <el-button
                 v-if="effectiveStatus(t) === 'idle'"
                 link
                 type="success"
                 size="small"
                 @click="onStart(t.id)"
-              >执行</el-button>
+              >开始调查</el-button>
               <el-button
                 v-else-if="effectiveStatus(t) === 'running'"
                 link
@@ -127,6 +139,39 @@
       </template>
     </el-dialog>
 
+    <!-- 编辑对话框（基础字段：任务名 / 主题 / 内容） -->
+    <el-dialog
+      v-model="showEdit"
+      :title="editTitle"
+      width="480px"
+      :close-on-click-modal="false"
+    >
+      <form class="flex flex-col gap-3" @submit.prevent="onSaveEdit">
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          任务名称 *
+          <el-input v-model="editForm.title" required />
+        </label>
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          主题提示
+          <el-input v-model="editForm.topicHint" placeholder="如：客户背景信息、行业背景" />
+        </label>
+        <label v-if="canEditContent" class="flex flex-col gap-1 text-xs text-slate-600">
+          详细调查内容
+          <el-input v-model="editForm.content" type="textarea" :rows="4" placeholder="需要 AI 调查的要点" />
+        </label>
+        <p v-else class="text-[11px] text-slate-500">
+          调查任务执行中 / 已完成，详细内容已被调查结果覆盖，不可修改。
+        </p>
+        <p v-if="editError" class="text-xs text-red-300">{{ editError }}</p>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="closeEdit">取消</el-button>
+          <el-button type="primary" :loading="editSaving" @click="onSaveEdit">保存</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 调查结果抽屉（markdown 编辑 + 保存） -->
     <el-drawer
       v-model="drawerOpen"
@@ -144,7 +189,11 @@
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           调查结果（Markdown）
           <div class="mt-1 flex-1 overflow-hidden rounded border border-border">
-            <MarkdownEditor v-model="resultDraft" placeholder="调查结果 / 关键发现…" />
+            <MarkdownEditor
+              v-model="resultDraft"
+              :fill-height="false"
+              placeholder="调查结果 / 关键发现…"
+            />
           </div>
         </label>
 
@@ -160,10 +209,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { Loading } from "@element-plus/icons-vue";
 import { useSurveyTaskStore } from "../stores/survey-task.store.ts";
 import { businessModuleApi } from "../api/business-module.api.ts";
 import type { SurveyTaskResult, SurveyTaskStatus } from "../api/survey-task.api.ts";
+import { formatElapsed } from "../lib/format-elapsed.ts";
 import MarkdownEditor from "@frontend/shared/ui/MarkdownEditor.vue";
 
 const props = defineProps<{ projectId: string }>();
@@ -183,14 +234,42 @@ const drawerTitle = computed(() =>
   drawerTask.value ? `调查结果 · ${drawerTask.value.title}` : "调查结果",
 );
 
+// 编辑对话框状态
+const showEdit = ref(false);
+const editTask = ref<SurveyTaskResult | null>(null);
+const editSaving = ref(false);
+const editError = ref<string | null>(null);
+const editForm = reactive({ title: "", topicHint: "", content: "" });
+
+const editTitle = computed(() =>
+  editTask.value ? `编辑调查任务 · ${editTask.value.title}` : "编辑调查任务",
+);
+
+const canEditContent = computed(() => {
+  const t = editTask.value;
+  if (!t) return false;
+  const s = effectiveStatus(t);
+  return s === "idle" || s === "aborted";
+});
+
 function effectiveStatus(t: SurveyTaskResult): SurveyTaskStatus {
   return store.getLiveStatus(t.id) ?? t.taskStatus;
 }
 
-function taskStatusLabel(s: SurveyTaskStatus): string {
+// 每秒驱动「执行中 Ns」文案重算
+const now = ref(Date.now());
+const tickHandle = setInterval(() => {
+  now.value = Date.now();
+}, 1000);
+onUnmounted(() => clearInterval(tickHandle));
+
+function taskStatusLabel(s: SurveyTaskStatus, startedAt?: string): string {
   switch (s) {
     case "idle": return "待执行";
-    case "running": return "执行中";
+    case "running": {
+      const elapsed = formatElapsed(startedAt, now.value);
+      return elapsed ? `执行中 ${elapsed}` : "执行中";
+    }
     case "completed": return "已完成";
     case "aborted": return "已终止";
   }
@@ -268,6 +347,54 @@ function openResult(t: SurveyTaskResult): void {
   resultDraft.value = t.resultContent ?? "";
   drawerError.value = null;
   drawerOpen.value = true;
+}
+
+function openEdit(t: SurveyTaskResult): void {
+  editTask.value = t;
+  editForm.title = t.title;
+  editForm.topicHint = t.topicHint ?? "";
+  // 后端 SurveyTaskResult 把 snap.content 暴露为 resultContent；
+  // idle 状态下 resultContent 即用户原始输入，running/completed 已被调查结果覆盖。
+  editForm.content = t.resultContent ?? "";
+  editError.value = null;
+  showEdit.value = true;
+}
+
+function closeEdit(): void {
+  showEdit.value = false;
+  editTask.value = null;
+  editError.value = null;
+}
+
+async function onSaveEdit(): Promise<void> {
+  const t = editTask.value;
+  if (!t) return;
+  if (!editForm.title.trim()) {
+    editError.value = "请填写任务名称";
+    return;
+  }
+  editSaving.value = true;
+  editError.value = null;
+  try {
+    const payload = { topicHint: editForm.topicHint || undefined };
+    // 仅在 idle / aborted 状态（content 还是用户原始输入）写回 content，
+    // running / completed 时避免覆盖已生成的调查结果。
+    const status = effectiveStatus(t);
+    const updateBody: { title: string; payloadJson: string; content?: string } = {
+      title: editForm.title.trim(),
+      payloadJson: JSON.stringify(payload),
+    };
+    if (status === "idle" || status === "aborted") {
+      updateBody.content = editForm.content;
+    }
+    await businessModuleApi.update(t.id, updateBody);
+    await store.load(props.projectId);
+    showEdit.value = false;
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    editSaving.value = false;
+  }
 }
 
 async function onSaveResult(): Promise<void> {

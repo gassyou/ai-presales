@@ -2,9 +2,9 @@
  * 任务 10：取消 ChatComposer 中的附件 icon —— 测试
  *
  * 验证：
- *   - ChatComposer.vue 不再有 📎 附件按钮
+ *   - ChatComposer.vue 不再有附件 icon 按钮
  *   - ChatComposer.vue 不再有 "附件" 字样
- *   - ChatComposer.vue 仍有 ⊕ 添加按钮（不受影响）
+ *   - ChatComposer.vue 仍有添加按钮（不受影响）
  *   - （关联文件）无残留附件 icon 的代码
  *
  * 用静态文本扫描而非渲染（项目无 vue 测试基础设施）。
@@ -20,13 +20,14 @@ function readText(rel: string): string {
   return Deno.readTextFileSync(join(projectRoot, rel));
 }
 
-Deno.test("t10 — ChatComposer 不再有 📎 附件按钮", () => {
+Deno.test("t10 — ChatComposer 不再有附件 icon 按钮", () => {
   const src = readText("frontend/src/features/ai-chat/ChatComposer.vue");
-  // 注释里允许提到"附件"（说明性）；模板里不能有 📎 button
+  // 注释里允许提到"附件"（说明性）；模板里不能有附件 icon button
   // 用 template 块约束：<template> ... </template> 之间
   const template = src.match(/<template>[\s\S]*?<\/template>/);
   assert(template, "<template> 块必须存在");
-  assert(!template[0].includes("📎"), "template 里不应有 📎 附件 icon");
+  // 检查不出现 Paperclip（Element Plus 的回形针图标）—— 附件功能由 / 命令 + skill 提供
+  assert(!template[0].includes("Paperclip"), "template 里不应有 Paperclip 附件图标");
 });
 
 Deno.test("t10 — ChatComposer 模板里不含 title='附件' 按钮", () => {
@@ -36,12 +37,13 @@ Deno.test("t10 — ChatComposer 模板里不含 title='附件' 按钮", () => {
   assert(!template[0].includes('title="附件'), "缺少附件按钮");
 });
 
-Deno.test("t10 — ChatComposer 仍有 ⊕ 添加按钮", () => {
+Deno.test("t10 — ChatComposer 仍有添加按钮（Plus 图标）", () => {
   const src = readText("frontend/src/features/ai-chat/ChatComposer.vue");
   const template = src.match(/<template>[\s\S]*?<\/template>/);
   assert(template);
-  // ⊕ 还在（用户未要求删添加按钮）
-  assert(template[0].includes("⊕"), "添加按钮 ⊕ 应保留");
+  // 添加按钮还在（用户未要求删添加按钮）；现在用 Element Plus 的 Plus 图标
+  assert(template[0].includes("Plus"), "添加按钮的 Plus 图标应保留");
+  assertStringIncludes(src, "onPickFileClick");
 });
 
 Deno.test("t10 — ai-chat feature 目录不再含 '附件' 视觉按钮", () => {
@@ -57,9 +59,9 @@ Deno.test("t10 — ai-chat feature 目录不再含 '附件' 视觉按钮", () =>
     const src = readText(f);
     const template = src.match(/<template>[\s\S]*?<\/template>/);
     if (!template) continue;
-    // 不应在主面板出现 📎（已被 t8 的 slash 命令 + skill 取代）
+    // 不应在主面板出现附件 icon（已被 t8 的 slash 命令 + skill 取代）
     if (f === "ChatComposer.vue") {
-      assert(!template[0].includes("📎"), `${f} 不应有 📎 icon`);
+      assert(!template[0].includes("Paperclip"), `${f} 不应有附件 Paperclip icon`);
     }
   }
 });

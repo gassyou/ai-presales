@@ -3,7 +3,7 @@
  *
  * 覆盖：
  *   - ChatComposer.vue 不再 import / 引用 SubAgentPicker
- *   - ChatComposer.vue 不再有 🛠 工具 / 💬 纯聊 切换按钮
+ *   - ChatComposer.vue 不再有"工具 / 纯聊"切换按钮
  *   - ChatComposer.vue 用 llm-profiles store 作 profile 数据源
  *   - llm-profiles.store.ts 存在并提供 LlmProfile shape
  *   - DTO 适配函数 toLlmProfile 把 name → id，缺 label 时用 provider/model
@@ -32,15 +32,16 @@ Deno.test({
 });
 
 Deno.test({
-  name: "t15 — ChatComposer 不再有 🛠 工具 / 💬 纯聊 切换按钮",
+  name: "t15 — ChatComposer 不再有「工具 / 纯聊」切换按钮",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
     const text = await Deno.readTextFile(
       "frontend/src/features/ai-chat/ChatComposer.vue",
     );
-    assertEquals(text.includes("🛠 工具"), false);
-    assertEquals(text.includes("💬 纯聊"), false);
+    // 检查不出现工具/纯聊相关的图标类名（Tools / ChatDotRound 是 Element Plus 的对应组件）
+    assertEquals(text.includes("Tools"), false);
+    assertEquals(text.includes("ChatDotRound"), false);
     // toolsEnabled 也应在 Composer 不再被引用（默认 agent 模式）
     assertEquals(text.includes("toolsEnabled"), false);
   },

@@ -265,8 +265,13 @@ export class SurveyTaskUseCase {
           : `# 调查：${snap.value.title}\n\n主题：${topicHint}\n\n（本结果由本地占位逻辑生成，后续阶段接入 survey-researcher sub-agent）\n`;
       }
 
+      // 仅在 content 为空时采用 LLM 输出；若用户在 idle 阶段手动填写过调查结果，则保留用户结果，
+      // 避免执行完成后用户填的内容被覆盖丢失。
+      const finalContent = snap.value.content && snap.value.content.trim().length > 0
+        ? snap.value.content
+        : resultContent;
       await this.bm.updateItem(taskId, {
-        content: resultContent,
+        content: finalContent,
         payloadJson: JSON.stringify({
           ...payload,
           taskStatus: "completed",

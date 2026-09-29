@@ -138,6 +138,13 @@ export async function handleBusinessModule(
       const status = statusQ === "pending" || statusQ === "adopted" || statusQ === "unadopted"
         ? statusQ
         : undefined;
+      // 调查任务：走 SurveyTaskUseCase.list 以返回 enriched 结果（含 topicHint/taskStatus/resultContent）。
+      //   否则前端列表的「主题」列始终为空、抽不开 drawer 也看不到已填的 content。
+      if (kind === SURVEY_TASK_KIND && deps.surveyTaskUseCase) {
+        const items = await deps.surveyTaskUseCase.list(pid);
+        const filtered = status ? items.filter((it) => it.adoptionStatus === status) : items;
+        return json({ items: filtered, kind, projectId });
+      }
       const items = await deps.service.listItems(pid, kind, status ? { status } : undefined);
       return json({ items: items.map(snapshotToDto), kind, projectId });
     }

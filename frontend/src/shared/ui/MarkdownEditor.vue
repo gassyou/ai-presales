@@ -14,12 +14,20 @@
   用法（最小）：
     <MarkdownEditor v-model="draft" :placeholder="..." />
 
+  高度行为（fillHeight）：
+    - true（默认）：编辑区高度占满父容器。适用于 ProjectDetailView 的主区、
+      MarkdownModuleView、CustomPagesView 等正常页面布局（父容器通常是
+      flex 列布局 + min-h-0）。
+    - false：编辑区保持 bytemd 默认高度 / 父容器给定的高度。适用于
+      el-dialog 弹框、el-drawer 抽屉弹框等场景 —— 这些场景下父容器已
+      用 h-72/h-64/flex-1 限制了高度，应避免编辑器再强行撑满。
+
   说明：
     - 不接管自动保存：保持各模块原有的 800ms debounce 逻辑不变
     - 不接管 AI 生成 / 下载：仍由父组件控制
 -->
 <template>
-  <div class="md-editor-wrapper">
+  <div :class="fillHeight ? 'md-editor-wrapper md-editor-wrapper--fill' : 'md-editor-wrapper'">
     <Editor
       :value="modelValue"
       :plugins="plugins"
@@ -43,19 +51,30 @@ import zhHans from "bytemd/locales/zh_Hans.json";
 import "bytemd/dist/index.css";
 import "highlight.js/styles/github.css";
 
-const props = defineProps<{
-  /** 双向绑定：md 原文 */
-  modelValue: string;
-  /** 占位文字 */
-  placeholder?: string;
-  /**
-   * 编辑器布局：
-   *   - "auto"：宽屏 split（左右）/ 窄屏 tab（默认）
-   *   - "split"：强制左右双栏
-   *   - "tab"：强制 tab 切换
-   */
-  mode?: "auto" | "split" | "tab";
-}>();
+const props = withDefaults(
+  defineProps<{
+    /** 双向绑定：md 原文 */
+    modelValue: string;
+    /** 占位文字 */
+    placeholder?: string;
+    /**
+     * 编辑器布局：
+     *   - "auto"：宽屏 split（左右）/ 窄屏 tab（默认）
+     *   - "split"：强制左右双栏
+     *   - "tab"：强制 tab 切换
+     */
+    mode?: "auto" | "split" | "tab";
+    /**
+     * 是否让编辑器高度占满父容器。
+     *   - true（默认）：父容器需为 flex 列布局 + min-h-0，编辑器会撑满剩余空间
+     *   - false：编辑器保持 bytemd 默认 / 父容器给定的高度（弹框/抽屉场景）
+     */
+    fillHeight?: boolean;
+  }>(),
+  {
+    fillHeight: true,
+  },
+);
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
@@ -141,6 +160,46 @@ function onChange(v: string): void {
     sans-serif;
   color: #1f2937;
   background: transparent;
+  /* 还原 Tailwind preflight 重置掉的标题字号 / 字重 */
+  --md-fs-h1: 2em;
+  --md-fs-h2: 1.5em;
+  --md-fs-h3: 1.25em;
+  --md-fs-h4: 1em;
+  --md-fs-h5: 0.875em;
+  --md-fs-h6: 0.85em;
+}
+.md-editor-wrapper :deep(.markdown-body h1),
+.md-editor-wrapper :deep(.markdown-body h2),
+.md-editor-wrapper :deep(.markdown-body h3),
+.md-editor-wrapper :deep(.markdown-body h4),
+.md-editor-wrapper :deep(.markdown-body h5),
+.md-editor-wrapper :deep(.markdown-body h6) {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 24px 0 16px;
+}
+.md-editor-wrapper :deep(.markdown-body h1) {
+  font-size: var(--md-fs-h1);
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #e5e7eb;
+}
+.md-editor-wrapper :deep(.markdown-body h2) {
+  font-size: var(--md-fs-h2);
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #e5e7eb;
+}
+.md-editor-wrapper :deep(.markdown-body h3) {
+  font-size: var(--md-fs-h3);
+}
+.md-editor-wrapper :deep(.markdown-body h4) {
+  font-size: var(--md-fs-h4);
+}
+.md-editor-wrapper :deep(.markdown-body h5) {
+  font-size: var(--md-fs-h5);
+}
+.md-editor-wrapper :deep(.markdown-body h6) {
+  font-size: var(--md-fs-h6);
+  color: #6b7280;
 }
 
 /* 让 hr / blockquote / table 等元素与现有 Tailwind 卡片色和谐 */
@@ -181,5 +240,13 @@ function onChange(v: string): void {
 /* 移除 min-height：让父容器 (MarkdownModuleView) 通过 flex-1 撑开 */
 .md-editor-wrapper :deep(.bytemd) {
   flex: 1 1 auto;
+}
+
+/* fillHeight=true 时：高度占满父容器（要求父容器是 flex/min-h-0 列布局） */
+.md-editor-wrapper--fill {
+  height: 100%;
+}
+.md-editor-wrapper--fill :deep(.bytemd) {
+  height: 100%;
 }
 </style>

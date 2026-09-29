@@ -87,9 +87,10 @@ Deno.test("w7 — ProjectDetailView「创建文件夹」按钮绑 onCreateWorksp
 Deno.test("w8 — ProjectDetailView 含 webkitdirectory 隐藏 input", () => {
   const v = readText("frontend/src/features/project/ProjectDetailView.vue");
   assert(
-    /<input[\s\S]*?type="file"[\s\S]*?webkitdirectory[\s\S]*?class="hidden"[\s\S]*?@change="onFolderPicked"/.test(
-      v,
-    ),
+    /<input[\s\S]*?type="file"[\s\S]*?webkitdirectory[\s\S]*?class="hidden"[\s\S]*?@change="onFolderPicked"/
+      .test(
+        v,
+      ),
     "应有隐藏的 webkitdirectory 文件夹 input + change 绑 onFolderPicked",
   );
 });
@@ -108,4 +109,79 @@ Deno.test("w9 — ProjectDetailView 含 openFolderPicker / onFolderPicked / onCr
 Deno.test("w10 — ProjectDetailView 错误回显", () => {
   const v = readText("frontend/src/features/project/ProjectDetailView.vue");
   assert(/<p v-if="workspaceError"/.test(v), "应有 workspaceError 文案展示");
+});
+
+/* ====== 阶段 13（PR #3）：folder picker 三级 cascade ====== */
+
+Deno.test("w11 — 后端 handleOpenFolderDialog 存在 + 未启用时返 501 NOT_IMPLEMENTED", () => {
+  const route = readText("backend/presentation/routes/system.route.ts");
+  assertStringIncludes(route, "function handleOpenFolderDialog");
+  // 环境变量检查：未设 → 501
+  assert(/Deno\.env\.get\("DENO_DESKTOP_FOLDER_PICKER"\)/.test(route));
+  assertStringIncludes(route, '"NOT_IMPLEMENTED"');
+  // 200 响应 DTO
+  assertStringIncludes(route, "OpenFolderDialogResponse");
+});
+
+Deno.test("w12 — server.ts 路由分支 /api/system/open-folder-dialog → handleOpenFolderDialog", () => {
+  const s = readText("backend/presentation/server.ts");
+  assertStringIncludes(s, "handleOpenFolderDialog");
+  assert(/path === "\/api\/system\/open-folder-dialog"/.test(s));
+  assert(/handleOpenFolderDialog\(req\)/.test(s));
+});
+
+Deno.test("w13 — 前端 endpoint 常量 + systemApi.openFolderDialog 方法存在", () => {
+  const ep = readText("frontend/src/shared/api/endpoints.ts");
+  assertStringIncludes(ep, 'systemOpenFolderDialog: "/api/system/open-folder-dialog"');
+  const api = readText("frontend/src/shared/api/system.api.ts");
+  assertStringIncludes(api, "openFolderDialog");
+  assertStringIncludes(api, "Endpoints.systemOpenFolderDialog");
+  assertStringIncludes(api, "http.post");
+});
+
+Deno.test("w14 — ProjectDetailView openFolderPicker cascade（binding → webkitdirectory → 手动输入）", () => {
+  const v = readText("frontend/src/features/project/ProjectDetailView.vue");
+  // (1) 调 binding
+  assert(
+    /systemApi\.openFolderDialog\(/.test(v),
+    "openFolderPicker 应调 systemApi.openFolderDialog",
+  );
+  // (2) fallback 到 webkitdirectory click
+  assert(/folderInputRef\.value\?\.click\(\)/.test(v), "应 fallback 到 folderInputRef.click()");
+  // (3) onFolderPicked 在 File.path 为空时打开手动输入对话框
+  assert(
+    /onFolderPicked[\s\S]*?openWorkspaceDialog\(\)/.test(v),
+    "File.path 空时应调 openWorkspaceDialog",
+  );
+  // 不再含死胡同错误字面量
+  assert(
+    !/当前环境不支持从文件选择器读取绝对路径/.test(v),
+    "不应再有死胡同错误字面量",
+  );
+  // 隐藏的 webkitdirectory input 仍在
+  assert(
+    /<input[\s\S]*?type="file"[\s\S]*?webkitdirectory[\s\S]*?@change="onFolderPicked"/.test(v),
+  );
+});
+
+Deno.test("w15 — main.ts / dev.ts 注册 pickWorkspaceFolder binding（防御性 bind 检查）", () => {
+  for (const f of ["main.ts", "dev.ts"]) {
+    const src = readText(f);
+    assertStringIncludes(src, "pickWorkspaceFolder");
+    // 防御性 typeof win.bind === "function" 检查（旧 runtime 缺 bind 时跳过）
+    assert(
+      /typeof win\.bind === "function"/.test(src),
+      `${f} 应有 typeof win.bind === "function" 防御`,
+    );
+    // 当前实现返 cancelled 让前端 cascade
+    assert(/cancelled:\s*true/.test(src), `${f} binding 应返 cancelled: true`);
+  }
+});
+
+Deno.test("w16 — ProjectDetailView 不再含死胡同错误字面量", () => {
+  const v = readText("frontend/src/features/project/ProjectDetailView.vue");
+  assert(
+    !v.includes("当前环境不支持从文件选择器读取绝对路径，请改用「创建文件夹」或手动输入"),
+    "死胡同错误文案应已移除（cascade 到手动输入对话框）",
+  );
 });

@@ -122,8 +122,6 @@ Deno.test({
     assertStringIncludes(src, "canDecideResult");
     assertStringIncludes(src, 'type="success"');
     assertStringIncludes(src, 'type="warning"');
-    assertStringIncludes(src, "✓");
-    assertStringIncludes(src, "✗");
     assertStringIncludes(src, "中标");
     assertStringIncludes(src, "未中标");
     // 次按钮区

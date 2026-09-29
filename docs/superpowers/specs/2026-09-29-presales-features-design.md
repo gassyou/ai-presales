@@ -258,7 +258,7 @@
 
 1. **`ChatComposer.vue`**：
    - **删除**：`<SubAgentPicker>` 元素整段删除；
-   - **删除**：「🛠 工具」/「💬 纯聊」切换按钮整段删除（默认 agent 模式）；
+   - **删除**：「「工具」」/「「纯聊」」切换按钮整段删除（默认 agent 模式）；
    - **改造**：`<el-select>` `profiles` 数组从硬编码改为 `llmProfiles`（来自 settings store），label 用 `${label} (${model})`，value 用 profile id。
 2. **`stores/llm-profiles.store.ts`**（新建）：`load()` → 缓存 profiles。
 3. **slash 命令补全**：`/agent <name>` —— 仍然支持按需切换（不在 UI 暴露，slash 触发）；`/use <tool>` —— 仅在高级模式下使用。slash 解析在 `chat-session.store` 里实现。
@@ -303,7 +303,7 @@
 
 #### Frontend
 
-1. **`ChatComposer.vue`**："⊕" 按钮（目前占位）→ 改为 `<input type="file" multiple>`（hidden），button click 触发；
+1. **`ChatComposer.vue`**："+" 按钮（目前占位）→ 改为 `<input type="file" multiple>`（hidden），button click 触发；
    - 选择后 `file.arrayBuffer()` → 转 base64；
    - 调 `attach_file_to_chat` → 显示 "上传中" spinner → 完成后展示附件卡片（filename + size + "解析结果"折叠面板）。
 
@@ -330,7 +330,7 @@
 
 #### Frontend
 
-1. **`ChatComposer.vue`**：右上角加 `<el-switch v-model="autoMode" active-text="🤖 全自动" inactive-text="💬 助手" />`。
+1. **`ChatComposer.vue`**：右上角加 `<el-switch v-model="autoMode" active-text="「全自动」" inactive-text="「助手」" />`。
 2. **store**：`autoMode: boolean`；发送时若开 → request body `{ autoMode: true }`；前端渲染 auto-mode 进度（task_start / task_review / task_pass / task_fail）作为特殊 message bubble。
 
 ### 测试

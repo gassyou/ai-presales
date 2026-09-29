@@ -122,7 +122,7 @@
             :disabled="aiRunning || sending || !canPolish"
             @click="onAiPolish"
           >
-            <span aria-hidden="true">✨</span>
+            <el-icon aria-hidden="true"><MagicStick /></el-icon>
             <span>{{ aiRunning ? "润色中…" : "AI 润色" }}</span>
           </button>
         </div>
@@ -144,6 +144,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { MagicStick } from "@element-plus/icons-vue";
 import { emailApi, type EmailAddress } from "../api/email.api.ts";
 import { subAgentApi } from "@frontend/features/sub-agent/api/sub-agent.api.ts";
 import { useEmailComposerStore } from "../stores/email-composer.store.ts";

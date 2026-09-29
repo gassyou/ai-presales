@@ -5,7 +5,7 @@
 
   位置：项目详情页底部，AI chat 旁边。
   交互：
-    - 用户点击「🚀 启动 auto-mode」
+    - 用户点击「启动 auto-mode」按钮
     - 调 store.run(projectId) → 后端 orchestrator.run(plan)
     - 完成后显示：成功/失败、每个 task 评分轮次、平均分、最终产出 markdown 摘录
 -->
@@ -34,7 +34,6 @@
       :disabled="!projectId"
       @click="onRun"
     >
-      <span class="mr-1">🚀</span>
       {{ store.running ? "执行中…" : "启动 auto-mode" }}
     </el-button>
 
@@ -58,7 +57,7 @@
             class="rounded px-1.5 py-0.5 text-[10px]"
             :class="t.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
           >
-            {{ t.passed ? `✓ 通过 (${t.rounds}轮)` : `✗ 未通过 (${t.rounds}轮)` }}
+            {{ t.passed ? `通过 (${t.rounds}轮)` : `未通过 (${t.rounds}轮)` }}
           </span>
         </div>
         <div v-if="t.reviews.length > 0" class="space-y-1 text-[11px] text-slate-600">

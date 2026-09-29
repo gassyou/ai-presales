@@ -20,8 +20,8 @@ Deno Desktop 支持三种渲染 backend，在 `deno.json` 里配置：
 |---|---|---|---|
 | 引擎 | WKWebView / WebView2 / WebKitGTK（OS 自带） | Chromium Embedded Framework | 无 webview，仅窗口/事件 |
 | 框架大小 | ~1 MB | ~150 MB | ~1 MB |
-| 跨平台渲染一致 | ❌ 因 OS 而异 | ✅ 一致 | — |
-| DevTools | ❌ | ✅ | — |
+| 跨平台渲染一致 | 否（因 OS 而异） | 是（一致） | — |
+| DevTools | 否 | 是 | — |
 | 完整 web 特性 | 部分（WebGPU/Web Audio 等可能缺） | 全部（含 WebGPU on Linux） | — |
 | 适合 | 体积敏感、UI 用通用 web 特性 | 需要 DevTools 调试、跨平台一致性、WebGPU | 自定义渲染（WebGPU/Skia）、非 web 程序 |
 | 业务场景 | 个人/小团队桌面应用 | 企业级、对一致性要求高 | 不适用本项目 |

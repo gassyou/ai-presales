@@ -64,7 +64,7 @@
             :loading="statusSubmitting && statusDialog?.target === '中标'"
             @click="openStatusDialog('中标')"
           >
-            <span class="mr-1">✓</span>中标
+            <el-icon class="mr-1"><Check /></el-icon>中标
           </el-button>
           <el-button
             v-if="canMarkLost"
@@ -73,7 +73,7 @@
             :loading="statusSubmitting && statusDialog?.target === '未中标'"
             @click="openStatusDialog('未中标')"
           >
-            <span class="mr-1">✗</span>未中标
+            <el-icon class="mr-1"><Close /></el-icon>未中标
           </el-button>
         </div>
         <!-- 阶段 1（task20）：次按钮区 —— 流程控制（link 风格，避免误操作） -->
@@ -234,6 +234,7 @@
 
 <script setup lang="ts">
 import { computed, markRaw, onMounted, ref, watch } from "vue";
+import { Check, Close } from "@element-plus/icons-vue";
 // 阶段 13（PR #2）：跨平台元信息（OS + 主目录 + 分隔符），用于渲染 workspace 默认路径
 import { systemApi, type PlatformInfoDTO } from "@frontend/shared/api/system.api.ts";
 import { useRoute, useRouter } from "vue-router";
@@ -355,7 +356,7 @@ const STATUS_SUCCESS_LABEL: Record<ProjectStatusValue, string> = {
   "新建": "项目已新建",
   "提案中": "项目已进入提案中",
   "暂停": "项目已暂停",
-  "中标": "项目已中标 🎉",
+  "中标": "项目已中标",
   "未中标": "项目已标记为未中标",
   "中止": "项目已中止",
 };
@@ -433,35 +434,63 @@ function closeWorkspaceDialog(): void {
 }
 
 /**
- * 阶段 13（PR #2）：「变更」按钮 → 触发隐藏的 <input type="file" webkitdirectory>。
- * 跨 webview 兼容：WebView2（Win）、WKWebView（macOS）、WebKitGTK（Linux）。
- * 选完目录后由 onFolderPicked 读取 File.path（Chromium/WebKit 暴露给 JS 的绝对路径）。
+ * 阶段 13（PR #3）：「变更」按钮 → 三级 cascade：
+ *   (1) 后端 `POST /api/system/open-folder-dialog`（桌面宿主未来接原生 folder dialog 时生效）
+ *   (2) 隐藏的 <input type="file" webkitdirectory>（浏览器 dev Chrome 可用）
+ *   (3) 手动文本输入 `ProjectWorkspaceDialog`（桌面 webview 不暴露 File.path 时回退）
  */
-function openFolderPicker(): void {
+async function openFolderPicker(): Promise<void> {
   if (!project.value) return;
   workspaceError.value = null;
-  // 重置 value 让用户重选同一目录也能触发 change
+
+  // (1) 后端 binding 通道；今日永远 501 → 走下一级；将来 host 暴露原生 dialog
+  //     时这里就拿到绝对路径直接提交。
+  try {
+    const initialDir = platformInfo.value?.home || undefined;
+    const res = await systemApi.openFolderDialog(initialDir);
+    if (res?.supported && typeof res.path === "string" && res.path.length > 0) {
+      await applyPickedPath(res.path);
+      return;
+    }
+    // cancelled / 空 path → 继续往下
+  } catch (_e) {
+    // 501（浏览器 dev / 当前桌面 runtime）或其他错误 → 走下一级
+  }
+
+  // (2) webkitdirectory。Chrome（浏览器 dev）暴露 File.path；Deno 桌面 webview 不暴露。
   if (folderInputRef.value) folderInputRef.value.value = "";
   folderInputRef.value?.click();
 }
 
 /**
- * 阶段 13（PR #2）：文件夹选完后取 File.path 作为绝对路径，赋值给 workspace。
- * File.path 是非标准但 Chromium/WebKit 都暴露的属性。
+ * 阶段 13（PR #2/PR #3）：文件夹选完后取 File.path 作为绝对路径。
+ * File.path 是非标准但 Chromium 暴露的属性。
+ * 若 File.path 为空（Deno 桌面 webview 当前行为），打开手动输入对话框回退。
  */
 async function onFolderPicked(event: Event): Promise<void> {
   if (!project.value) return;
   const input = event.target as HTMLInputElement;
   const files = input.files;
+  // 取消选择 / 无文件：静默退出
+  input.value = "";
   if (!files || files.length === 0) return;
-  // 第一个文件的 .path 即选中的文件夹路径（webkit 行为）
   const first = files[0] as File & { path?: string };
   const pickedPath = first.path;
-  if (!pickedPath || pickedPath.length === 0) {
-    workspaceError.value =
-      "当前环境不支持从文件选择器读取绝对路径，请改用「创建文件夹」或手动输入。";
+  if (pickedPath && pickedPath.length > 0) {
+    await applyPickedPath(pickedPath);
     return;
   }
+  // 桌面 webview 下 File.path 为空：开手动输入对话框，不显示死胡同错误。
+  workspaceError.value = null;
+  openWorkspaceDialog();
+}
+
+/**
+ * 阶段 13（PR #3）：拿到绝对路径后统一调 setWorkspace 并 toast。
+ * 提取出来给 openFolderPicker 的 (1) 路径和 onFolderPicked 共用。
+ */
+async function applyPickedPath(pickedPath: string): Promise<void> {
+  if (!project.value) return;
   workspaceSubmitting.value = true;
   try {
     const updated = await projectStore.setWorkspace(project.value.id, pickedPath);
@@ -471,7 +500,6 @@ async function onFolderPicked(event: Event): Promise<void> {
     workspaceError.value = e instanceof Error ? e.message : String(e);
   } finally {
     workspaceSubmitting.value = false;
-    input.value = "";
   }
 }
 

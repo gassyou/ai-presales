@@ -26,9 +26,9 @@
 | | `webview`（默认） | `cef` | `raw` |
 |---|---|---|---|
 | 大小 | ~1MB | ~150MB | ~1MB |
-| DevTools | ❌ | ✅ | — |
-| 跨平台一致性 | ❌ | ✅ | — |
-| WebGPU | 部分平台 | ✅ 全平台 | — |
+| DevTools | 否 | 是 | — |
+| 跨平台一致性 | 否 | 是 | — |
+| WebGPU | 部分平台 | 是（全平台） | — |
 | 推荐场景 | 通用 web UI | 需要 DevTools / WebGPU / 一致性 | 自定义渲染 |
 
 切到 CEF（仅当需要 DevTools）：
@@ -143,10 +143,10 @@ win.bind("handleFile", async (name, bytes) => {
 `Deno.serve()` 在 desktop 模式下**不需要传端口**——runtime 自动选本地空闲端口，通过 `DENO_SERVE_ADDRESS` 注入：
 
 ```ts
-// ✅ 正确：desktop + deno-run 都兼容
+// 正确：desktop + deno-run 都兼容
 Deno.serve(undefined, handler);
 
-// ❌ 错误：desktop 模式下 port 会被忽略
+// 错误：desktop 模式下 port 会被忽略
 Deno.serve({ port: 8000 }, handler);
 ```
 

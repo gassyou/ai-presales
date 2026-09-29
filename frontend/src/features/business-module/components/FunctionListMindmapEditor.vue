@@ -10,7 +10,7 @@
   <div class="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
     <div class="rounded border border-border bg-amber-50/50 p-2 text-[11px] text-slate-600">
       <span class="font-medium text-slate-700">操作：</span>
-      双击改名 / 右键弹出菜单（＋子 / ⎁兄弟 / ←→ 调层级 / ✕删除 / 复制粘贴）/
+      双击改名 / 右键弹出菜单（添加子节点 / 插入兄弟 / 左右方向键调层级 / 删除 / 复制粘贴）/
       拖拽节点 / 右上角撤销重做 / 滚轮缩放
       <span class="ml-2 text-slate-500">{{ saveStatus }}</span>
     </div>

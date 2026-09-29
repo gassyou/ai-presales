@@ -168,11 +168,11 @@ function debugDistContents(root: string): void {
     // 检测"dist 不全"信号：常见有 binary 但缺 index.html 或 assets/
     const names = new Set(entries.map((s) => s.replace(/\/$/, "")));
     if (!names.has("index.html")) {
-      logger.error(`❌ dist 缺少 index.html！当前 dist 内容：[${entries.join(", ")}]`);
+      logger.error(`dist 缺少 index.html！当前 dist 内容：[${entries.join(", ")}]`);
       logger.error(`   如果你看到的是嵌套结构（比如 binary 在 dist/dist/），需要清理后重新解压。`);
     }
     if (!names.has("assets")) {
-      logger.error(`❌ dist 缺少 assets/ 目录！`);
+      logger.error(`dist 缺少 assets/ 目录！`);
     }
   } catch (e) {
     logger.warn(`cannot read dist ${root}: ${e instanceof Error ? e.message : String(e)}`);
@@ -956,7 +956,7 @@ const server = isDesktopMode
         try {
           Deno.statSync(`${distRoot}/index.html`);
         } catch {
-          logger.warn(`⚠️  ${distRoot}/index.html 不存在！`);
+          logger.warn(`${distRoot}/index.html 不存在！`);
           logger.warn(`   请把前端构建产物（dist/index.html + dist/assets/）放到该目录下，`);
           logger.warn(`   或者把可执行文件移动到与 dist/ 同一目录再启动。`);
           logger.warn(`   现在请求根路径会返 404。`);
@@ -975,6 +975,7 @@ if (isDesktopMode) {
   const BrowserWindow = (Deno as unknown as {
     BrowserWindow: new (opts?: unknown) => {
       navigate(url: string): void;
+      bind?: (name: string, fn: (...args: unknown[]) => unknown) => void;
     };
   }).BrowserWindow;
   const win = new BrowserWindow({
@@ -983,6 +984,17 @@ if (isDesktopMode) {
     height: 800,
   });
   win.navigate(`http://127.0.0.1:${port}/`);
+  // 阶段 13（PR #3）：注册 host-side binding `pickWorkspaceFolder`，给 webview
+  // 调用以打开原生 folder dialog。当前 Deno 桌面运行时尚无 first-class folder
+  // picker API，binding 直接返 cancelled 让前端 cascade 到 webkitdirectory + 手动输入。
+  // 未来运行时暴露原生 folder dialog 时，把这个 callback 换成实际弹窗逻辑即可。
+  if (typeof win.bind === "function") {
+    (win as unknown as {
+      bind: (name: string, fn: (...args: unknown[]) => unknown) => void;
+    }).bind("pickWorkspaceFolder", async (_initialDir: unknown) => {
+      return { path: null, cancelled: true };
+    });
+  }
   logger.info(`desktop window opened on http://127.0.0.1:${port}/`);
 }
 

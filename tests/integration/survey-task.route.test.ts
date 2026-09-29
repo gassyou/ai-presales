@@ -274,3 +274,98 @@ Deno.test("业务模块 list —— GET 列表返回所有 survey_task", async (
   const body = await list.json() as { items: unknown[] };
   assertEquals(body.items.length, 3);
 });
+
+Deno.test("业务模块 list —— GET 列表应返回 topicHint / taskStatus / resultContent (enriched)", async () => {
+  const { pid, deps } = await setup();
+  const path = `/api/projects/${pid}/modules/survey_task/items`;
+  const createRes = await handleBusinessModule(
+    new Request(`http://x${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "客户背景信息",
+        content: "请调查年度营业额、组织架构",
+        payloadJson: JSON.stringify({ topicHint: "客户背景" }),
+      }),
+    }),
+    deps,
+    path,
+  );
+  assertEquals(createRes.status, 201);
+
+  const list = await handleBusinessModule(
+    new Request(`http://x${path}`, { method: "GET" }),
+    deps,
+    path,
+  );
+  const body = await list.json() as {
+    items: {
+      id: string;
+      title: string;
+      topicHint?: string;
+      taskStatus: string;
+      resultContent: string;
+      adoptionStatus: string;
+    }[];
+  };
+  assertEquals(body.items.length, 1);
+  const it = body.items[0];
+  assertEquals(it!.title, "客户背景信息");
+  assertEquals(it!.topicHint, "客户背景"); // 主题：必须出现在 list 响应里
+  assertEquals(it!.taskStatus, "idle");
+  assertEquals(it!.resultContent, "请调查年度营业额、组织架构"); // 内容：必须出现在 list 响应里
+  assertEquals(it!.adoptionStatus, "pending");
+});
+
+Deno.test("业务模块 list —— GET ?status=adopted 过滤（survey_task 走 use case 后仍生效）", async () => {
+  const { pid, deps } = await setup();
+  const path = `/api/projects/${pid}/modules/survey_task/items`;
+  // 创建 1 个并 adopt
+  const created = await handleBusinessModule(
+    new Request(`http://x${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "已采用项", payloadJson: JSON.stringify({ topicHint: "A" }) }),
+    }),
+    deps,
+    path,
+  );
+  assertEquals(created.status, 201);
+  const createdBody = await created.json() as { id: string };
+  const adoptRes = await handleBusinessModule(
+    new Request(`http://x/api/modules/items/${createdBody.id}/adopt`, { method: "POST" }),
+    deps,
+    `/api/modules/items/${createdBody.id}/adopt`,
+  );
+  assertEquals(adoptRes.status, 200);
+
+  // 再创建 1 个 pending
+  await handleBusinessModule(
+    new Request(`http://x${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "待定项", payloadJson: JSON.stringify({ topicHint: "B" }) }),
+    }),
+    deps,
+    path,
+  );
+
+  const adoptedList = await handleBusinessModule(
+    new Request(`http://x${path}?status=adopted`, { method: "GET" }),
+    deps,
+    path,
+  );
+  const adoptedBody = await adoptedList.json() as { items: { title: string; topicHint?: string }[] };
+  assertEquals(adoptedBody.items.length, 1);
+  assertEquals(adoptedBody.items[0]!.title, "已采用项");
+  assertEquals(adoptedBody.items[0]!.topicHint, "A"); // 同时确认 enriched 字段还在
+
+  const pendingList = await handleBusinessModule(
+    new Request(`http://x${path}?status=pending`, { method: "GET" }),
+    deps,
+    path,
+  );
+  const pendingBody = await pendingList.json() as { items: { title: string }[] };
+  assertEquals(pendingBody.items.length, 1);
+  assertEquals(pendingBody.items[0]!.title, "待定项");
+});

@@ -13,6 +13,8 @@ export const Endpoints = {
   projectWorkspace: (id: string) => `/api/projects/${id}/workspace`,
   // 阶段 13（PR #2）：跨平台元信息（OS + 用户主目录 + 路径分隔符）
   systemPlatform: "/api/system/platform",
+  // 阶段 13（PR #3）：触发桌面宿主打开原生 folder dialog（今日永远 501）
+  systemOpenFolderDialog: "/api/system/open-folder-dialog",
   // AI
   aiChat: "/api/ai/chat",
   aiChatStream: "/api/ai/chat/stream",

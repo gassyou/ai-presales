@@ -39,7 +39,7 @@
         size="small"
         title="删除"
         @click.stop="onDelete"
-      >✕</el-button>
+      ><el-icon><Close /></el-icon></el-button>
     </div>
 
     <!-- 内容预览（默认） -->
@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import { Close } from "@element-plus/icons-vue";
 import type { PptPageDTO, PptPagePatch } from "../api/ppt.api.ts";
 
 const props = defineProps<{ page: PptPageDTO }>();

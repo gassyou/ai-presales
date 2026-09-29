@@ -27,11 +27,11 @@
       <button
         class="rounded bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-600"
         @click="emit('approve')"
-      >✓ 批准</button>
+      >批准</button>
       <button
         class="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-300"
         @click="emit('reject')"
-      >✗ 拒绝</button>
+      >拒绝</button>
     </div>
 
     <div v-if="result" class="mt-2 border-t border-border pt-2">

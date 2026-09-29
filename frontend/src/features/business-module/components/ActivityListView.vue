@@ -59,6 +59,7 @@
             </td>
             <td class="py-2 text-right pr-2">
               <el-button link type="primary" size="small" @click="openResult(it)">推进结果</el-button>
+              <el-button link type="primary" size="small" @click="openEdit(it)">编辑</el-button>
               <el-button link type="success" size="small" :disabled="it.status === 'adopted'" @click="onAdopt(it.id)">完成</el-button>
               <el-button link type="danger" size="small" @click="onDelete(it.id)">删</el-button>
             </td>
@@ -81,7 +82,13 @@
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           计划日期
-          <el-input v-model="form.planDate" type="date" />
+          <el-date-picker
+            v-model="form.planDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择计划日期"
+            class="!w-full"
+          />
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           客户主负责人
@@ -96,6 +103,46 @@
         <div class="flex justify-end gap-2">
           <el-button @click="showCreate = false">取消</el-button>
           <el-button type="primary" @click="onCreate">创建</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑对话框 -->
+    <el-dialog
+      v-model="showEdit"
+      :title="editTitle"
+      width="480px"
+      :close-on-click-modal="false"
+    >
+      <form class="flex flex-col gap-3" @submit.prevent="onSaveEdit">
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          活动名称 *
+          <el-input v-model="editForm.title" required maxlength="200" />
+        </label>
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          计划日期
+          <el-date-picker
+            v-model="editForm.planDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择计划日期"
+            class="!w-full"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          客户主负责人
+          <el-input v-model="editForm.clientContactName" />
+        </label>
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
+          活动内容
+          <el-input v-model="editForm.content" type="textarea" :rows="3" />
+        </label>
+        <p v-if="editError" class="text-xs text-red-300">{{ editError }}</p>
+      </form>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <el-button @click="closeEdit">取消</el-button>
+          <el-button type="primary" :loading="editSaving" @click="onSaveEdit">保存</el-button>
         </div>
       </template>
     </el-dialog>
@@ -119,20 +166,34 @@
 
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           实际推进时间 *
-          <el-input v-model="resultForm.actualDate" type="date" />
+          <el-date-picker
+            v-model="resultForm.actualDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择实际推进日期"
+            class="!w-full"
+          />
         </label>
 
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           取得成果（Markdown）
           <div class="mt-1 h-64 overflow-hidden rounded border border-border">
-            <MarkdownEditor v-model="resultForm.outcomes" placeholder="取得的成果…" />
+            <MarkdownEditor
+              v-model="resultForm.outcomes"
+              :fill-height="false"
+              placeholder="取得的成果…"
+            />
           </div>
         </label>
 
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           遗留课题（Markdown）
           <div class="mt-1 h-64 overflow-hidden rounded border border-border">
-            <MarkdownEditor v-model="resultForm.issues" placeholder="遗留课题 / 待跟进事项…" />
+            <MarkdownEditor
+              v-model="resultForm.issues"
+              :fill-height="false"
+              placeholder="遗留课题 / 待跟进事项…"
+            />
           </div>
         </label>
 
@@ -191,6 +252,22 @@ const resultForm = reactive<{
 
 const drawerTitle = computed(() =>
   drawerItem.value ? `推进结果 · ${drawerItem.value.title}` : "推进结果",
+);
+
+// 编辑对话框状态
+const showEdit = ref(false);
+const editItem = ref<BusinessModuleItemDTO | null>(null);
+const editSaving = ref(false);
+const editError = ref<string | null>(null);
+const editForm = reactive({
+  title: "",
+  planDate: "",
+  clientContactName: "",
+  content: "",
+});
+
+const editTitle = computed(() =>
+  editItem.value ? `编辑活动 · ${editItem.value.title}` : "编辑活动",
 );
 
 function payloadOf(it: BusinessModuleItemDTO): ActivityPayload {
@@ -258,6 +335,55 @@ function openResult(it: BusinessModuleItemDTO): void {
   resultForm.issues = p.issues ?? "";
   drawerError.value = null;
   drawerOpen.value = true;
+}
+
+function openEdit(it: BusinessModuleItemDTO): void {
+  editItem.value = it;
+  const p = payloadOf(it);
+  editForm.title = it.title;
+  editForm.planDate = p.planDate ?? "";
+  editForm.clientContactName = p.clientContactName ?? "";
+  editForm.content = it.content;
+  editError.value = null;
+  showEdit.value = true;
+}
+
+function closeEdit(): void {
+  showEdit.value = false;
+  editItem.value = null;
+  editError.value = null;
+}
+
+async function onSaveEdit(): Promise<void> {
+  const it = editItem.value;
+  if (!it) return;
+  if (!editForm.title.trim()) {
+    editError.value = "请填写活动名称";
+    return;
+  }
+  editSaving.value = true;
+  editError.value = null;
+  try {
+    // 合并原 payload + 新基础字段 + 原 result 字段，保留推进结果
+    const current = payloadOf(it);
+    const baseResult: ActivityResultPayload = resultOf(it);
+    const merged: ActivityPayload & ActivityResultPayload = {
+      ...current,
+      ...baseResult,
+      planDate: editForm.planDate || undefined,
+      clientContactName: editForm.clientContactName || undefined,
+    };
+    await store.updateItem(it.id, props.projectId, "activity", {
+      title: editForm.title.trim(),
+      content: editForm.content,
+      payloadJson: JSON.stringify(merged),
+    });
+    showEdit.value = false;
+  } catch (e) {
+    editError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    editSaving.value = false;
+  }
 }
 
 async function onSaveResult(): Promise<void> {

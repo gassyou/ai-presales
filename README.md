@@ -41,8 +41,8 @@ deno task build:mac-app   # 仅构建 + 签名（不启动）
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| 7.4a-f | 项目 / 商务模块 / AI chat / Sub-Agent / 邮件草稿 | ✅ |
-| **7.4h** | **系统设置页（LLM profiles / 邮件账号 / 工具配置 / Sub-Agent specs）+ SMTP 集成** | **✅** |
+| 7.4a-f | 项目 / 商务模块 / AI chat / Sub-Agent / 邮件草稿 | 完成 |
+| **7.4h** | **系统设置页（LLM profiles / 邮件账号 / 工具配置 / Sub-Agent specs）+ SMTP 集成** | **完成** |
 | 7.5 | 多用户隔离 / 审计日志 | ⏳ |
 | 7.6 | 工具自定义 / Agent 导入导出 | ⏳ |
 

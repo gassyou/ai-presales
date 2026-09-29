@@ -45,7 +45,7 @@
     <div v-if="viewMode === 'mindmap'" class="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
       <div class="rounded border border-border bg-amber-50/50 p-2 text-[11px] text-slate-600">
         <span class="font-medium text-slate-700">操作：</span>
-        双击节点改名 / 右键节点弹出菜单（＋子 / ⎁兄弟 / ←→ 调层级 / ✕删除 / 复制粘贴）/
+        双击节点改名 / 右键节点弹出菜单（添加子节点 / 插入兄弟 / 左右方向键调层级 / 删除 / 复制粘贴）/
         拖拽节点 / 滚轮缩放 / 右上角撤销重做
         <span class="ml-2 text-slate-500">
           {{ outlineSaveStatus }}
@@ -119,7 +119,7 @@
               size="small"
               title="添加"
               @click="onAddManualQuestion"
-            >＋</el-button>
+            ><el-icon><Plus /></el-icon></el-button>
           </div>
         </div>
         <ul class="max-h-[480px] overflow-auto rounded border border-border">
@@ -147,7 +147,7 @@
                   size="small"
                   title="删除"
                   @click.stop="onDeleteQuestion(q.id)"
-                >✕</el-button>
+                ><el-icon><Close /></el-icon></el-button>
               </div>
             </div>
           </li>
@@ -193,6 +193,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { Close, Plus } from "@element-plus/icons-vue";
 import {
   surveyQuestionnaireApi,
   type MindmapNode,

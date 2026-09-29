@@ -83,7 +83,11 @@
           <label class="flex flex-col gap-1 text-xs text-slate-600">
             详细描述（Markdown）
             <div class="mt-1 h-72 overflow-hidden rounded border border-border">
-              <MarkdownEditor v-model="editing.detail" placeholder="前置 / 步骤 / 后置..." />
+              <MarkdownEditor
+                v-model="editing.detail"
+                :fill-height="false"
+                placeholder="前置 / 步骤 / 后置..."
+              />
             </div>
           </label>
         </div>

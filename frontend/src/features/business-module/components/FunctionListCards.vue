@@ -8,9 +8,15 @@
 <template>
   <div class="space-y-4">
     <div v-for="cat in grouped" :key="cat.category">
-      <h3 class="mb-2 text-xs font-medium text-slate-700">📁 {{ cat.category || "(未分类)" }}</h3>
+      <h3 class="mb-2 flex items-center gap-1 text-xs font-medium text-slate-700">
+        <el-icon><Folder /></el-icon>
+        <span>{{ cat.category || "(未分类)" }}</span>
+      </h3>
       <div v-for="mod in cat.modules" :key="mod.module" class="ml-3">
-        <h4 class="mb-1 text-xs text-slate-600">📂 {{ mod.module || "(未分模块)" }}</h4>
+        <h4 class="mb-1 flex items-center gap-1 text-xs text-slate-600">
+          <el-icon><FolderOpened /></el-icon>
+          <span>{{ mod.module || "(未分模块)" }}</span>
+        </h4>
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <div
             v-for="fn in mod.functions"
@@ -47,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { Folder, FolderOpened } from "@element-plus/icons-vue";
 import type { FunctionListDTO } from "../api/structured-modules.api.ts";
 
 const props = defineProps<{ items: FunctionListDTO[] }>();

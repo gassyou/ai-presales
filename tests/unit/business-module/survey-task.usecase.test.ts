@@ -183,3 +183,60 @@ Deno.test("parseSurveyTaskPayload —— 容忍损坏 JSON", () => {
 Deno.test("SURVEY_TASK_KIND —— 等于 survey_task 枚举", () => {
   assertEquals(SURVEY_TASK_KIND, "survey_task");
 });
+
+Deno.test("regression —— 用户手动填写的调查结果不应被 LLM 完成输出覆盖", async () => {
+  const clock = new FixedClock(new Date("2026-05-01T00:00:00Z"));
+  const repo = new InMemoryBusinessModuleRepository();
+  const bm = new BusinessModuleService({ repo, clock });
+  const LLM_OUTPUT = "# LLM 默认输出\n\n这是 AI 生成的内容（不应覆盖用户结果）。\n";
+  const fakeStream = (async function* () {
+    yield { type: "chunk" as const, delta: LLM_OUTPUT, messageId: "m1" };
+    yield { type: "done" as const, messageId: "m1", usage: { inputTokens: 0, outputTokens: 10, totalTokens: 10 } };
+  })();
+  const invokeSubAgent = (
+    _name: string,
+    _input: string,
+    _opts?: { signal?: AbortSignal },
+  ): AsyncIterable<{ type: string; [k: string]: unknown }> => fakeStream;
+  const useCase = new SurveyTaskUseCase({
+    businessModuleService: bm,
+    clock,
+    invokeSubAgent: invokeSubAgent as never,
+  });
+
+  // 1) 创建 idle task
+  const created = await useCase.create(pid, "客户背景信息", "请调查…", { topicHint: "客户" });
+  assert(created.ok);
+  if (!created.ok) return;
+  const taskId = created.value.id;
+  assertEquals(created.value.taskStatus, "idle");
+
+  // 2) 用户在 idle 状态下手动填写调查结果并保存（PATCH content）
+  const USER_RESULT = "# 客户背景\n\n年度营业额：100 亿\n主营：制造业\n";
+  const upd = await bm.updateItem(taskId, { content: USER_RESULT });
+  assert(upd.ok);
+
+  // 3) 用户点「执行」
+  const started = await useCase.start(taskId);
+  assert(started.ok);
+  if (!started.ok) return;
+  assertEquals(started.value.taskStatus, "running");
+
+  // 等异步执行完成
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 20));
+    const got = await useCase.get(taskId);
+    if (got.ok && got.value.taskStatus === "completed") break;
+  }
+
+  // 4) 验证用户填写的结果仍在；LLM 默认输出不能覆盖
+  const after = await useCase.get(taskId);
+  assert(after.ok);
+  if (!after.ok) return;
+  assertEquals(after.value.taskStatus, "completed");
+  assertEquals(
+    after.value.resultContent,
+    USER_RESULT,
+    "用户手动填写的调查结果必须保留，不应被 LLM 完成输出覆盖",
+  );
+});

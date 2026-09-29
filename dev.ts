@@ -12,7 +12,7 @@ import { loadConfig } from "@backend/infrastructure/config/config.loader.ts";
 import { createLogger } from "@backend/infrastructure/logging/logger.ts";
 import { createApp } from "@backend/presentation/server.ts";
 import { join } from "@std/path";
-import { resolvePaths, ensureDir } from "@backend/infrastructure/platform/paths.ts";
+import { ensureDir, resolvePaths } from "@backend/infrastructure/platform/paths.ts";
 import { Database } from "@backend/persistence/database/database.ts";
 import { SqliteProjectRepository } from "@backend/persistence/sqlite/sqlite-project.repository.ts";
 import { ProjectService } from "@backend/application/project/project.service.ts";
@@ -105,7 +105,11 @@ const systemSettingsRepo = new SqliteSystemSettingRepository(database);
 
 // seed 默认 LLM profiles + embedding config（dev 也需要，否则冷启首跑 AI 调用崩）
 await systemSettingsRepo.seedIfEmpty(SETTING_KEYS_LLM_PROFILES, DEFAULT_LLM_PROFILES, clock);
-await systemSettingsRepo.seedIfEmpty(SETTING_KEYS_EMBEDDING, EmbeddingConfigSetting.defaultMock(), clock);
+await systemSettingsRepo.seedIfEmpty(
+  SETTING_KEYS_EMBEDDING,
+  EmbeddingConfigSetting.defaultMock(),
+  clock,
+);
 
 const transport = new SdkTransport({
   anthropicKey: Deno.env.get("ANTHROPIC_API_KEY"),
@@ -137,7 +141,11 @@ async function resolveClient(profileName: string): Promise<ILLMClient> {
     return c;
   })();
   clientInflight.set(profileName, p);
-  try { return await p; } finally { clientInflight.delete(profileName); }
+  try {
+    return await p;
+  } finally {
+    clientInflight.delete(profileName);
+  }
 }
 
 const toolRegistry = buildBuiltinToolRegistry();
@@ -230,8 +238,8 @@ void autoAdoptUseCase;
 const app = createApp({
   config,
   logger,
-  staticRoot: undefined,        // dev 不托管静态资源
-  devMode: true,                // 允许 vite 跨域
+  staticRoot: undefined, // dev 不托管静态资源
+  devMode: true, // 允许 vite 跨域
   dbProbe: async () => true,
   llmProbe: async () => {
     // 阶段 7.7：从 settings DB 读 profile 列表（dev 模式）
@@ -365,20 +373,20 @@ const app = createApp({
   })(),
 });
 
-const server = isDesktopMode
-  ? Deno.serve(app.fetch)
-  : Deno.serve(
-    {
-      hostname: config.server.host,
-      port: config.server.port,
-      onListen: ({ hostname, port }: { hostname: string; port: number }) => {
-        logger.info(`listening on http://${hostname}:${port}`);
-        logger.info(`vite dev expected at http://${hostname}:5173 (run 'deno task dev:frontend' in another terminal)`);
-        logger.info(`health: curl http://${hostname}:${port}/api/health`);
-      },
+const server = isDesktopMode ? Deno.serve(app.fetch) : Deno.serve(
+  {
+    hostname: config.server.host,
+    port: config.server.port,
+    onListen: ({ hostname, port }: { hostname: string; port: number }) => {
+      logger.info(`listening on http://${hostname}:${port}`);
+      logger.info(
+        `vite dev expected at http://${hostname}:5173 (run 'deno task dev:frontend' in another terminal)`,
+      );
+      logger.info(`health: curl http://${hostname}:${port}/api/health`);
     },
-    app.fetch,
-  );
+  },
+  app.fetch,
+);
 
 if (isDesktopMode) {
   const port = Deno.env.get("DENO_SERVE_ADDRESS")!.split(":").pop();
@@ -386,10 +394,20 @@ if (isDesktopMode) {
   const BrowserWindow = (Deno as unknown as {
     BrowserWindow: new (opts?: unknown) => {
       navigate(url: string): void;
+      bind?: (name: string, fn: (...args: unknown[]) => unknown) => void;
     };
   }).BrowserWindow;
   const win = new BrowserWindow({ title: "AI 提案协助 (dev)", width: 1280, height: 800 });
   win.navigate(`http://127.0.0.1:${port}/`);
+  // 阶段 13（PR #3）：注册 host-side binding `pickWorkspaceFolder`（与 main.ts 保持一致）。
+  // 当前 Deno 桌面运行时尚无原生 folder dialog API，binding 返 cancelled 让前端 cascade。
+  if (typeof win.bind === "function") {
+    (win as unknown as {
+      bind: (name: string, fn: (...args: unknown[]) => unknown) => void;
+    }).bind("pickWorkspaceFolder", async (_initialDir: unknown) => {
+      return { path: null, cancelled: true };
+    });
+  }
   logger.info(`desktop window opened on http://127.0.0.1:${port}/`);
   logger.info("前端开发请另起一个终端跑: deno task dev:frontend");
 }

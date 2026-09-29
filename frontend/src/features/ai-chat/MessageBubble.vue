@@ -49,11 +49,11 @@ const store = useAiChatStore();
 // 消息让 LLM 在下一轮重试该 tool（forceApprove/Reject 一次性）。
 function onApprove(toolName: string): void {
   store.approveTool(toolName);
-  void store.send("✅ 用户已批准此操作，请继续按计划执行");
+  void store.send("[已批准] 用户已批准此操作，请继续按计划执行");
 }
 function onReject(toolName: string): void {
   store.rejectTool(toolName);
-  void store.send("✗ 用户拒绝此操作，请改用其他方式或向用户报告");
+  void store.send("[已拒绝] 用户拒绝此操作，请改用其他方式或向用户报告");
 }
 
 const isUser = computed(() => props.message.role === "user");

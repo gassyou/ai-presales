@@ -7,11 +7,11 @@
     ┌──────────────────────────────────────────────────────┐
     │  [多行 textarea，自动扩展高度]                          │
     │ ─────────────────────────────────────────────────────│
-    │  ⊕   📎                       [Profile ▾]      ⬆    │
+    │  [+]                    [Profile ▾]      [发送]      │
     └──────────────────────────────────────────────────────┘
 
   - textarea 自动扩展高度（1-5 行）
-  - 底栏左侧：⊕ 添加（实际触发文件选择，PR #7）、📎 附件（占位，移除由 / 命令 + skill 提供）
+  - 底栏左侧：[+] 添加（实际触发文件选择，PR #7）；附件改由 / 命令 + skill 提供
   - 底栏右侧：profile 下拉（来自 llm-profiles store）+ 发送按钮
   - 加载中显示"停止"按钮替换发送按钮
   - @ mention 弹窗仍然支持
@@ -21,25 +21,6 @@
     class="mx-3 mb-3 mt-1 rounded-xl border border-border bg-white shadow-card"
     @submit.prevent="onSend"
   >
-    <!-- 阶段 13（PR #8）：会话级"全部自动批准工具"开关行 -->
-    <div
-      v-if="store.currentSessionId"
-      class="flex items-center justify-between gap-2 border-b border-border px-3 py-1 text-[11px] text-slate-500"
-    >
-      <span>工具审批</span>
-      <el-switch
-        :model-value="store.autoApprove"
-        size="small"
-        inline-prompt
-        active-text="🔓 全自动"
-        inactive-text="🔒 逐个"
-        :title="store.autoApprove
-          ? '当前会话：所有工具自动执行（关掉恢复逐个审批）'
-          : '当前会话：每个需审批的工具会问你（开启后全部自动执行）'"
-        @update:model-value="(v) => onAutoApproveChange(!!v)"
-      />
-    </div>
-
     <div class="relative px-3 pt-2">
       <textarea
         ref="inputRef"
@@ -87,7 +68,7 @@
     </div>
 
     <div class="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
-      <!-- 阶段 13（PR #7）：⊕ 按钮触发 hidden <input type="file">；选完 → 上传 → 写入 session 历史 -->
+      <!-- 阶段 13（PR #7）：[+] 按钮触发 hidden <input type="file">；选完 → 上传 → 写入 session 历史 -->
       <div class="flex items-center gap-1 text-slate-500">
         <el-button
           link
@@ -97,7 +78,7 @@
           class="!text-slate-500"
           @click="onPickFileClick"
         >
-          <span class="text-base leading-none">⊕</span>
+          <el-icon><Plus /></el-icon>
         </el-button>
         <input
           ref="fileInputRef"
@@ -109,6 +90,25 @@
       </div>
 
       <div class="flex items-center gap-1">
+        <!-- 阶段 13（PR #8）：会话级"全部自动批准工具"开关（移到模型下拉框左边） -->
+        <el-switch
+          v-if="store.currentSessionId"
+          :model-value="store.autoApprove"
+          size="small"
+          inline-prompt
+          :title="store.autoApprove
+            ? '当前会话：所有工具自动执行（关掉恢复逐个审批）'
+            : '当前会话：每个需审批的工具会问你（开启后全部自动执行）'"
+          @update:model-value="(v) => onAutoApproveChange(!!v)"
+        >
+          <template #active-content>
+            <span class="flex items-center gap-1"><el-icon><Unlock /></el-icon><span>全自动</span></span>
+          </template>
+          <template #inactive-content>
+            <span class="flex items-center gap-1"><el-icon><Lock /></el-icon><span>逐个</span></span>
+          </template>
+        </el-switch>
+
         <!-- 阶段 13（PR #6）：profile 下拉数据源改为 llm-profiles store（来自系统设置）；
              删除 sub-agent picker 与 tools 切换（默认 agent 模式） -->
         <el-select
@@ -135,7 +135,7 @@
           title="发送"
           @click="onSend"
         >
-          <span class="text-base leading-none">⬆</span>
+          <el-icon><Top /></el-icon>
         </el-button>
         <el-button
           v-else
@@ -154,6 +154,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, reactive, watch } from "vue";
 import { ElMessage } from "element-plus";
+import { Lock, Plus, Top, Unlock } from "@element-plus/icons-vue";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import MentionAutocomplete from "./MentionAutocomplete.vue";
 import { useSkillStore } from "@frontend/features/skill/stores/skill.store.ts";
@@ -356,7 +357,7 @@ function closeSlash(): void {
   slashState.activeIndex = 0;
 }
 
-// 阶段 13（PR #7）：⊕ 按钮 → file picker → 上传到当前 session
+// 阶段 13（PR #7）：[+] 按钮 → file picker → 上传到当前 session
 const fileInputRef = ref<HTMLInputElement | null>(null);
 function onPickFileClick(): void {
   if (!store.currentSessionId) {

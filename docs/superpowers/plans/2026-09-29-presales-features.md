@@ -1207,7 +1207,7 @@ export const useLlmProfilesStore = defineStore("llmProfiles", () => {
 - [ ] **Step 2: 改 ChatComposer.vue**
 
 - 删除 `<SubAgentPicker ...>` 整块；
-- 删除"🛠 工具 / 💬 纯聊"按钮整块；
+- 删除"工具 / 纯聊 切换按钮"按钮整块；
 - 替换 profile select：
 ```vue
 <el-select :model-value="selectedProfile" style="width:120px" @change="onProfileChange">
@@ -1384,7 +1384,7 @@ git add backend/ai/tool/attach-file-to-chat.ts backend/ai/tool/attach-file-to-ch
 git commit -m "feat(backend): attach_file_to_chat tool with size + AI parse"
 ```
 
-## Task 7.3: 前端 ⊕ 按钮
+## Task 7.3: 前端 + 按钮
 
 **Files:**
 - Modify: `frontend/src/features/ai-chat/ChatComposer.vue`
@@ -1400,11 +1400,11 @@ uploadAttachment: async (sessionId: string, file: File) => {
 },
 ```
 
-- [ ] **Step 2: ChatComposer ⊕ 按钮**
+- [ ] **Step 2: ChatComposer + 按钮**
 
 ```vue
 <el-button link size="small" @click="fileInput?.click()">
-  <span class="text-base">⊕</span>
+  <span class="text-base">+</span>
 </el-button>
 <input ref="fileInput" type="file" multiple class="hidden" @change="onFiles" />
 ```
@@ -1518,7 +1518,7 @@ async function send(content: string) {
 - [ ] **Step 3: UI switch**
 
 ```vue
-<el-switch v-model="autoModeLocal" active-text="🤖 全自动" inactive-text="💬 助手" @change="onAuto" />
+<el-switch v-model="autoModeLocal" active-text="「全自动」" inactive-text="「助手」" @change="onAuto" />
 ```
 
 - [ ] **Step 4: SSE 渲染 auto-mode 进度**
@@ -1841,7 +1841,7 @@ git commit -m "feat(backend): auto-mode real reviewer + orchestrator round tests
   <div v-for="t in taskResults" :key="t.taskName" class="border rounded p-2 mb-1 text-xs">
     <div class="flex justify-between">
       <span>{{ t.taskName }}</span>
-      <span :class="t.passed ? 'text-green-600' : 'text-red-600'">{{ t.passed ? '✓ 通过' : '✗ 未通过' }}</span>
+      <span :class="t.passed ? 'text-green-600' : 'text-red-600'">{{ t.passed ? "通过' : "未通过' }}</span>
     </div>
     <div class="text-slate-500">轮数 {{ t.rounds }} · 平均 {{ avg(t) }}/10</div>
     <div v-if="t.reviews.length > 0" class="text-slate-400">
@@ -1883,7 +1883,7 @@ npx vitest run
   - 进 chat → 新建/删除会话 → 切会话验证消息历史
   - chat 内 `/skill_status` → 验证返回
   - chat 内上传 txt 附件 → 验证 attachment summary 出现
-  - 打开"🤖 全自动"开关 → 发送 → 验证 auto-mode 进度显示
+  - 打开"「全自动」"开关 → 发送 → 验证 auto-mode 进度显示
   - 触发 auto-mode → 验证 7 个 task 串行 + 双 review + 平均分判定
 
 ---
@@ -1891,15 +1891,15 @@ npx vitest run
 ## Self-Review
 
 **Spec coverage:**
-- §1 中止 ✓ 任务 1.1–1.3
-- §2 工作区 ✓ 任务 2.1–2.3
-- §3 sub-agent 类型 ✓ 任务 3.1–3.3
-- §4 + §5 chat session ✓ 任务 4.1–4.2
-- §6 skill ✓ 任务 5.1–5.3
-- §7 composer 改造 ✓ 任务 6.1
-- §8 附件 ✓ 任务 7.1–7.3
-- §9 全自动开关 ✓ 任务 8.1–8.2
-- §10 auto-mode 全流水线 ✓ 任务 9.1–9.4
+- §1 中止 [x] 任务 1.1–1.3
+- §2 工作区 [x] 任务 2.1–2.3
+- §3 sub-agent 类型 [x] 任务 3.1–3.3
+- §4 + §5 chat session [x] 任务 4.1–4.2
+- §6 skill [x] 任务 5.1–5.3
+- §7 composer 改造 [x] 任务 6.1
+- §8 附件 [x] 任务 7.1–7.3
+- §9 全自动开关 [x] 任务 8.1–8.2
+- §10 auto-mode 全流水线 [x] 任务 9.1–9.4
 
 **Placeholder scan:** 0 个 "TBD" / "待补" / "后续 sprint" 模糊词；9.2 worker 中"简化版"是已知简化（spec 允许），并写入注释。
 

@@ -214,26 +214,26 @@
 
 | 模块 | 关键文件 | 状态 |
 |---|---|---|
-| LLM 流式 (Anthropic + OpenAI) | `backend/ai/transport.sdk.ts`, `client/anthropic.client.ts`, `client/openai.client.ts` | ✅ 真实 |
-| SSE 流式 / 多轮 sub-agent | `backend/ai/sub-agent/sub-agent-runner.ts`, `context-aware-runner.ts` | ✅ 真实 |
-| Tool 执行 (list_files / read_file / current_datetime / read_module) | `backend/ai/tool/tool-executor.ts`, `builtin/*.tool.ts` | ✅ 真实 (search_knowledge ❌ stub) |
-| SQLite 迁移 + 持久化 | `backend/persistence/database/migrations/001-010`, `sqlite/*.repository.ts` | ✅ 真实 |
-| ExcelJS 导出 | `backend/application/quote/exceljs-filler.ts` | ✅ 真实 |
-| PPT JSON 解析 + DB 持久化 | `backend/application/business-module/ppt.usecase.ts` | ✅ 真实 (LLM 调用 + JSON parse + 入库) |
-| SMTP 邮件传输 | `backend/infrastructure/mail/smtp-transport.ts` | ✅ 真实 (Deno.startTls + SMTP 命令 + MIME) |
-| OpenAI / DashScope / Ollama embedding | `backend/ai/embedding/*.provider.ts` | ✅ 真实 (HTTP fetch) (⚠️ 缺失时降级到 mock) |
-| 仪表盘聚合 | `backend/application/dashboard/dashboard.usecase.ts` | ✅ 真实 (SQL COUNT/GROUP BY) |
-| Knowledge ingest / chunking | `backend/application/knowledge/ingest-project.usecase.ts` | ✅ 真实 |
-| 5 个 builtin sub-agent 注册 | `backend/application/sub-agent/builtin-sub-agents.ts`, `sqlite-sub-agent-registry.ts` | ✅ 真实 (seed 进 settings DB) |
-| 商务邮件 AI 起草 | `EmailComposerDialog` → `subAgentApi.invoke("business-email-writer")` | ✅ 真实 |
-| PPT 大纲 AI 生成 | `PptAiGenerateDialog` → `ppt.usecase.generatePages` | ✅ 真实 |
-| AI 对话 (主助手) | `ai-chat.store.ts:35-132` → `aiChatApi.streamChat` | ✅ 真实 |
-| 拖拽排序 (PPT pages) | `PptView.vue` vuedraggable + `pptApi.reorder` | ✅ 真实 |
-| 脑图拖拽 / 缩放 / 撤销 | `vue3-mindmap` 第三方库 | ✅ 真实 |
-| 客户端导出 (CSV / MD) | `URL.createObjectURL + Blob` | ✅ 真实 (浏览器内序列化) |
-| 邮件附件上传 | `emailApi.uploadAttachment` (FormData) | ✅ 真实 |
-| Settings 持久化 | `settings.api.ts` + 后端 settings.usecase | ✅ 真实 (含冲突检测、唯一名校验) |
-| 仪表盘统计 | `DashboardView.vue` + `dashboard.store.ts` | ✅ 真实 (SQL 聚合) |
+| LLM 流式 (Anthropic + OpenAI) | `backend/ai/transport.sdk.ts`, `client/anthropic.client.ts`, `client/openai.client.ts` | [真实] |
+| SSE 流式 / 多轮 sub-agent | `backend/ai/sub-agent/sub-agent-runner.ts`, `context-aware-runner.ts` | [真实] |
+| Tool 执行 (list_files / read_file / current_datetime / read_module) | `backend/ai/tool/tool-executor.ts`, `builtin/*.tool.ts` | [真实] (search_knowledge 是 stub) |
+| SQLite 迁移 + 持久化 | `backend/persistence/database/migrations/001-010`, `sqlite/*.repository.ts` | [真实] |
+| ExcelJS 导出 | `backend/application/quote/exceljs-filler.ts` | [真实] |
+| PPT JSON 解析 + DB 持久化 | `backend/application/business-module/ppt.usecase.ts` | [真实] (LLM 调用 + JSON parse + 入库) |
+| SMTP 邮件传输 | `backend/infrastructure/mail/smtp-transport.ts` | [真实] (Deno.startTls + SMTP 命令 + MIME) |
+| OpenAI / DashScope / Ollama embedding | `backend/ai/embedding/*.provider.ts` | [真实] (HTTP fetch) ([警告: 缺失]时降级到 mock) |
+| 仪表盘聚合 | `backend/application/dashboard/dashboard.usecase.ts` | [真实] (SQL COUNT/GROUP BY) |
+| Knowledge ingest / chunking | `backend/application/knowledge/ingest-project.usecase.ts` | [真实] |
+| 5 个 builtin sub-agent 注册 | `backend/application/sub-agent/builtin-sub-agents.ts`, `sqlite-sub-agent-registry.ts` | [真实] (seed 进 settings DB) |
+| 商务邮件 AI 起草 | `EmailComposerDialog` → `subAgentApi.invoke("business-email-writer")` | [真实] |
+| PPT 大纲 AI 生成 | `PptAiGenerateDialog` → `ppt.usecase.generatePages` | [真实] |
+| AI 对话 (主助手) | `ai-chat.store.ts:35-132` → `aiChatApi.streamChat` | [真实] |
+| 拖拽排序 (PPT pages) | `PptView.vue` vuedraggable + `pptApi.reorder` | [真实] |
+| 脑图拖拽 / 缩放 / 撤销 | `vue3-mindmap` 第三方库 | [真实] |
+| 客户端导出 (CSV / MD) | `URL.createObjectURL + Blob` | [真实] (浏览器内序列化) |
+| 邮件附件上传 | `emailApi.uploadAttachment` (FormData) | [真实] |
+| Settings 持久化 | `settings.api.ts` + 后端 settings.usecase | [真实] (含冲突检测、唯一名校验) |
+| 仪表盘统计 | `DashboardView.vue` + `dashboard.store.ts` | [真实] (SQL 聚合) |
 
 ---
 
@@ -241,28 +241,28 @@
 
 | 优先级 | 项 | 工作量 | 影响 |
 |---|---|---|---|
-| 🔴 P0 | H7 注入 `aiGenerateMarkdown` 到 QuoteUseCase (`main.ts:378-388`) | XS (10 行) | 报价 AI 列真正可用 |
-| 🔴 P0 | H8 把 sub-agent route 切到 InvokeSubAgentUseCase | S (30 行) | 让 use case 成为唯一路径，未来加策略不漏 |
-| 🔴 P0 | H12 让 ToolExecutor 给 search_knowledge 注入 RAG 命中 | M (50 行) | 4/5 个 sub-agent 不再"空跑" |
-| 🟠 P1 | H3 把 SurveyTask.execute 改用 survey-researcher | M (60 行) | 调查任务真 AI |
-| 🟠 P1 | H4+H5+H6 把 markdown-module / business-module / batchFromMindmap 改用对应 sub-agent | L (每个 60-80 行) | 11 个模块 + 自定义页 + 问卷批量生成真 AI |
-| 🟠 P1 | H9 把 dev.ts 装配补齐 (settings / dashboard / smtpFactory / readModule) | M (80 行) | dev 与 prod 行为一致 |
-| 🟠 P1 | H11 ToolExecutor 加 requiresApproval 检查 | S (20 行) | 未来加 send_email 类工具安全 |
-| 🟡 P2 | H10 实现或删除 DELETE email route | XS (5 行) | API 合约对齐 |
-| 🟡 P2 | M1 实现 vec0 cosine | M | RAG 语义搜索真正生效 |
-| 🟡 P2 | M2 Email settings 未配返错而非写 .eml | XS | 用户感知 |
-| 🟡 P2 | M3 Embedding 降级加 config opt-in | S | 用户感知 |
-| 🟡 P2 | M4 AutoAdopt 接 setInterval (e.g. 1h) | S | 知识库自动滚动 |
-| 🟡 P2 | M8 QuoteAiDraftDialog 800ms setTimeout → 真调 subAgent | S | 报价 AI 起草真 AI |
-| 🟢 P3 | L1 删除 stub-providers.ts 死文件 | XS | 死代码清理 |
-| 🟢 P3 | L3 read_module module provider 注册 | S | 路径一致 |
-| 🟢 P3 | L4 server.close 真正关 DB | XS | 长跑进程不漏 FD |
-| 🟢 P3 | L5 404 文案改 "NOT_FOUND" | XS | 调试友好 |
-| 🟢 P3 | M5 PPT route 匹配器改正则 | XS | 防 latent bug |
-| 🟢 P3 | M6 contextWindow 抽 config | S | 配置一致 |
-| 🟢 P3 | M9 EmailComposerDialog 静默吞错改为 inline 提示 | XS | 用户感知 |
-| 🟢 P3 | L8 ProjectListView alert 改 inline | XS | UX 一致 |
-| 🟢 P3 | L9 StatCard 注释清理 | XS | 文档整洁 |
+| [P0] | H7 注入 `aiGenerateMarkdown` 到 QuoteUseCase (`main.ts:378-388`) | XS (10 行) | 报价 AI 列真正可用 |
+| [P0] | H8 把 sub-agent route 切到 InvokeSubAgentUseCase | S (30 行) | 让 use case 成为唯一路径，未来加策略不漏 |
+| [P0] | H12 让 ToolExecutor 给 search_knowledge 注入 RAG 命中 | M (50 行) | 4/5 个 sub-agent 不再"空跑" |
+| [P1] | H3 把 SurveyTask.execute 改用 survey-researcher | M (60 行) | 调查任务真 AI |
+| [P1] | H4+H5+H6 把 markdown-module / business-module / batchFromMindmap 改用对应 sub-agent | L (每个 60-80 行) | 11 个模块 + 自定义页 + 问卷批量生成真 AI |
+| [P1] | H9 把 dev.ts 装配补齐 (settings / dashboard / smtpFactory / readModule) | M (80 行) | dev 与 prod 行为一致 |
+| [P1] | H11 ToolExecutor 加 requiresApproval 检查 | S (20 行) | 未来加 send_email 类工具安全 |
+| [P2] | H10 实现或删除 DELETE email route | XS (5 行) | API 合约对齐 |
+| [P2] | M1 实现 vec0 cosine | M | RAG 语义搜索真正生效 |
+| [P2] | M2 Email settings 未配返错而非写 .eml | XS | 用户感知 |
+| [P2] | M3 Embedding 降级加 config opt-in | S | 用户感知 |
+| [P2] | M4 AutoAdopt 接 setInterval (e.g. 1h) | S | 知识库自动滚动 |
+| [P2] | M8 QuoteAiDraftDialog 800ms setTimeout → 真调 subAgent | S | 报价 AI 起草真 AI |
+| [P3] | L1 删除 stub-providers.ts 死文件 | XS | 死代码清理 |
+| [P3] | L3 read_module module provider 注册 | S | 路径一致 |
+| [P3] | L4 server.close 真正关 DB | XS | 长跑进程不漏 FD |
+| [P3] | L5 404 文案改 "NOT_FOUND" | XS | 调试友好 |
+| [P3] | M5 PPT route 匹配器改正则 | XS | 防 latent bug |
+| [P3] | M6 contextWindow 抽 config | S | 配置一致 |
+| [P3] | M9 EmailComposerDialog 静默吞错改为 inline 提示 | XS | 用户感知 |
+| [P3] | L8 ProjectListView alert 改 inline | XS | UX 一致 |
+| [P3] | L9 StatCard 注释清理 | XS | 文档整洁 |
 
 ---
 
