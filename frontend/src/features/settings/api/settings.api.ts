@@ -58,19 +58,6 @@ export interface MailAccountsReadDTO {
   updatedAt: string;
 }
 
-// ---- Tool configs ----
-
-export type ToolConfigValue = Record<string, unknown>;
-
-export interface ToolConfigsSettingDTO {
-  configs: Record<string, ToolConfigValue>;
-}
-
-export interface ToolConfigsReadDTO {
-  configs: Record<string, ToolConfigValue>;
-  updatedAt: string;
-}
-
 // ---- Sub-agent specs ----
 
 export interface SubAgentSpecDTO {
@@ -96,7 +83,7 @@ export interface SubAgentSpecsReadDTO {
 export interface SettingsSnapshotDTO {
   llmProfiles: LLMProfilesReadDTO | null;
   mailAccounts: MailAccountsReadDTO | null;
-  toolConfigs: ToolConfigsReadDTO | null;
+  // 阶段 3：toolConfigs 字段从前端 snapshot 删除（用户取消 UI 设置入口）
   agentSpecs: SubAgentSpecsReadDTO | null;
   embedding: EmbeddingConfigReadDTO | null;  // 阶段 7.7
 }
@@ -134,19 +121,7 @@ export const settingsApi = {
     );
   },
 
-  getToolConfigs() {
-    return http.get<ToolConfigsReadDTO>(Endpoints.settingsToolConfigs);
-  },
-  updateToolConfigs(
-    body: ToolConfigsSettingDTO,
-    expectedUpdatedAt?: string,
-  ) {
-    return http.put<ToolConfigsReadDTO>(
-      Endpoints.settingsToolConfigs,
-      expectedUpdatedAt ? { ...body, expectedUpdatedAt } : body,
-    );
-  },
-
+  // 阶段 3：删除 getToolConfigs / updateToolConfigs（用户取消 UI 入口；后端保留向后兼容）
   getAgentSpecs() {
     return http.get<SubAgentSpecsReadDTO>(Endpoints.settingsAgentSpecs);
   },

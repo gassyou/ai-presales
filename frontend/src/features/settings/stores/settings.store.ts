@@ -11,23 +11,20 @@ import {
   settingsApi,
   type LLMProfilesReadDTO,
   type MailAccountsReadDTO,
-  type ToolConfigsReadDTO,
   type SubAgentSpecsReadDTO,
   type LLMProfilesSettingDTO,
   type MailAccountsSettingDTO,
-  type ToolConfigsSettingDTO,
   type SubAgentSpecsSettingDTO,
   type EmbeddingConfigReadDTO,
   type EmbeddingConfigSettingDTO,
   type MailAccountDTO,
-  type ToolConfigValue,
 } from "../api/settings.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 
 export const useSettingsStore = defineStore("settings", () => {
   const llmProfiles = ref<LLMProfilesReadDTO | null>(null);
   const mailAccounts = ref<MailAccountsReadDTO | null>(null);
-  const toolConfigs = ref<ToolConfigsReadDTO | null>(null);
+  // 阶段 3：toolConfigs 状态从 store 删除
   const agentSpecs = ref<SubAgentSpecsReadDTO | null>(null);
   const embedding = ref<EmbeddingConfigReadDTO | null>(null);  // 阶段 7.7
 
@@ -43,7 +40,7 @@ export const useSettingsStore = defineStore("settings", () => {
       const snap = await settingsApi.getAll();
       llmProfiles.value = unwrap(snap.llmProfiles);
       mailAccounts.value = normalizeMail(snap.mailAccounts);
-      toolConfigs.value = normalizeTool(snap.toolConfigs);
+      // 阶段 3：toolConfigs 不再设置
       agentSpecs.value = unwrap(snap.agentSpecs);
       embedding.value = unwrap(snap.embedding);
     } catch (e) {
@@ -70,18 +67,6 @@ export const useSettingsStore = defineStore("settings", () => {
     error.value = null;
     try {
       mailAccounts.value = await settingsApi.getMailAccounts();
-    } catch (e) {
-      error.value = formatError(e);
-    } finally {
-      loading.value = null;
-    }
-  }
-
-  async function loadToolConfigs(): Promise<void> {
-    loading.value = "tools";
-    error.value = null;
-    try {
-      toolConfigs.value = await settingsApi.getToolConfigs();
     } catch (e) {
       error.value = formatError(e);
     } finally {
@@ -125,23 +110,6 @@ export const useSettingsStore = defineStore("settings", () => {
       mailAccounts.value = await settingsApi.updateMailAccounts(
         body,
         mailAccounts.value?.updatedAt,
-      );
-      return { ok: true };
-    } catch (e) {
-      const msg = formatError(e);
-      const conflict = e instanceof ApiError && e.httpStatus === 409;
-      error.value = msg;
-      return { ok: false, conflict, error: msg };
-    }
-  }
-
-  async function saveToolConfigs(
-    body: ToolConfigsSettingDTO,
-  ): Promise<{ ok: true } | { ok: false; conflict: boolean; error: string }> {
-    try {
-      toolConfigs.value = await settingsApi.updateToolConfigs(
-        body,
-        toolConfigs.value?.updatedAt,
       );
       return { ok: true };
     } catch (e) {
@@ -207,7 +175,6 @@ export const useSettingsStore = defineStore("settings", () => {
   return {
     llmProfiles,
     mailAccounts,
-    toolConfigs,
     agentSpecs,
     embedding,
     loading,
@@ -215,12 +182,10 @@ export const useSettingsStore = defineStore("settings", () => {
     loadAll,
     loadLLMProfiles,
     loadMailAccounts,
-    loadToolConfigs,
     loadAgentSpecs,
     loadEmbeddingConfig,
     saveLLMProfiles,
     saveMailAccounts,
-    saveToolConfigs,
     saveAgentSpecs,
     saveEmbeddingConfig,
     clearError,
@@ -263,12 +228,4 @@ function normalizeMail(wrapped: unknown): MailAccountsReadDTO | null {
   };
 }
 
-/** 后端无 tool 时返 {configs: {}} 或 null，UI 期望 configs: Record<string, ToolConfigValue> */
-function normalizeTool(wrapped: unknown): ToolConfigsReadDTO | null {
-  const inner = unwrap<{ configs?: Record<string, ToolConfigValue> }>(wrapped);
-  if (!inner) return null;
-  return {
-    configs: inner.configs ?? {},
-    updatedAt: inner.updatedAt,
-  };
-}
+/** 阶段 3：normalizeTool 已删除（toolConfigs UI 移除） */

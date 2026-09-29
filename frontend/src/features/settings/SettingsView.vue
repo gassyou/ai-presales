@@ -25,11 +25,9 @@
       <el-tab-pane label="向量模型" name="embedding">
         <EmbeddingConfigTab />
       </el-tab-pane>
+      <!-- 阶段 3：删除"工具配置" tab（用户原话"取消工具设置，默认所有 agent 都能访问系统工具"） -->
       <el-tab-pane label="邮件账号" name="mail">
         <MailAccountsTab />
-      </el-tab-pane>
-      <el-tab-pane label="工具配置" name="tools">
-        <ToolConfigsTab />
       </el-tab-pane>
       <el-tab-pane label="Sub-agent" name="agents">
         <AgentSpecsTab />
@@ -44,7 +42,6 @@ import { useSettingsStore } from "./stores/settings.store.ts";
 import LLMProfilesTab from "./components/LLMProfilesTab.vue";
 import EmbeddingConfigTab from "./components/EmbeddingConfigTab.vue";
 import MailAccountsTab from "./components/MailAccountsTab.vue";
-import ToolConfigsTab from "./components/ToolConfigsTab.vue";
 import AgentSpecsTab from "./components/AgentSpecsTab.vue";
 
 const store = useSettingsStore();
