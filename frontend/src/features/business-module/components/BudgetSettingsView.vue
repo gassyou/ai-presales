@@ -11,9 +11,18 @@
   <section class="card flex flex-col gap-3">
     <header class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-700">成本计算设置</h2>
-      <span class="text-xs" :class="dirty ? 'text-amber-700' : 'text-slate-500'">
-        {{ dirty ? "保存中…" : saving ? "已保存" : "已同步" }}
-      </span>
+      <div class="flex items-center gap-3">
+        <span class="text-xs" :class="dirty ? 'text-amber-700' : 'text-slate-500'">
+          {{ saving ? "保存中…" : dirty ? "有改动未保存" : "已同步" }}
+        </span>
+        <!-- 阶段 B7：显式保存按钮（用户要求；保留 debounce 自动保存作为后备） -->
+        <button
+          type="button"
+          class="rounded border border-accent/50 bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="!dirty || saving"
+          @click="onSave"
+        >保存</button>
+      </div>
     </header>
 
     <p v-if="store.settingsError" class="text-xs text-red-300">{{ store.settingsError }}</p>
@@ -120,6 +129,28 @@ watch(
   },
   { deep: true },
 );
+
+async function onSave(): Promise<void> {
+  if (!form.value) return;
+  // 取消 pending debounce timer，避免和立即保存竞争
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  const err = validate(form.value);
+  if (err) {
+    localError.value = err;
+    return;
+  }
+  saving.value = true;
+  try {
+    const r = await store.saveSettings(props.projectId, form.value);
+    if (r) form.value = { ...r };
+  } finally {
+    saving.value = false;
+    dirty.value = false;
+  }
+}
 
 function validate(s: BudgetSettingsDTO): string | null {
   const ratios: [string, number][] = [
