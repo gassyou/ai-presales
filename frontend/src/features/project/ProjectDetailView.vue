@@ -233,6 +233,7 @@ import ProjectWorkspaceDialog from "./components/ProjectWorkspaceDialog.vue";
 import { useEmailComposerStore } from "./stores/email-composer.store.ts";
 import { useQuoteComposerStore } from "@frontend/features/quote/stores/quote-composer.store.ts";
 import { useProjectStore } from "./stores/project.store.ts";
+import { useAiChatStore } from "@frontend/features/ai-chat/stores/ai-chat.store.ts";
 import { ElMessage } from "element-plus";
 import type {
   ChangeProjectStatusInput,
@@ -245,6 +246,7 @@ const emailComposerStore = useEmailComposerStore();
 const quoteComposerStore = useQuoteComposerStore();
 const router = useRouter();
 const projectStore = useProjectStore();
+const aiChatStore = useAiChatStore();
 
 const project = ref<ProjectDTO | null>(null);
 const loading = ref(false);
@@ -576,6 +578,8 @@ watch(
   (id) => {
     if (typeof id === "string" && id.length > 0) {
       void load(id);
+      // 阶段 13（PR #4）：跨项目导航时刷新 session 列表。
+      void aiChatStore.loadSessions(id);
     }
   },
   { immediate: true },
@@ -584,6 +588,11 @@ watch(
 onMounted(() => {
   loadNavWidth();
   const id = route.params.id;
-  if (typeof id === "string") void load(id);
+  if (typeof id === "string") {
+    void load(id);
+    // 阶段 13（PR #4）：进项目后让 AI chat 侧边栏显示该项目的 session 列表。
+    // ProjectListView 已经在导航时调过 setCurrentProjectId；这里只需 loadSessions。
+    void aiChatStore.loadSessions(id);
+  }
 });
 </script>

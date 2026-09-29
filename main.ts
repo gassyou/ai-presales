@@ -22,7 +22,10 @@ import { ProjectService } from "@backend/application/project/project.service.ts"
 import { SdkTransport } from "@backend/ai/transport.sdk.ts";
 import { createLlmClient } from "@backend/ai/client/client.factory.ts";
 import type { ILLMClient } from "@backend/ai/client/llm-client.ts";
-import { buildBuiltinToolRegistry, registerWriteableTools } from "@backend/ai/tool/builtin-tools.ts";
+import {
+  buildBuiltinToolRegistry,
+  registerWriteableTools,
+} from "@backend/ai/tool/builtin-tools.ts";
 import { buildBuiltinSubAgentRegistry } from "@backend/application/sub-agent/builtin-sub-agents.ts";
 import { InvokeSubAgentUseCase } from "@backend/application/sub-agent/invoke-sub-agent.usecase.ts";
 import { collectStreamToString } from "@backend/application/shared/stream-helpers.ts";
@@ -31,6 +34,9 @@ import type { ProjectId } from "@shared/types/ids.ts";
 // 阶段 6.0 装配
 import { SystemClock } from "@backend/domain/shared/clock.ts";
 import { SqliteAiSessionRepository } from "@backend/persistence/sqlite/sqlite-ai-session.repository.ts";
+// 阶段 13（PR #4）：chat session route 接线
+import { SqliteChatSessionRepository } from "@backend/persistence/sqlite/sqlite-chat-session.repository.ts";
+import { ChatSessionUseCase } from "@backend/application/chat-session/chat-session.usecase.ts";
 import { SqliteKnowledgeRepository } from "@backend/persistence/sqlite/sqlite-knowledge.repository.ts";
 import { SqliteKnowledgeChunkRepository } from "@backend/persistence/sqlite/sqlite-knowledge-chunk.repository.ts";
 import { createEmbeddingProvider } from "@backend/ai/embedding/factory.ts";
@@ -353,8 +359,14 @@ await systemSettingsRepo.seedIfEmpty(
 );
 
 // seed agents.specs（启动期 idempotent）：首次启动写入 5 个 builtin
-const seedSpecsData = { specs: Object.fromEntries(getBuiltinSubAgentSpecs().map((s) => [s.name, s])) };
-await systemSettingsRepo.seedIfEmpty("agents.specs" as import("@backend/domain/settings/system-setting.repository.ts").SystemSettingKey, seedSpecsData, clock);
+const seedSpecsData = {
+  specs: Object.fromEntries(getBuiltinSubAgentSpecs().map((s) => [s.name, s])),
+};
+await systemSettingsRepo.seedIfEmpty(
+  "agents.specs" as import("@backend/domain/settings/system-setting.repository.ts").SystemSettingKey,
+  seedSpecsData,
+  clock,
+);
 
 // embeddingResolver 已在 phase 6.0 装配区创建并 prime（提前以供 retrieveUseCase 使用）
 
@@ -390,9 +402,7 @@ function buildInvokeSubAgentClosure(defaultProfileName: string): void {
     const tools = spec
       ? spec.toolNames.flatMap((name) => {
         const t = toolRegistry.get(name);
-        return t
-          ? [{ name: t.name, description: t.description, inputSchema: t.inputSchema }]
-          : [];
+        return t ? [{ name: t.name, description: t.description, inputSchema: t.inputSchema }] : [];
       })
       : [];
     // 阶段 7.7：execute() 现在是 async（要 await clientResolver 拿 client）。
@@ -407,7 +417,9 @@ function buildInvokeSubAgentClosure(defaultProfileName: string): void {
     return {
       [Symbol.asyncIterator]() {
         let started = false;
-        let inner: AsyncIterator<import("@backend/ai/message/canonical-message.ts").StreamEvent> | null = null;
+        let inner:
+          | AsyncIterator<import("@backend/ai/message/canonical-message.ts").StreamEvent>
+          | null = null;
         return {
           async next() {
             if (!started) {
@@ -484,7 +496,9 @@ const settingsUseCase = new SettingsUseCase({
  * 每次 sub-agent invoke 时都从 DB 读最新值（settings 改完无需重启）。
  * 注意是 sync 调用：use case 内部 cache 了 settings 读取（5s TTL）。
  */
-const profileSnapshot = (): import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot | undefined => {
+const profileSnapshot = ():
+  | import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot
+  | undefined => {
   const snap = settingsUseCase.cachedLLMProfiles();
   if (!snap) return undefined;
   const def = snap.value.profiles.find((p) => p.name === snap.value.defaultProfile);
@@ -496,7 +510,8 @@ const profileSnapshot = (): import("@backend/ai/sub-agent/sub-agent-runner.ts").
 await settingsUseCase.getLLMProfiles();
 
 // 阶段 7.7：从 settings 取 defaultProfileName 并构造 invokeSubAgent 闭包
-const defaultProfileNameFromSettings = settingsUseCase.cachedLLMProfiles()?.value.defaultProfile ?? "";
+const defaultProfileNameFromSettings = settingsUseCase.cachedLLMProfiles()?.value.defaultProfile ??
+  "";
 buildInvokeSubAgentClosure(defaultProfileNameFromSettings);
 buildContextAssemblerFromSettings();
 
@@ -509,9 +524,9 @@ const aiGenerateMarkdown = async (args: {
   clientName: string;
 }): Promise<string> => {
   const budgetSummary = JSON.stringify(args.snapshot.top, null, 2);
-  const hardwareList = args.snapshot.hardware.items.map((it: { device: string; qty: number; subtotal: number }) =>
-    `- ${it.device} ×${it.qty} ¥${it.subtotal}`
-  ).join("\n");
+  const hardwareList = args.snapshot.hardware.items.map((
+    it: { device: string; qty: number; subtotal: number },
+  ) => `- ${it.device} ×${it.qty} ¥${it.subtotal}`).join("\n");
   const prompt = `项目编号：${args.projectCode}
 项目名称：${args.projectName}
 客户名称：${args.clientName}
@@ -704,6 +719,16 @@ const app = createApp({
   })(),
   // 阶段 7.4h：系统设置（4 类）
   settingsRoute: { logger, useCase: settingsUseCase },
+  // 阶段 13（PR #4）：chat session —— use case 实例化并注入 server。
+  // 路由处理函数 handleChatSession 已存在（chat-session.route.ts），
+  // 但 server.ts 在 chatSessionRoute 未注入时返 501；本接线激活该路由。
+  chatSessionRoute: {
+    logger,
+    useCase: new ChatSessionUseCase({
+      repo: new SqliteChatSessionRepository(database),
+      clock,
+    }),
+  },
   // 阶段 7.4h：sub-agent invoke 时读取当前 default profile 快照
   profileSnapshot,
   // 阶段 7.5（H8）：route 改走 use case 单点入口

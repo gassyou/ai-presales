@@ -9,6 +9,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { aiChatApi } from "../api/ai-chat.api.ts";
 import { subAgentApi } from "@frontend/features/sub-agent/api/sub-agent.api.ts";
+import { chatSessionApi } from "../api/chat-session.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 import type { ChatMessage, ToolCallEntry } from "../types.ts";
@@ -53,6 +54,12 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
   async function send(content: string): Promise<void> {
     if (content.trim().length === 0) return;
+    // 阶段 13（PR #4）：在有项目上下文且无当前 session 时，自动建一条（不阻塞 send）。
+    if (!currentSessionId.value && currentProject.value) {
+      void createSessionForProject(currentProject.value.id).catch((e) =>
+        console.warn("auto-create session failed", e)
+      );
+    }
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -62,6 +69,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     messages.value = [...messages.value, userMsg];
     loading.value = true;
     error.value = null;
+    // 持久化 user 消息到当前 session（无 session / 全局对话时 helper 内空操作）
+    void persistMessage("user", userMsg.content);
 
     const abort = new AbortController();
     inflightAbort = abort;
@@ -147,6 +156,15 @@ export const useAiChatStore = defineStore("aiChat", () => {
           error.value = `${ev.code}: ${ev.message}`;
         }
       }
+      // 阶段 13（PR #4）：流式结束后把完整 assistant 消息落盘（含 toolCalls）。
+      const asstMsg = messages.value.find((m) => m.id === asstId);
+      if (asstMsg && (asstMsg.content.length > 0 || (asstMsg.toolCalls && asstMsg.toolCalls.length > 0))) {
+        void persistMessage(
+          "assistant",
+          asstMsg.content,
+          asstMsg.toolCalls,
+        );
+      }
     } catch (e) {
       if (e instanceof ApiError) {
         error.value = `${e.envelope.code}: ${e.envelope.message}`;
@@ -207,7 +225,6 @@ export const useAiChatStore = defineStore("aiChat", () => {
   /** 加载会话列表（通常 mount 时） */
   async function loadSessions(projectId: string | null): Promise<void> {
     try {
-      const { chatSessionApi } = await import("../api/chat-session.api.ts");
       const list = await chatSessionApi.list(projectId);
       sessions.value = list;
     } catch (e) {
@@ -218,7 +235,6 @@ export const useAiChatStore = defineStore("aiChat", () => {
    * 为某项目创建一个新会话；设 currentSessionId；清空 messages。
    */
   async function createSessionForProject(projectId: string | null, title?: string): Promise<string> {
-    const { chatSessionApi } = await import("../api/chat-session.api.ts");
     const titleText = title?.trim() || `新会话 ${new Date().toLocaleString("zh-CN")}`;
     const sess = await chatSessionApi.create({ projectId, title: titleText });
     sessions.value = [sess, ...sessions.value];
@@ -228,21 +244,21 @@ export const useAiChatStore = defineStore("aiChat", () => {
   }
   async function switchToSession(id: string): Promise<void> {
     currentSessionId.value = id;
-    const { chatSessionApi } = await import("../api/chat-session.api.ts");
     const list = await chatSessionApi.listMessages(id);
+    // 阶段 13（PR #4）：把 ChatMessageDTO 直接映射成本地 ChatMessage；role 是联合类型；
+    // toolCalls 也按持久化形状回填（前端不再 `as never`）。
     messages.value = list.map((m) => ({
       id: m.id,
-      role: m.role as never,
+      role: m.role,
       content: m.content,
       createdAt: m.createdAt,
-      toolCalls: (m.toolCalls ?? []) as never,
+      ...(m.toolCalls !== undefined ? { toolCalls: [...m.toolCalls] as unknown as ToolCallEntry[] } : {}),
     }));
   }
   async function deleteCurrentSession(): Promise<void> {
     if (!currentSessionId.value) return;
     const id = currentSessionId.value;
     try {
-      const { chatSessionApi } = await import("../api/chat-session.api.ts");
       await chatSessionApi.remove(id);
     } catch (e) {
       console.warn("delete session failed", e);
@@ -250,6 +266,25 @@ export const useAiChatStore = defineStore("aiChat", () => {
     sessions.value = sessions.value.filter((s) => s.id !== id);
     currentSessionId.value = null;
     messages.value = [];
+  }
+  /** 阶段 13（PR #4）：把一条消息持久化到当前 session（user / assistant 皆可）。失败仅 warn 不抛。 */
+  async function persistMessage(
+    role: "user" | "assistant" | "tool" | "system",
+    content: string,
+    toolCalls?: ReadonlyArray<ToolCallEntry>,
+  ): Promise<void> {
+    const sid = currentSessionId.value;
+    if (!sid) return; // 全局对话（无 projectId）暂不持久化
+    try {
+      await chatSessionApi.appendMessage({
+        sessionId: sid,
+        role,
+        content,
+        ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls: toolCalls as unknown as Parameters<typeof chatSessionApi.appendMessage>[0]["toolCalls"] } : {}),
+      });
+    } catch (e) {
+      console.warn("appendMessage failed", e);
+    }
   }
 
   async function loadMentionCandidates(): Promise<void> {
@@ -314,6 +349,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
     createSessionForProject,
     switchToSession,
     deleteCurrentSession,
+    persistMessage,
     loadMentionCandidates,
   };
 });
