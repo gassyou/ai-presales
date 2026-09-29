@@ -57,3 +57,44 @@ export const aiChatApi = {
     }
   },
 };
+
+// ---- 阶段 13（PR #7）：chat 附件 ----
+
+export interface ChatAttachmentDTO {
+  id: string;
+  sessionId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  parsedSummary: string | null;
+  createdAt: string;
+}
+
+export const chatAttachmentApi = {
+  /** 上传一个附件到 chat session（base64 内嵌，单请求 < 10 MB） */
+  async upload(input: {
+    sessionId: string;
+    fileName: string;
+    mimeType: string;
+    contentBase64?: string;
+    contentText?: string;
+  }): Promise<ChatAttachmentDTO> {
+    return await http.post<ChatAttachmentDTO>(
+      `/api/chat/sessions/${encodeURIComponent(input.sessionId)}/attachments`,
+      {
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        ...(input.contentBase64 !== undefined ? { contentBase64: input.contentBase64 } : {}),
+        ...(input.contentText !== undefined ? { contentText: input.contentText } : {}),
+      },
+    );
+  },
+
+  /** 列 session 的附件 */
+  async list(sessionId: string): Promise<ChatAttachmentDTO[]> {
+    const resp = await http.get<{ items: ChatAttachmentDTO[] }>(
+      `/api/chat/sessions/${encodeURIComponent(sessionId)}/attachments`,
+    );
+    return resp.items;
+  },
+};

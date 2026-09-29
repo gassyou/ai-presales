@@ -7,6 +7,10 @@
 
 import { http } from "@frontend/shared/api/http-client.ts";
 import { Endpoints } from "@frontend/shared/api/endpoints.ts";
+import type {
+  CreateUserSubAgentInput,
+  UpdateUserSubAgentInput,
+} from "@shared/types/dto/sub-agent.ts";
 
 // ---- LLM profiles ----
 
@@ -67,6 +71,8 @@ export interface SubAgentSpecDTO {
   systemPrompt: string;
   toolNames: string[];
   profileHint?: string;
+  /** 阶段 13（PR #3）：system = 内置不可改；user = 用户可编辑/删除 */
+  type: "system" | "user";
 }
 
 export interface SubAgentSpecsSettingDTO {
@@ -85,7 +91,7 @@ export interface SettingsSnapshotDTO {
   mailAccounts: MailAccountsReadDTO | null;
   // 阶段 3：toolConfigs 字段从前端 snapshot 删除（用户取消 UI 设置入口）
   agentSpecs: SubAgentSpecsReadDTO | null;
-  embedding: EmbeddingConfigReadDTO | null;  // 阶段 7.7
+  embedding: EmbeddingConfigReadDTO | null; // 阶段 7.7
 }
 
 // ---- API ----
@@ -133,6 +139,19 @@ export const settingsApi = {
       Endpoints.settingsAgentSpecs,
       expectedUpdatedAt ? { ...body, expectedUpdatedAt } : body,
     );
+  },
+  // 阶段 13（PR #3）：单条 user sub-agent CRUD
+  createAgentSpec(input: CreateUserSubAgentInput) {
+    return http.post<SubAgentSpecsReadDTO>(Endpoints.settingsAgentSpecs, input);
+  },
+  updateAgentSpec(name: string, input: UpdateUserSubAgentInput) {
+    return http.patch<SubAgentSpecsReadDTO>(
+      `${Endpoints.settingsAgentSpecs}/${encodeURIComponent(name)}`,
+      input,
+    );
+  },
+  deleteAgentSpec(name: string) {
+    return http.del<void>(`${Endpoints.settingsAgentSpecs}/${encodeURIComponent(name)}`);
   },
 
   // ---- Embedding config (阶段 7.7) ----

@@ -11,6 +11,8 @@ export interface ChatSessionDTO {
   title: string;
   createdAt: string;
   updatedAt: string;
+  /** 阶段 13（PR #8）：会话级"全部自动批准工具"开关 */
+  autoApprove: boolean;
 }
 
 export interface ChatMessageDTO {
@@ -47,6 +49,11 @@ export const chatSessionApi = {
 
   async rename(id: string, title: string): Promise<ChatSessionDTO> {
     return await http.patch<ChatSessionDTO>(`/api/chat/sessions/${id}`, { title });
+  },
+
+  /** 阶段 13（PR #8）：设置会话级"全部自动批准"开关 */
+  async setAutoApprove(id: string, on: boolean): Promise<ChatSessionDTO> {
+    return await http.patch<ChatSessionDTO>(`/api/chat/sessions/${id}`, { autoApprove: on });
   },
 
   async remove(id: string): Promise<void> {

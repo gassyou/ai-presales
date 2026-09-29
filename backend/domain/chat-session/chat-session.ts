@@ -10,7 +10,7 @@
  *   - 消息按 created_at 升序排列
  */
 
-import { type DomainResult, domainErr, domainOk } from "../shared/result.ts";
+import { domainErr, domainOk, type DomainResult } from "../shared/result.ts";
 import type { ProjectId } from "@shared/types/ids.ts";
 
 export type ChatMessageRole = "user" | "assistant" | "tool" | "system";
@@ -39,6 +39,8 @@ export interface ChatSessionDTO {
   readonly title: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  /** 阶段 13（PR #8）：当前会话"全部自动批准工具"开关。true = 所有 requiresApproval 的 tool 直接执行。 */
+  readonly autoApprove: boolean;
 }
 
 export class ChatSession {
@@ -48,6 +50,8 @@ export class ChatSession {
     public readonly title: string,
     public readonly createdAt: Date,
     public updatedAt: Date,
+    /** 阶段 13（PR #8）：会话级"全部自动批准工具"开关。默认 false。 */
+    public autoApprove: boolean = false,
   ) {}
 
   static create(args: {
@@ -60,7 +64,7 @@ export class ChatSession {
     if (title.length === 0) {
       return domainErr("INVALID_INPUT", "title must be non-empty");
     }
-    return domainOk(new ChatSession(args.id, args.projectId, title, args.now, args.now));
+    return domainOk(new ChatSession(args.id, args.projectId, title, args.now, args.now, false));
   }
 
   rename(newTitle: string): DomainResult<void> {
@@ -70,6 +74,11 @@ export class ChatSession {
     }
     (this as { title: string }).title = t;
     return domainOk(undefined);
+  }
+
+  /** 阶段 13（PR #8）：设置自动批准开关。 */
+  setAutoApprove(on: boolean): void {
+    this.autoApprove = on;
   }
 
   touch(now: Date): void {
@@ -83,6 +92,7 @@ export class ChatSession {
       title: this.title,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      autoApprove: this.autoApprove,
     };
   }
 }

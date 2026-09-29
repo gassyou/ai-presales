@@ -30,6 +30,12 @@ export interface ToolExecutorOptions {
    */
   readonly forceApproveNames?: readonly string[];
   readonly forceRejectNames?: readonly string[];
+  /**
+   * 阶段 13（PR #8）：会话级"全部自动批准工具"开关。
+   * true → 跳过 requiresApproval 检查（等价于把所有 tool 名都加进 forceApproveNames）。
+   * 注：仍然尊重 forceRejectNames（用户显式拒绝的不执行）。
+   */
+  readonly forceApproveAll?: boolean;
 }
 
 export class ToolExecutor {
@@ -68,7 +74,8 @@ export class ToolExecutor {
     // - tool 在 forceRejectNames → 拒绝
     // - tool 在 forceApproveNames → 真执行（跳过 requiresApproval 检查）
     // - tool 有 requiresApproval=true 且不在 force approve set → 等用户决定
-    const isForceApprove = this.opts.forceApproveNames?.includes(tool.name) === true;
+    const isForceApprove = this.opts.forceApproveNames?.includes(tool.name) === true ||
+      this.opts.forceApproveAll === true;
     const isForceReject = this.opts.forceRejectNames?.includes(tool.name) === true;
     if (isForceReject) {
       const durationMs = Date.now() - startedAt;
@@ -121,7 +128,11 @@ export class ToolExecutor {
           durationMs,
         };
       }
-      this.opts.logger.warn("tool returned error", { tool: tool.name, error: res.error, durationMs });
+      this.opts.logger.warn("tool returned error", {
+        tool: tool.name,
+        error: res.error,
+        durationMs,
+      });
       return {
         toolCallId: invocation.toolCallId,
         name: tool.name,
@@ -159,7 +170,10 @@ export class ToolExecutor {
       return await tool.execute(args, ctx);
     }
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(new Error(`tool ${tool.name} timed out after ${ctx.timeoutMs}ms`)), ctx.timeoutMs);
+    const timer = setTimeout(
+      () => ac.abort(new Error(`tool ${tool.name} timed out after ${ctx.timeoutMs}ms`)),
+      ctx.timeoutMs,
+    );
     try {
       // 注意：tool 内部可以选择尊重 ctx.signal；这里仅做外层保险
       const execCtx: ToolContext = { ...ctx, signal: ac.signal };
@@ -180,4 +194,4 @@ function serializeToolResult(value: unknown): string {
 }
 
 /** 防止 un-used 警告：ok/fail 公开，方便 builtin 工具使用 */
-export { ok, fail };
+export { fail, ok };

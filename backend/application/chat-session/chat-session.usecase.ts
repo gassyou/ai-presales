@@ -5,8 +5,12 @@
  */
 
 import type { Clock } from "@backend/domain/shared/clock.ts";
-import { type DomainResult, domainErr, domainOk } from "@backend/domain/shared/result.ts";
-import { ChatSession, type ChatMessageDTO, type ChatSessionDTO } from "@backend/domain/chat-session/chat-session.ts";
+import { domainErr, domainOk, type DomainResult } from "@backend/domain/shared/result.ts";
+import {
+  type ChatMessageDTO,
+  ChatSession,
+  type ChatSessionDTO,
+} from "@backend/domain/chat-session/chat-session.ts";
 import type { IChatSessionRepository } from "@backend/persistence/sqlite/sqlite-chat-session.repository.ts";
 import type { ProjectId } from "@shared/types/ids.ts";
 
@@ -60,6 +64,18 @@ export class ChatSessionUseCase {
     if (!refreshed) return domainErr("NOT_FOUND", `chat session not found: ${id}`);
     refreshed.touch(this.deps.clock.now());
     return domainOk(refreshed.toDTO());
+  }
+
+  /** 阶段 13（PR #8）：切换会话级"全部自动批准工具"开关。 */
+  setAutoApprove(id: string, on: boolean): DomainResult<ChatSessionDTO> {
+    const existing = this.deps.repo.findSessionById(id);
+    if (!existing) return domainErr("NOT_FOUND", `chat session not found: ${id}`);
+    if (!this.deps.repo.setAutoApprove(id, on)) {
+      return domainErr("NOT_FOUND", `chat session not found: ${id}`);
+    }
+    existing.setAutoApprove(on);
+    existing.touch(this.deps.clock.now());
+    return domainOk(existing.toDTO());
   }
 
   deleteSession(id: string): DomainResult<void> {

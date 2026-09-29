@@ -45,6 +45,8 @@ export interface ProjectDTO {
   improvementNote?: string;
   wonDate?: IsoDateTime;
   bestPractice?: string;
+  /** 阶段 13（PR #2）：项目工作区路径；未设置时为 undefined（fallback 到 ~/Desktop/<code>） */
+  workspacePath?: string;
   primaryContact?: ProjectContactDTO;
   contacts: readonly ProjectContactDTO[];
   teamMembers: readonly TeamMemberDTO[];
@@ -76,4 +78,21 @@ export interface UpdateProjectInput {
   projectIntro?: string | null;
   startDate?: IsoDateTime | null;
   endDate?: IsoDateTime | null;
+}
+
+/**
+ * 阶段 13（PR #1）：项目状态变更输入。
+ *   - target = "中止" 时：pausedDate + stopReason 必填
+ *   - target = "暂停" 时：reason 必填
+ *   - target = "中标" 时：bestPractice 必填
+ *   - target = "未中标" 时：lostReason + improvementNote 必填
+ *   - 其他：无 Reason 字段
+ */
+export interface ChangeProjectStatusInput {
+  target: ProjectStatusValue;
+  reason?: string;
+  /** 中止时必填 */
+  pausedDate?: IsoDateTime;
+  /** 中止时必填 */
+  stopReason?: string;
 }

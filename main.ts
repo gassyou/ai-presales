@@ -22,7 +22,10 @@ import { ProjectService } from "@backend/application/project/project.service.ts"
 import { SdkTransport } from "@backend/ai/transport.sdk.ts";
 import { createLlmClient } from "@backend/ai/client/client.factory.ts";
 import type { ILLMClient } from "@backend/ai/client/llm-client.ts";
-import { buildBuiltinToolRegistry, registerWriteableTools } from "@backend/ai/tool/builtin-tools.ts";
+import {
+  buildBuiltinToolRegistry,
+  registerWriteableTools,
+} from "@backend/ai/tool/builtin-tools.ts";
 import { buildBuiltinSubAgentRegistry } from "@backend/application/sub-agent/builtin-sub-agents.ts";
 import { InvokeSubAgentUseCase } from "@backend/application/sub-agent/invoke-sub-agent.usecase.ts";
 import { collectStreamToString } from "@backend/application/shared/stream-helpers.ts";
@@ -31,6 +34,15 @@ import type { ProjectId } from "@shared/types/ids.ts";
 // 阶段 6.0 装配
 import { SystemClock } from "@backend/domain/shared/clock.ts";
 import { SqliteAiSessionRepository } from "@backend/persistence/sqlite/sqlite-ai-session.repository.ts";
+// 阶段 13（PR #4）：chat session route 接线
+import { SqliteChatSessionRepository } from "@backend/persistence/sqlite/sqlite-chat-session.repository.ts";
+import { ChatSessionUseCase } from "@backend/application/chat-session/chat-session.usecase.ts";
+// 阶段 13（PR #5）：skill 系统 —— 默认 registry + 3 个 builtin skill
+import { buildDefaultSkillRegistry, type SkillRegistry } from "@backend/ai/skill/skill.ts";
+import { makeBuiltinSkills } from "@backend/ai/skill/builtin-skills.ts";
+// 阶段 13（PR #7）：chat 附件上传（migration 015 + repo + use case + route）
+import { SqliteChatAttachmentRepository } from "@backend/persistence/sqlite/sqlite-chat-attachment.repository.ts";
+import { ChatAttachmentUseCase } from "@backend/application/chat-attachment/chat-attachment.usecase.ts";
 import { SqliteKnowledgeRepository } from "@backend/persistence/sqlite/sqlite-knowledge.repository.ts";
 import { SqliteKnowledgeChunkRepository } from "@backend/persistence/sqlite/sqlite-knowledge-chunk.repository.ts";
 import { createEmbeddingProvider } from "@backend/ai/embedding/factory.ts";
@@ -195,6 +207,48 @@ const projectService = new ProjectService({
 });
 const clock = new SystemClock();
 
+// 阶段 13（PR #7）：fallback profile —— 当 settings 还没加载时用 config.profiles[defaultProfile]
+const fakeProfile: import("@backend/infrastructure/config/types.ts").ProfileConfig = (() => {
+  const p = config.profiles[config.defaultProfile];
+  return p ?? { provider: "openai", model: "gpt-4o-mini", temperature: 0.2, maxTokens: 2048 };
+})();
+
+/**
+ * 阶段 13（PR #7）：把异步的 llmClientResolver 包成同步可传的 ILLMClient。
+ * chat() 调用时 lazy 触发 resolver；任何错误（resolver 未就绪 / LLM 不可用）都会被
+ * 上层 try/catch 吞掉，AI 解析失败 ≠ upload 失败。
+ */
+function makeLazyLlmClient(
+  resolver: { get(name: string): Promise<import("@backend/ai/client/llm-client.ts").ILLMClient> },
+  profileName: string,
+): import("@backend/ai/client/llm-client.ts").ILLMClient {
+  let cached: import("@backend/ai/client/llm-client.ts").ILLMClient | null = null;
+  return {
+    provider: "openai",
+    async chat(req) {
+      if (cached === null) {
+        cached = await resolver.get(profileName);
+      }
+      return await cached.chat(req);
+    },
+    async *stream(req) {
+      if (cached === null) {
+        cached = await resolver.get(profileName);
+      }
+      yield* cached.stream(req);
+    },
+    capabilities() {
+      return {
+        provider: "openai",
+        supportsTools: false,
+        supportsStreaming: true,
+        supportsStructuredOutput: false,
+        contextWindow: 128000,
+      };
+    },
+  };
+}
+
 // LLM client factory —— 阶段 7.7：从 settings DB 取 profile（不再走 config.profiles）
 const transport = new SdkTransport({
   anthropicKey: Deno.env.get("ANTHROPIC_API_KEY"),
@@ -353,8 +407,14 @@ await systemSettingsRepo.seedIfEmpty(
 );
 
 // seed agents.specs（启动期 idempotent）：首次启动写入 5 个 builtin
-const seedSpecsData = { specs: Object.fromEntries(getBuiltinSubAgentSpecs().map((s) => [s.name, s])) };
-await systemSettingsRepo.seedIfEmpty("agents.specs" as import("@backend/domain/settings/system-setting.repository.ts").SystemSettingKey, seedSpecsData, clock);
+const seedSpecsData = {
+  specs: Object.fromEntries(getBuiltinSubAgentSpecs().map((s) => [s.name, s])),
+};
+await systemSettingsRepo.seedIfEmpty(
+  "agents.specs" as import("@backend/domain/settings/system-setting.repository.ts").SystemSettingKey,
+  seedSpecsData,
+  clock,
+);
 
 // embeddingResolver 已在 phase 6.0 装配区创建并 prime（提前以供 retrieveUseCase 使用）
 
@@ -390,9 +450,7 @@ function buildInvokeSubAgentClosure(defaultProfileName: string): void {
     const tools = spec
       ? spec.toolNames.flatMap((name) => {
         const t = toolRegistry.get(name);
-        return t
-          ? [{ name: t.name, description: t.description, inputSchema: t.inputSchema }]
-          : [];
+        return t ? [{ name: t.name, description: t.description, inputSchema: t.inputSchema }] : [];
       })
       : [];
     // 阶段 7.7：execute() 现在是 async（要 await clientResolver 拿 client）。
@@ -407,7 +465,9 @@ function buildInvokeSubAgentClosure(defaultProfileName: string): void {
     return {
       [Symbol.asyncIterator]() {
         let started = false;
-        let inner: AsyncIterator<import("@backend/ai/message/canonical-message.ts").StreamEvent> | null = null;
+        let inner:
+          | AsyncIterator<import("@backend/ai/message/canonical-message.ts").StreamEvent>
+          | null = null;
         return {
           async next() {
             if (!started) {
@@ -484,7 +544,9 @@ const settingsUseCase = new SettingsUseCase({
  * 每次 sub-agent invoke 时都从 DB 读最新值（settings 改完无需重启）。
  * 注意是 sync 调用：use case 内部 cache 了 settings 读取（5s TTL）。
  */
-const profileSnapshot = (): import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot | undefined => {
+const profileSnapshot = ():
+  | import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot
+  | undefined => {
   const snap = settingsUseCase.cachedLLMProfiles();
   if (!snap) return undefined;
   const def = snap.value.profiles.find((p) => p.name === snap.value.defaultProfile);
@@ -492,13 +554,106 @@ const profileSnapshot = (): import("@backend/ai/sub-agent/sub-agent-runner.ts").
   return { temperature: def.temperature, maxTokens: def.maxTokens };
 };
 
+// 阶段 13（PR #5）：builtin skill 用的默认 profile —— 需 model + temperature + maxTokens
+// 同步读 settingsUseCase cache（5s TTL），失败兜底 config.profiles[config.defaultProfile]
+const defaultProfileConfig = ():
+  | import("@backend/infrastructure/config/types.ts").ProfileConfig
+  | undefined => {
+  const snap = settingsUseCase.cachedLLMProfiles();
+  if (snap) {
+    const def = snap.value.profiles.find((p) => p.name === snap.value.defaultProfile);
+    if (def) {
+      return {
+        provider: def.provider,
+        model: def.model,
+        temperature: def.temperature,
+        maxTokens: def.maxTokens,
+        ...(def.baseUrl !== undefined ? { baseUrl: def.baseUrl } : {}),
+      };
+    }
+  }
+  return config.profiles[config.defaultProfile];
+};
+
 // 启动期 priming：让 sync lambda 第一次访问就拿到非空值
 await settingsUseCase.getLLMProfiles();
 
 // 阶段 7.7：从 settings 取 defaultProfileName 并构造 invokeSubAgent 闭包
-const defaultProfileNameFromSettings = settingsUseCase.cachedLLMProfiles()?.value.defaultProfile ?? "";
+const defaultProfileNameFromSettings = settingsUseCase.cachedLLMProfiles()?.value.defaultProfile ??
+  "";
 buildInvokeSubAgentClosure(defaultProfileNameFromSettings);
 buildContextAssemblerFromSettings();
+
+// 阶段 13（PR #9）：auto-mode 全流水线 —— 把 InvokeSubAgentUseCase 包装成 SubAgentRunner 形状，
+// 串 DefaultAutoModeContextProvider + SubAgentAutoModeWorker + 双 SubAgentReviewer + AutoModeOrchestrator，
+// 注入 server "/api/ai/auto-mode" 路由。
+import { AutoModeOrchestrator } from "@backend/ai/auto-mode/orchestrator.ts";
+import { DefaultAutoModeContextProvider } from "@backend/ai/auto-mode/default-context-provider.ts";
+import { SubAgentAutoModeWorker } from "@backend/ai/auto-mode/sub-agent-worker.ts";
+import { makeSubAgentReviewer } from "@backend/ai/auto-mode/sub-agent-reviewer.ts";
+import {
+  asSubAgentRunner,
+  AutoModeRunnerAdapter,
+} from "@backend/ai/auto-mode/invoke-sub-agent-runner.adapter.ts";
+const autoModeContextProvider = new DefaultAutoModeContextProvider({
+  projectService,
+  markdownModuleService: new MarkdownModuleService({
+    businessModuleService: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+    clock,
+  }),
+  structuredModulesUseCase: new StructuredModulesUseCase({
+    bm: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+  }),
+  surveyQuestionnaireUseCase: new SurveyQuestionnaireUseCase({
+    businessModuleService: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+    clock,
+  }),
+  surveyTaskUseCase: new SurveyTaskUseCase({
+    businessModuleService: new BusinessModuleService({
+      repo: new SqliteBusinessModuleRepository(database),
+      clock,
+    }),
+    clock,
+  }),
+});
+const autoModeRunner = asSubAgentRunner(
+  new AutoModeRunnerAdapter({
+    invokeUseCase: invokeSubAgentUseCase,
+    toolRegistry,
+  }),
+);
+const autoModeWorker = new SubAgentAutoModeWorker({
+  registry: subAgentRegistry,
+  runner: autoModeRunner,
+  toolRegistry,
+});
+const autoModeCustomerReviewer = makeSubAgentReviewer({
+  role: "customer",
+  registry: subAgentRegistry,
+  runner: autoModeRunner,
+  toolRegistry,
+});
+const autoModeDirectorReviewer = makeSubAgentReviewer({
+  role: "director",
+  registry: subAgentRegistry,
+  runner: autoModeRunner,
+  toolRegistry,
+});
+const autoModeOrchestrator = new AutoModeOrchestrator({
+  worker: autoModeWorker,
+  customerReviewer: autoModeCustomerReviewer,
+  directorReviewer: autoModeDirectorReviewer,
+  contextProvider: autoModeContextProvider,
+});
 
 // 阶段 7.5：报价 AI 起草回调（H7 修复）—— 调 proposal-drafter sub-agent + 抽干成 markdown
 const aiGenerateMarkdown = async (args: {
@@ -509,9 +664,9 @@ const aiGenerateMarkdown = async (args: {
   clientName: string;
 }): Promise<string> => {
   const budgetSummary = JSON.stringify(args.snapshot.top, null, 2);
-  const hardwareList = args.snapshot.hardware.items.map((it: { device: string; qty: number; subtotal: number }) =>
-    `- ${it.device} ×${it.qty} ¥${it.subtotal}`
-  ).join("\n");
+  const hardwareList = args.snapshot.hardware.items.map((
+    it: { device: string; qty: number; subtotal: number },
+  ) => `- ${it.device} ×${it.qty} ¥${it.subtotal}`).join("\n");
   const prompt = `项目编号：${args.projectCode}
 项目名称：${args.projectName}
 客户名称：${args.clientName}
@@ -536,6 +691,57 @@ ${hardwareList || "（无）"}
 
 // 给 builtin sub-agents 加上 read_module（默认不挂，让用户配；project-creator/survey-researcher/proposal-drafter 后续可挂）
 // 这里先不动 builtins（避免破坏它们的契约测试），让 read_module 可通过 toolRegistry.get('read_module') 单独选用
+
+// 阶段 13（PR #5）：构造 SkillRegistry —— 先 default 2 个 demo skill，
+// 再追加 3 个 builtin 业务 skill（status_check / summarize_project / draft_email）
+const skillRegistry: SkillRegistry = buildDefaultSkillRegistry();
+// 共享 chatSessionUseCase 实例（PR #5 builtin skill + chat-session route 同源）
+const chatSessionUseCase = new ChatSessionUseCase({
+  repo: new SqliteChatSessionRepository(database),
+  clock,
+});
+// 阶段 13（PR #7）：chat 附件 use case —— 复用 chatSessionRepo + llm client
+// 注：llmClient 是 lazy 包装 —— 启动时 resolver 不一定就绪；tryParseSummary 内部 catch
+// 任何错误，AI 解析失败不阻塞 upload。storageDir = dataDir/chat-attachments。
+const chatAttachmentUseCase = new ChatAttachmentUseCase({
+  repo: new SqliteChatAttachmentRepository(database),
+  chatSessionRepo: new SqliteChatSessionRepository(database),
+  llmClient: makeLazyLlmClient(
+    llmClientResolver,
+    defaultProfileConfig()?.model ?? config.defaultProfile,
+  ),
+  defaultProfile: defaultProfileConfig() ?? fakeProfile,
+  storageDir: `${config.app.dataDir}/chat-attachments`,
+  clock,
+});
+{
+  const profile = defaultProfileConfig();
+  if (profile) {
+    try {
+      const llmClient = await resolveClient(profile.model ?? config.defaultProfile);
+      const builtinBusinessModuleService = new BusinessModuleService({
+        repo: new SqliteBusinessModuleRepository(database),
+        clock,
+      });
+      for (
+        const s of makeBuiltinSkills({
+          llmClient,
+          defaultProfile: profile,
+          projectService,
+          businessModuleService: builtinBusinessModuleService,
+          chatSessionUseCase,
+          logger,
+        })
+      ) {
+        skillRegistry.register(s);
+      }
+    } catch (e) {
+      logger.warn("skill registry builtin registration skipped", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+}
 
 // 根据模式决定 serve 配置
 const app = createApp({
@@ -704,6 +910,30 @@ const app = createApp({
   })(),
   // 阶段 7.4h：系统设置（4 类）
   settingsRoute: { logger, useCase: settingsUseCase },
+  // 阶段 13（PR #4）：chat session —— use case 实例化并注入 server。
+  // 路由处理函数 handleChatSession 已存在（chat-session.route.ts），
+  // 但 server.ts 在 chatSessionRoute 未注入时返 501；本接线激活该路由。
+  chatSessionRoute: {
+    logger,
+    useCase: chatSessionUseCase,
+  },
+  // 阶段 13（PR #7）：chat 附件上传/列表路由
+  chatAttachmentRoute: {
+    logger,
+    useCase: chatAttachmentUseCase,
+  },
+  // 阶段 13（PR #5）：skill 路由（list + invoke）；与 skillRegistry 共享同一实例
+  skillRoute: {
+    logger,
+    registry: skillRegistry,
+  },
+  // 阶段 13（PR #5）：把 skillRegistry 注入 server；ai.route.ts 的 slash dispatcher 用它
+  skillRegistry,
+  // 阶段 13（PR #9）：auto-mode 全流水线入口（SubAgentRunner adapter + orchestrator）
+  autoModeRoute: {
+    logger,
+    orchestrator: autoModeOrchestrator,
+  },
   // 阶段 7.4h：sub-agent invoke 时读取当前 default profile 快照
   profileSnapshot,
   // 阶段 7.5（H8）：route 改走 use case 单点入口

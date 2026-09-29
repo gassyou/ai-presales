@@ -8,25 +8,29 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import {
-  settingsApi,
-  type LLMProfilesReadDTO,
-  type MailAccountsReadDTO,
-  type SubAgentSpecsReadDTO,
-  type LLMProfilesSettingDTO,
-  type MailAccountsSettingDTO,
-  type SubAgentSpecsSettingDTO,
   type EmbeddingConfigReadDTO,
   type EmbeddingConfigSettingDTO,
+  type LLMProfilesReadDTO,
+  type LLMProfilesSettingDTO,
   type MailAccountDTO,
+  type MailAccountsReadDTO,
+  type MailAccountsSettingDTO,
+  settingsApi,
+  type SubAgentSpecsReadDTO,
+  type SubAgentSpecsSettingDTO,
 } from "../api/settings.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
+import type {
+  CreateUserSubAgentInput,
+  UpdateUserSubAgentInput,
+} from "@shared/types/dto/sub-agent.ts";
 
 export const useSettingsStore = defineStore("settings", () => {
   const llmProfiles = ref<LLMProfilesReadDTO | null>(null);
   const mailAccounts = ref<MailAccountsReadDTO | null>(null);
   // 阶段 3：toolConfigs 状态从 store 删除
   const agentSpecs = ref<SubAgentSpecsReadDTO | null>(null);
-  const embedding = ref<EmbeddingConfigReadDTO | null>(null);  // 阶段 7.7
+  const embedding = ref<EmbeddingConfigReadDTO | null>(null); // 阶段 7.7
 
   const loading = ref<string | null>(null);
   const error = ref<string | null>(null);
@@ -137,6 +141,50 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
+  // 阶段 13（PR #3）：单条 user sub-agent CRUD —— 每次成功后重拉一次保证 store 唯一来源
+  async function createAgentSpec(
+    input: CreateUserSubAgentInput,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    try {
+      await settingsApi.createAgentSpec(input);
+      await loadAgentSpecs();
+      return { ok: true };
+    } catch (e) {
+      const msg = formatError(e);
+      error.value = msg;
+      return { ok: false, error: msg };
+    }
+  }
+
+  async function updateAgentSpec(
+    name: string,
+    input: UpdateUserSubAgentInput,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    try {
+      await settingsApi.updateAgentSpec(name, input);
+      await loadAgentSpecs();
+      return { ok: true };
+    } catch (e) {
+      const msg = formatError(e);
+      error.value = msg;
+      return { ok: false, error: msg };
+    }
+  }
+
+  async function removeAgentSpec(
+    name: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    try {
+      await settingsApi.deleteAgentSpec(name);
+      await loadAgentSpecs();
+      return { ok: true };
+    } catch (e) {
+      const msg = formatError(e);
+      error.value = msg;
+      return { ok: false, error: msg };
+    }
+  }
+
   // ---- Embedding config (阶段 7.7) ----
 
   async function loadEmbeddingConfig(): Promise<void> {
@@ -187,6 +235,9 @@ export const useSettingsStore = defineStore("settings", () => {
     saveLLMProfiles,
     saveMailAccounts,
     saveAgentSpecs,
+    createAgentSpec,
+    updateAgentSpec,
+    removeAgentSpec,
     saveEmbeddingConfig,
     clearError,
   };

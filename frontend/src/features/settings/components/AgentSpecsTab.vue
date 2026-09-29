@@ -1,94 +1,154 @@
 <!--
-  AgentSpecsTab.vue —— 阶段 7.4h
+  AgentSpecsTab.vue —— 阶段 7.4h + 阶段 13（PR #3）
 
-  Sub-agent spec 列表编辑：displayName / description / systemPrompt / toolNames / profileHint。
-  - toolNames 多选：内置 5 个工具 + 其他可输入
-  - profileHint 下拉（可选值 = 所有 LLM profile name + "default"）
+  Sub-agent spec 管理：实时 CRUD（取消批量编辑）。
+  - 顶部 "+ 新增用户 sub-agent" 按钮
+  - 下方按"系统 sub-agent" / "用户 sub-agent"两组展示
+  - 每张 system 卡片只读（"内置不可编辑"）
+  - 每张 user 卡片右侧"编辑 / 删除"两个按钮
+        删除 → ElMessageBox.confirm 二次确认
+        编辑 → 弹 SubAgentEditDialog
+  - 整页"保存"按钮已删除（实时同步）
 -->
 <template>
   <section class="flex flex-col gap-3">
     <header class="flex items-center justify-between">
       <h2 class="text-sm font-medium text-slate-700">Sub-agent 配置</h2>
-      <el-button
-        type="primary"
-        :disabled="!dirty || saving"
-        :loading="saving"
-        @click="onSave"
-      >
-        {{ saving ? "保存中…" : "保存" }}
+      <el-button type="primary" @click="openCreate">
+        + 新增用户 sub-agent
       </el-button>
     </header>
 
-    <el-alert v-if="store.error" :title="store.error" type="error" :closable="false" show-icon />
-    <el-alert v-if="validationError" :title="validationError" type="warning" :closable="false" show-icon />
-    <el-alert v-if="conflictMsg" :title="conflictMsg" type="warning" :closable="false" show-icon />
+    <el-alert
+      v-if="store.error"
+      :title="store.error"
+      type="error"
+      :closable="false"
+      show-icon
+    />
 
-    <div v-if="!form" class="text-xs text-slate-600">加载中…</div>
-    <div v-else class="flex flex-col gap-3">
-      <div
-        v-for="(s, idx) in form.specs"
-        :key="s.name || idx"
-        class="rounded border border-border bg-white p-3"
-      >
-        <div class="mb-2 flex items-center justify-between gap-2">
-          <div class="flex items-baseline gap-2">
-            <code class="text-xs text-slate-500">{{ s.name }}</code>
-            <el-input
-              v-model="s.displayName"
-              placeholder="显示名"
-              size="small"
-              class="!w-64"
-            />
-          </div>
+    <div v-if="!snap" class="text-xs text-slate-600">加载中…</div>
+    <div v-else class="flex flex-col gap-4">
+      <!-- 系统 sub-agent -->
+      <section>
+        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">
+          系统 sub-agent（{{ systemSpecs.length }}，只读）
+        </h3>
+        <div v-if="systemSpecs.length === 0" class="text-xs text-slate-500">
+          （暂无）
         </div>
+        <div v-else class="flex flex-col gap-2">
+          <article
+            v-for="s in systemSpecs"
+            :key="s.name"
+            class="rounded border border-border bg-slate-50 p-3"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex flex-col gap-1">
+                <div class="flex items-baseline gap-2">
+                  <span class="font-medium text-base">{{ s.displayName || s.name }}</span>
+                  <code class="text-xs text-slate-500">{{ s.name }}</code>
+                </div>
+                <p v-if="s.description" class="text-xs text-slate-600">{{ s.description }}</p>
+                <div class="mt-1 flex flex-wrap gap-1">
+                  <el-tag
+                    v-for="t in s.toolNames"
+                    :key="t"
+                    size="small"
+                    type="info"
+                    effect="plain"
+                  >{{ t }}</el-tag>
+                </div>
+                <div v-if="s.profileHint" class="mt-1 text-xs text-slate-500">
+                  profile: <code>{{ s.profileHint }}</code>
+                </div>
+              </div>
+              <span class="shrink-0 text-xs text-slate-400">内置不可编辑</span>
+            </div>
+          </article>
+        </div>
+      </section>
 
-        <el-form-item label-position="top" label="描述" class="!mb-2">
-          <el-input v-model="s.description" size="small" />
-        </el-form-item>
-
-        <el-form-item label-position="top" label="可用工具（逗号分隔）" class="!mb-2">
-          <el-input
-            :model-value="s.toolNames.join(', ')"
-            placeholder="list_files, read_file, ..."
-            size="small"
-            @update:model-value="(v: string | number) => onToolsInput(s, String(v))"
-          />
-          <template #extra>
-            <span class="text-xs text-slate-500">已知工具：{{ knownToolsText }}</span>
-          </template>
-        </el-form-item>
-
-        <el-form-item label-position="top" label="Profile hint（默认 LLM profile 名）" class="!mb-2">
-          <el-input
-            v-model="s.profileHint"
-            placeholder="default / fast / deep"
-            size="small"
-          />
-        </el-form-item>
-
-        <el-form-item label-position="top" class="!mb-2">
-          <template #label>
-            <span>系统提示词（{{ s.systemPrompt.length }} 字）</span>
-          </template>
-          <el-input
-            v-model="s.systemPrompt"
-            type="textarea"
-            :rows="6"
-            class="!font-mono"
-          />
-        </el-form-item>
-      </div>
+      <!-- 用户 sub-agent -->
+      <section>
+        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">
+          用户 sub-agent（{{ userSpecs.length }}）
+        </h3>
+        <div v-if="userSpecs.length === 0" class="text-xs text-slate-500">
+          （暂无。点击右上角"+ 新增用户 sub-agent"创建。）
+        </div>
+        <div v-else class="flex flex-col gap-2">
+          <article
+            v-for="s in userSpecs"
+            :key="s.name"
+            class="rounded border border-border bg-white p-3"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex flex-col gap-1">
+                <div class="flex items-baseline gap-2">
+                  <span class="font-medium text-base">{{ s.displayName || s.name }}</span>
+                  <code class="text-xs text-slate-500">{{ s.name }}</code>
+                </div>
+                <p v-if="s.description" class="text-xs text-slate-600">{{ s.description }}</p>
+                <div class="mt-1 flex flex-wrap gap-1">
+                  <el-tag
+                    v-for="t in s.toolNames"
+                    :key="t"
+                    size="small"
+                    type="info"
+                    effect="plain"
+                  >{{ t }}</el-tag>
+                </div>
+                <div v-if="s.profileHint" class="mt-1 text-xs text-slate-500">
+                  profile: <code>{{ s.profileHint }}</code>
+                </div>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <el-button
+                  size="small"
+                  :loading="busyName === s.name && dialogMode === 'update'"
+                  @click="openEdit(s)"
+                >编辑</el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  :loading="busyName === s.name && dialogMode === 'delete'"
+                  @click="onDelete(s)"
+                >删除</el-button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
     </div>
+
+    <SubAgentEditDialog
+      v-if="dialogOpen"
+      :spec="editing"
+      :tool-options="KNOWN_TOOLS"
+      :llm-profile-options="llmProfileNames"
+      :submitting="busyName !== null"
+      :error="dialogError"
+      @close="closeDialog"
+      @submit="onSubmit"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
+// ElMessage / ElMessageBox 由 frontend/src/types/auto-imports.d.ts 全局声明
 import { useSettingsStore } from "../stores/settings.store.ts";
 import type { SubAgentSpecDTO } from "../api/settings.api.ts";
+import SubAgentEditDialog from "./SubAgentEditDialog.vue";
+import type {
+  CreateUserSubAgentInput,
+  UpdateUserSubAgentInput,
+} from "@shared/types/dto/sub-agent.ts";
 
 const store = useSettingsStore();
 
+// 阶段 13（PR #3）：与原有 AgentSpecsTab 的已知工具列表保持一致
 const KNOWN_TOOLS = [
   "current_datetime",
   "list_files",
@@ -96,92 +156,106 @@ const KNOWN_TOOLS = [
   "search_knowledge",
   "read_module",
 ];
-const knownToolsText = KNOWN_TOOLS.join(", ");
 
-const form = ref<{ specs: SubAgentSpecDTO[] } | null>(null);
-const dirty = ref(false);
-const saving = ref(false);
-const conflictMsg = ref<string | null>(null);
-
-function syncFromStore(): void {
-  const snap = store.agentSpecs;
-  if (!snap) {
-    form.value = null;
-    return;
-  }
-  form.value = {
-    specs: Object.values(snap.specs).map((s) => ({
-      name: s.name,
-      displayName: s.displayName,
-      description: s.description,
-      systemPrompt: s.systemPrompt,
-      toolNames: [...s.toolNames],
-      ...(s.profileHint !== undefined ? { profileHint: s.profileHint } : {}),
-    })),
-  };
-  dirty.value = false;
-  conflictMsg.value = null;
-}
-
-watch(() => store.agentSpecs, syncFromStore, { immediate: true });
-
-function onToolsInput(s: SubAgentSpecDTO, raw: string): void {
-  s.toolNames = raw
-    .split(",")
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
-}
-
-const validationError = computed<string | null>(() => {
-  if (!form.value) return null;
-  const seen = new Set<string>();
-  for (const s of form.value.specs) {
-    if (!s.name) return "name 不能为空";
-    if (seen.has(s.name)) return `name 重复: ${s.name}`;
-    seen.add(s.name);
-    if (!s.systemPrompt || s.systemPrompt.trim().length === 0) {
-      return `${s.name}: systemPrompt 不能为空`;
-    }
-    // toolNames 校验（后端会再次校验 ⊆ ToolRegistry）
-    for (const t of s.toolNames) {
-      if (!KNOWN_TOOLS.includes(t)) {
-        return `${s.name}: 未知工具 "${t}"；已知: ${KNOWN_TOOLS.join(", ")}`;
-      }
-    }
-  }
-  return null;
+const snap = computed(() => store.agentSpecs);
+const llmProfileNames = computed<string[]>(() => {
+  const p = store.llmProfiles;
+  if (!p) return [];
+  return p.profiles.map((x) => x.name);
 });
 
-async function onSave(): Promise<void> {
-  if (!form.value) return;
-  if (validationError.value) {
-    conflictMsg.value = validationError.value;
-    return;
-  }
-  saving.value = true;
-  conflictMsg.value = null;
-  const specsMap: Record<string, SubAgentSpecDTO> = {};
-  for (const s of form.value.specs) {
-    specsMap[s.name] = {
-      name: s.name,
-      displayName: s.displayName,
-      description: s.description,
-      systemPrompt: s.systemPrompt,
-      toolNames: s.toolNames,
-      ...(s.profileHint !== undefined && s.profileHint !== "" ? { profileHint: s.profileHint } : {}),
-    };
-  }
-  const r = await store.saveAgentSpecs({ specs: specsMap });
-  saving.value = false;
-  if (r.ok) {
-    dirty.value = false;
-  } else if (r.conflict) {
-    conflictMsg.value = "数据已被其他会话修改，请刷新后重试";
-    await store.loadAgentSpecs();
+const systemSpecs = computed<SubAgentSpecDTO[]>(() => {
+  if (!snap.value) return [];
+  return Object.values(snap.value.specs)
+    .filter((s) => s.type === "system")
+    .sort((a, b) => a.name.localeCompare(b.name));
+});
+
+const userSpecs = computed<SubAgentSpecDTO[]>(() => {
+  if (!snap.value) return [];
+  return Object.values(snap.value.specs)
+    .filter((s) => s.type === "user")
+    .sort((a, b) => a.name.localeCompare(b.name));
+});
+
+// ---- dialog 状态 ----
+
+const dialogOpen = ref(false);
+const dialogMode = ref<"create" | "update" | "delete">("create");
+const editing = ref<SubAgentSpecDTO | undefined>(undefined);
+const busyName = ref<string | null>(null);
+const dialogError = ref<string | null>(null);
+
+function openCreate(): void {
+  editing.value = undefined;
+  dialogMode.value = "create";
+  dialogError.value = null;
+  dialogOpen.value = true;
+}
+
+function openEdit(spec: SubAgentSpecDTO): void {
+  editing.value = spec;
+  dialogMode.value = "update";
+  dialogError.value = null;
+  dialogOpen.value = true;
+}
+
+function closeDialog(): void {
+  dialogOpen.value = false;
+  editing.value = undefined;
+  busyName.value = null;
+  dialogError.value = null;
+}
+
+async function onSubmit(payload:
+  | { mode: "create"; input: CreateUserSubAgentInput }
+  | { mode: "update"; name: string; input: UpdateUserSubAgentInput }
+): Promise<void> {
+  if (payload.mode === "create") {
+    busyName.value = "__new__";
+    const r = await store.createAgentSpec(payload.input);
+    busyName.value = null;
+    if (r.ok) {
+      ElMessage.success("sub-agent 已创建");
+      closeDialog();
+    } else {
+      dialogError.value = r.error;
+    }
+  } else {
+    busyName.value = payload.name;
+    const r = await store.updateAgentSpec(payload.name, payload.input);
+    busyName.value = null;
+    if (r.ok) {
+      ElMessage.success("sub-agent 已更新");
+      closeDialog();
+    } else {
+      dialogError.value = r.error;
+    }
   }
 }
 
-watch(form, () => {
-  dirty.value = true;
-}, { deep: true });
+async function onDelete(spec: SubAgentSpecDTO): Promise<void> {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除用户 sub-agent "${spec.displayName || spec.name}"？此操作不可恢复。`,
+      "删除 sub-agent",
+      {
+        type: "warning",
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+      },
+    );
+  } catch {
+    return; // 用户取消
+  }
+  dialogMode.value = "delete";
+  busyName.value = spec.name;
+  const r = await store.removeAgentSpec(spec.name);
+  busyName.value = null;
+  if (r.ok) {
+    ElMessage.success("sub-agent 已删除");
+  } else {
+    ElMessage.error(r.error);
+  }
+}
 </script>

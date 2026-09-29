@@ -94,6 +94,27 @@
             {{ project.projectIntro || "未填" }}
           </dd>
         </div>
+
+        <div class="flex flex-col gap-1 md:col-span-2">
+          <dt class="flex items-center justify-between text-slate-500">
+            <span>工作区路径</span>
+            <button
+              type="button"
+              class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+              @click="openWorkspaceDialog"
+            >
+              编辑
+            </button>
+          </dt>
+          <dd class="text-slate-800">
+            <code v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
+              {{ project.workspacePath }}
+            </code>
+            <span v-else class="text-slate-500">
+              未设置（默认 ~/Desktop/{{ project.code }}）
+            </span>
+          </dd>
+        </div>
       </dl>
     </article>
 
@@ -135,6 +156,27 @@
       @close="closeEditDialog"
       @submit="onSubmitEdit"
     />
+
+    <!-- 阶段 13（PR #1）：状态变更弹窗（当前仅"中止"，后续 PR 复用同一组件） -->
+    <ProjectStatusChangeDialog
+      v-if="statusDialog"
+      :project="project"
+      :target="statusDialog.target"
+      :submitting="statusSubmitting"
+      :error="statusError"
+      @close="closeStatusDialog"
+      @submit="onSubmitStatusChange"
+    />
+
+    <!-- 阶段 13（PR #2）：工作区路径编辑弹窗 -->
+    <ProjectWorkspaceDialog
+      v-if="workspaceDialog"
+      :project="project"
+      :submitting="workspaceSubmitting"
+      :error="workspaceError"
+      @close="closeWorkspaceDialog"
+      @submit="onSubmitWorkspace"
+    />
   </section>
 
   <section v-else-if="!loading" class="mx-auto p-6 text-sm text-slate-500">
@@ -172,13 +214,23 @@ import EmailComposerDialog from "./components/EmailComposerDialog.vue";
 import HardwareItemsView from "@frontend/features/business-module/components/HardwareItemsView.vue";
 import QuoteView from "@frontend/features/quote/components/QuoteView.vue";
 import ProjectEditDialog from "./components/ProjectEditDialog.vue";
+import ProjectStatusChangeDialog from "./components/ProjectStatusChangeDialog.vue";
+import ProjectWorkspaceDialog from "./components/ProjectWorkspaceDialog.vue";
 import { useEmailComposerStore } from "./stores/email-composer.store.ts";
+import { useProjectStore } from "./stores/project.store.ts";
+import { useAiChatStore } from "@frontend/features/ai-chat/stores/ai-chat.store.ts";
 import { ElMessage } from "element-plus";
-import type { UpdateProjectInput } from "@shared/types/dto/project.ts";
+import type {
+  ChangeProjectStatusInput,
+  ProjectStatusValue,
+  UpdateProjectInput,
+} from "@shared/types/dto/project.ts";
 
 const route = useRoute();
 const emailComposerStore = useEmailComposerStore();
 const router = useRouter();
+const projectStore = useProjectStore();
+const aiChatStore = useAiChatStore();
 
 const project = ref<ProjectDTO | null>(null);
 const loading = ref(false);
@@ -215,6 +267,80 @@ async function onSubmitEdit(input: UpdateProjectInput): Promise<void> {
     editError.value = e instanceof Error ? e.message : String(e);
   } finally {
     editSubmitting.value = false;
+  }
+}
+
+/* ===== 状态变更（PR #1：中止） ===== */
+// "中止"仅在提案中 / 暂停 状态可见；terminal 状态（中标/未中标/中止）不显示
+const ABORTABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中", "暂停"]);
+const canAbort = computed(() => project.value ? ABORTABLE_STATUSES.has(project.value.status) : false);
+
+const statusDialog = ref<{ target: ProjectStatusValue } | null>(null);
+const statusSubmitting = ref(false);
+const statusError = ref<string | null>(null);
+
+function openAbortDialog(): void {
+  if (!project.value) return;
+  statusError.value = null;
+  statusDialog.value = { target: "中止" };
+}
+
+function closeStatusDialog(): void {
+  if (statusSubmitting.value) return;
+  statusDialog.value = null;
+  statusError.value = null;
+}
+
+async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<void> {
+  if (!project.value) return;
+  statusError.value = null;
+  statusSubmitting.value = true;
+  try {
+    const updated = await projectStore.changeStatus(project.value.id, input);
+    project.value = updated;
+    statusDialog.value = null;
+    ElMessage.success(input.target === "中止" ? "项目已中止" : "项目状态已更新");
+  } catch (e) {
+    statusError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    statusSubmitting.value = false;
+  }
+}
+
+/* ===== 工作区路径（PR #2） ===== */
+const workspaceDialog = ref(false);
+const workspaceSubmitting = ref(false);
+const workspaceError = ref<string | null>(null);
+
+function openWorkspaceDialog(): void {
+  if (!project.value) return;
+  workspaceError.value = null;
+  workspaceDialog.value = true;
+}
+
+function closeWorkspaceDialog(): void {
+  if (workspaceSubmitting.value) return;
+  workspaceDialog.value = false;
+  workspaceError.value = null;
+}
+
+async function onSubmitWorkspace(
+  input: { workspacePath: string | null },
+): Promise<void> {
+  if (!project.value) return;
+  workspaceError.value = null;
+  workspaceSubmitting.value = true;
+  try {
+    const updated = await projectStore.setWorkspace(project.value.id, input.workspacePath);
+    project.value = updated;
+    workspaceDialog.value = false;
+    ElMessage.success(
+      input.workspacePath === null ? "已清空工作区路径，回退到默认" : "工作区路径已更新",
+    );
+  } catch (e) {
+    workspaceError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    workspaceSubmitting.value = false;
   }
 }
 
@@ -432,6 +558,8 @@ watch(
   (id) => {
     if (typeof id === "string" && id.length > 0) {
       void load(id);
+      // 阶段 13（PR #4）：跨项目导航时刷新 session 列表。
+      void aiChatStore.loadSessions(id);
     }
   },
   { immediate: true },
@@ -440,6 +568,11 @@ watch(
 onMounted(() => {
   loadNavWidth();
   const id = route.params.id;
-  if (typeof id === "string") void load(id);
+  if (typeof id === "string") {
+    void load(id);
+    // 阶段 13（PR #4）：进项目后让 AI chat 侧边栏显示该项目的 session 列表。
+    // ProjectListView 已经在导航时调过 setCurrentProjectId；这里只需 loadSessions。
+    void aiChatStore.loadSessions(id);
+  }
 });
 </script>

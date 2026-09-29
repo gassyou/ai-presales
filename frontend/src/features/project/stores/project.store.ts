@@ -10,6 +10,7 @@ import {
 } from "@frontend/features/project/api/project.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 import type {
+  ChangeProjectStatusInput,
   CreateProjectInput,
   ProjectDTO,
 } from "@shared/types/dto/project.ts";
@@ -57,13 +58,30 @@ export const useProjectStore = defineStore("project", () => {
     return dto;
   }
 
+  /** 阶段 13（PR #1）：input 透传给后端，由 service 校验必填字段 */
   async function changeStatus(
     id: string,
-    target: ProjectDTO["status"],
+    input: ChangeProjectStatusInput,
   ): Promise<ProjectDTO> {
-    const dto = await projectApi.changeStatus(id, target);
+    const dto = await projectApi.changeStatus(id, input);
     replace(dto);
     return dto;
+  }
+
+  /** 阶段 13（PR #2）：设置 / 清空项目工作区路径 */
+  async function setWorkspace(
+    id: string,
+    workspacePath: string | null,
+  ): Promise<ProjectDTO> {
+    const dto = await projectApi.setWorkspace(id, workspacePath);
+    replace(dto);
+    return dto;
+  }
+
+  /** 阶段 13（PR #2）：查询当前生效的工作区路径 */
+  async function resolveWorkspace(id: string): Promise<string> {
+    const { resolvedPath } = await projectApi.resolveWorkspace(id);
+    return resolvedPath;
   }
 
   async function remove(id: string): Promise<void> {
@@ -88,6 +106,8 @@ export const useProjectStore = defineStore("project", () => {
     create,
     rename,
     changeStatus,
+    setWorkspace,
+    resolveWorkspace,
     remove,
   };
 });

@@ -36,7 +36,11 @@ import type { Logger } from "@backend/infrastructure/logging/logger.ts";
 
 export interface ResolveProjectArgs {
   /** projectRepo / contactsRepo / 等的"按 token 找项目"接口 */
-  readonly projectRepo: { findByMentionToken(token: string): Promise<{ id: ProjectId; code: string; name: string; status: string } | null> };
+  readonly projectRepo: {
+    findByMentionToken(
+      token: string,
+    ): Promise<{ id: ProjectId; code: string; name: string; status: string } | null>;
+  };
 }
 
 async function resolveProjectId(
@@ -85,10 +89,10 @@ export interface WriteProjectStatusToolDeps {
   logger: Logger;
 }
 
-export class WriteProjectStatusTool implements Tool<WriteProjectStatusArgs, WriteProjectStatusResult> {
+export class WriteProjectStatusTool
+  implements Tool<WriteProjectStatusArgs, WriteProjectStatusResult> {
   readonly name = "write_project_status";
-  readonly description =
-    "修改一个项目的状态。可选值：新建 / 进行中 / 已完成 / 已搁置。" +
+  readonly description = "修改一个项目的状态。可选值：新建 / 进行中 / 已完成 / 已搁置。" +
     "通常用在项目推进阶段切换（开始 / 完成 / 搁置）。" +
     "传 dryRun=true 时不实际写入，仅描述会做什么；默认 false。";
   readonly inputSchema = {
@@ -111,7 +115,10 @@ export class WriteProjectStatusTool implements Tool<WriteProjectStatusArgs, Writ
 
   constructor(private readonly deps: WriteProjectStatusToolDeps) {}
 
-  async execute(args: WriteProjectStatusArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<WriteProjectStatusResult>> {
+  async execute(
+    args: WriteProjectStatusArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<WriteProjectStatusResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     if (args.status === proj.status) {
@@ -142,7 +149,14 @@ export class WriteProjectStatusTool implements Tool<WriteProjectStatusArgs, Writ
       }
     }
     if (args.dryRun) {
-      return ok({ projectId: proj.id, projectCode: proj.code, projectName: proj.name, fromStatus: proj.status, toStatus: args.status, dryRun: true });
+      return ok({
+        projectId: proj.id,
+        projectCode: proj.code,
+        projectName: proj.name,
+        fromStatus: proj.status,
+        toStatus: args.status,
+        dryRun: true,
+      });
     }
     // 阶段 1：组装 payload（按目标状态映射字段名）
     let payload: Parameters<typeof this.deps.projectService.changeProjectStatus>[2] | undefined;
@@ -168,8 +182,19 @@ export class WriteProjectStatusTool implements Tool<WriteProjectStatusArgs, Writ
       payload,
     );
     if (!result.ok) return fail(result.error.message);
-    this.deps.logger.info("write_project_status", { projectId: proj.id, from: proj.status, to: args.status });
-    return ok({ projectId: proj.id, projectCode: proj.code, projectName: proj.name, fromStatus: proj.status, toStatus: args.status, dryRun: false });
+    this.deps.logger.info("write_project_status", {
+      projectId: proj.id,
+      from: proj.status,
+      to: args.status,
+    });
+    return ok({
+      projectId: proj.id,
+      projectCode: proj.code,
+      projectName: proj.name,
+      fromStatus: proj.status,
+      toStatus: args.status,
+      dryRun: false,
+    });
   }
 }
 
@@ -204,8 +229,7 @@ export interface CreateActivityToolDeps {
 
 export class CreateActivityTool implements Tool<CreateActivityArgs, CreateActivityResult> {
   readonly name = "create_activity";
-  readonly description =
-    "在指定项目的『项目推进活动计划』里新增一条活动。" +
+  readonly description = "在指定项目的『项目推进活动计划』里新增一条活动。" +
     "必填 title（活动名称），可选 planDate（YYYY-MM-DD）/ clientContactName / content。" +
     "活动状态默认『计划中』，可后续用 update_activity_status 切换为『已完成 / 已搁置』。" +
     "传 dryRun=true 时不实际创建，仅返会生成的活动 id 占位。";
@@ -227,7 +251,10 @@ export class CreateActivityTool implements Tool<CreateActivityArgs, CreateActivi
 
   constructor(private readonly deps: CreateActivityToolDeps) {}
 
-  async execute(args: CreateActivityArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<CreateActivityResult>> {
+  async execute(
+    args: CreateActivityArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<CreateActivityResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     if (!args.title.trim()) return fail("title is required");
@@ -295,7 +322,8 @@ export interface CreateFunctionListItemToolDeps {
 
 const ALLOWED_CP = [0, 1, 3, 5, 8, 13, 20] as const;
 
-export class CreateFunctionListItemTool implements Tool<CreateFunctionListItemArgs, CreateFunctionListItemResult> {
+export class CreateFunctionListItemTool
+  implements Tool<CreateFunctionListItemArgs, CreateFunctionListItemResult> {
   readonly name = "create_function_list_item";
   readonly description =
     "在指定项目的『功能清单』里新增一条功能项。必填 category/module/name 三级，" +
@@ -319,7 +347,10 @@ export class CreateFunctionListItemTool implements Tool<CreateFunctionListItemAr
 
   constructor(private readonly deps: CreateFunctionListItemToolDeps) {}
 
-  async execute(args: CreateFunctionListItemArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<CreateFunctionListItemResult>> {
+  async execute(
+    args: CreateFunctionListItemArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<CreateFunctionListItemResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     if (!args.category.trim() || !args.module.trim() || !args.name.trim()) {
@@ -331,7 +362,16 @@ export class CreateFunctionListItemTool implements Tool<CreateFunctionListItemAr
     }
     const inScope = args.inScope ?? true;
     if (args.dryRun) {
-      return ok({ itemId: "(dry-run)", projectId: proj.id, category: args.category, module: args.module, name: args.name, cp, inScope, dryRun: true });
+      return ok({
+        itemId: "(dry-run)",
+        projectId: proj.id,
+        category: args.category,
+        module: args.module,
+        name: args.name,
+        cp,
+        inScope,
+        dryRun: true,
+      });
     }
     // 后端需要非空 title（CreateItemInput 校验）；拼一个
     const composedTitle = `${args.category} / ${args.module} / ${args.name}`;
@@ -348,7 +388,16 @@ export class CreateFunctionListItemTool implements Tool<CreateFunctionListItemAr
     });
     if (!r.ok) return fail(r.error.message);
     this.deps.logger.info("create_function_list_item", { projectId: proj.id, itemId: r.value.id });
-    return ok({ itemId: r.value.id, projectId: proj.id, category: args.category, module: args.module, name: args.name, cp, inScope, dryRun: false });
+    return ok({
+      itemId: r.value.id,
+      projectId: proj.id,
+      category: args.category,
+      module: args.module,
+      name: args.name,
+      cp,
+      inScope,
+      dryRun: false,
+    });
   }
 }
 
@@ -394,10 +443,10 @@ export interface UpdateMarkdownModuleToolDeps {
   logger: Logger;
 }
 
-export class UpdateMarkdownModuleTool implements Tool<UpdateMarkdownModuleArgs, UpdateMarkdownModuleResult> {
+export class UpdateMarkdownModuleTool
+  implements Tool<UpdateMarkdownModuleArgs, UpdateMarkdownModuleResult> {
   readonly name = "update_markdown_module";
-  readonly description =
-    "写入/覆盖某个项目的某个 markdown 模块的正文。" +
+  readonly description = "写入/覆盖某个项目的某个 markdown 模块的正文。" +
     "kind 取值：business_current / pain_point / improvement / proposal / " +
     "non_functional / it_environment / risk / to_be / roi / precondition / hardware_cost。" +
     "调用示例：write『构想方案』可传 kind=proposal, content=完整 Markdown 正文。" +
@@ -419,7 +468,10 @@ export class UpdateMarkdownModuleTool implements Tool<UpdateMarkdownModuleArgs, 
 
   constructor(private readonly deps: UpdateMarkdownModuleToolDeps) {}
 
-  async execute(args: UpdateMarkdownModuleArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<UpdateMarkdownModuleResult>> {
+  async execute(
+    args: UpdateMarkdownModuleArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<UpdateMarkdownModuleResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     if (!ALLOWED_MARKDOWN_KINDS.includes(args.kind)) {
@@ -444,8 +496,19 @@ export class UpdateMarkdownModuleTool implements Tool<UpdateMarkdownModuleArgs, 
         ...(args.title ? { title: args.title } : {}),
       });
       if (!r.ok) return fail(r.error.message);
-      this.deps.logger.info("update_markdown_module", { projectId: proj.id, kind: args.kind, itemId: r.value.id });
-      return ok({ itemId: r.value.id, projectId: proj.id, kind: args.kind, title: r.value.title, contentLength: args.content.length, dryRun: false });
+      this.deps.logger.info("update_markdown_module", {
+        projectId: proj.id,
+        kind: args.kind,
+        itemId: r.value.id,
+      });
+      return ok({
+        itemId: r.value.id,
+        projectId: proj.id,
+        kind: args.kind,
+        title: r.value.title,
+        contentLength: args.content.length,
+        dryRun: false,
+      });
     }
     const defaultTitle = args.title ?? "";
     if (!defaultTitle) return fail("title is required when creating a new module");
@@ -454,8 +517,19 @@ export class UpdateMarkdownModuleTool implements Tool<UpdateMarkdownModuleArgs, 
       content: args.content,
     });
     if (!r.ok) return fail(r.error.message);
-    this.deps.logger.info("update_markdown_module (new)", { projectId: proj.id, kind: args.kind, itemId: r.value.id });
-    return ok({ itemId: r.value.id, projectId: proj.id, kind: args.kind, title: r.value.title, contentLength: args.content.length, dryRun: false });
+    this.deps.logger.info("update_markdown_module (new)", {
+      projectId: proj.id,
+      kind: args.kind,
+      itemId: r.value.id,
+    });
+    return ok({
+      itemId: r.value.id,
+      projectId: proj.id,
+      kind: args.kind,
+      title: r.value.title,
+      contentLength: args.content.length,
+      dryRun: false,
+    });
   }
 }
 
@@ -490,7 +564,8 @@ export interface SaveQuestionnaireOutlineToolDeps {
   logger: Logger;
 }
 
-export class SaveQuestionnaireOutlineTool implements Tool<SaveQuestionnaireOutlineArgs, SaveQuestionnaireOutlineResult> {
+export class SaveQuestionnaireOutlineTool
+  implements Tool<SaveQuestionnaireOutlineArgs, SaveQuestionnaireOutlineResult> {
   readonly name = "save_questionnaire_outline";
   readonly description =
     "保存指定项目的调查问卷脑图大纲。结构：根 → 分类（category）→ 问题（question）。" +
@@ -505,7 +580,7 @@ export class SaveQuestionnaireOutlineTool implements Tool<SaveQuestionnaireOutli
         type: "object",
         required: ["text", "children"],
         properties: {
-          text: { type: "string", description: "根节点文本（通常固定为\"调查主题\"）" },
+          text: { type: "string", description: '根节点文本（通常固定为"调查主题"）' },
           children: { type: "array", description: "二级 children 数组（通常每个代表一个分类）" },
         },
       },
@@ -518,7 +593,10 @@ export class SaveQuestionnaireOutlineTool implements Tool<SaveQuestionnaireOutli
 
   constructor(private readonly deps: SaveQuestionnaireOutlineToolDeps) {}
 
-  async execute(args: SaveQuestionnaireOutlineArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<SaveQuestionnaireOutlineResult>> {
+  async execute(
+    args: SaveQuestionnaireOutlineArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<SaveQuestionnaireOutlineResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     const nodeCount = 1 + countAllDescendants(args.root);
@@ -527,7 +605,11 @@ export class SaveQuestionnaireOutlineTool implements Tool<SaveQuestionnaireOutli
     }
     const r = await this.deps.surveyQuestionnaireUseCase.saveOutline(proj.id, args.root as never);
     if (!r.ok) return fail(r.error.message);
-    this.deps.logger.info("save_questionnaire_outline", { projectId: proj.id, outlineId: r.value.id, nodeCount });
+    this.deps.logger.info("save_questionnaire_outline", {
+      projectId: proj.id,
+      outlineId: r.value.id,
+      nodeCount,
+    });
     return ok({ outlineId: r.value.id, projectId: proj.id, nodeCount, dryRun: false });
   }
 }
@@ -567,8 +649,7 @@ export interface SetPrimaryContactToolDeps {
 
 export class SetPrimaryContactTool implements Tool<SetPrimaryContactArgs, SetPrimaryContactResult> {
   readonly name = "set_primary_contact";
-  readonly description =
-    "把指定项目的某个联系人标记为主联系人（一个项目只能有一个主联系人）。" +
+  readonly description = "把指定项目的某个联系人标记为主联系人（一个项目只能有一个主联系人）。" +
     "按 contactName 匹配；已存在主联系人会被自动取消。" +
     "传 dryRun=true 时不实际修改。";
   readonly inputSchema = {
@@ -586,7 +667,10 @@ export class SetPrimaryContactTool implements Tool<SetPrimaryContactArgs, SetPri
 
   constructor(private readonly deps: SetPrimaryContactToolDeps) {}
 
-  async execute(args: SetPrimaryContactArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<SetPrimaryContactResult>> {
+  async execute(
+    args: SetPrimaryContactArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<SetPrimaryContactResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     const contacts = await this.deps.contactsRepo.listByProject(proj.id);
@@ -596,12 +680,32 @@ export class SetPrimaryContactTool implements Tool<SetPrimaryContactArgs, SetPri
       return fail(`contact ${args.contactName} is already the primary contact`);
     }
     if (args.dryRun) {
-      return ok({ contactId: target.id, projectId: proj.id, name: target.name, isPrimary: true, dryRun: true });
+      return ok({
+        contactId: target.id,
+        projectId: proj.id,
+        name: target.name,
+        isPrimary: true,
+        dryRun: true,
+      });
     }
-    const r = await this.deps.contactsRepo.update(target.id, { isPrimary: true }, this.deps.clock.now());
+    const r = await this.deps.contactsRepo.update(
+      target.id,
+      { isPrimary: true },
+      this.deps.clock.now(),
+    );
     if (!r.ok) return fail(r.error.message);
-    this.deps.logger.info("set_primary_contact", { projectId: proj.id, contactId: target.id, name: target.name });
-    return ok({ contactId: target.id, projectId: proj.id, name: target.name, isPrimary: true, dryRun: false });
+    this.deps.logger.info("set_primary_contact", {
+      projectId: proj.id,
+      contactId: target.id,
+      name: target.name,
+    });
+    return ok({
+      contactId: target.id,
+      projectId: proj.id,
+      name: target.name,
+      isPrimary: true,
+      dryRun: false,
+    });
   }
 }
 
@@ -653,7 +757,10 @@ export class CreateSurveyTaskTool implements Tool<CreateSurveyTaskArgs, CreateSu
 
   constructor(private readonly deps: CreateSurveyTaskToolDeps) {}
 
-  async execute(args: CreateSurveyTaskArgs, _ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<CreateSurveyTaskResult>> {
+  async execute(
+    args: CreateSurveyTaskArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<CreateSurveyTaskResult>> {
     const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
     if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
     if (!args.title.trim()) return fail("title is required");
@@ -680,6 +787,199 @@ export class CreateSurveyTaskTool implements Tool<CreateSurveyTaskArgs, CreateSu
       title: r.value.title,
       ...(args.topicHint ? { topicHint: args.topicHint } : {}),
       dryRun: false,
+    });
+  }
+}
+
+// ===== 8. set_project_workspace =====
+//
+// 写工具；设置项目工作区路径。createIfMissing=true 时若目录不存在则 mkdir 递归创建。
+// null 表示清空（回退到默认 ~/Desktop/<projectCode>）。
+
+export interface SetProjectWorkspaceArgs {
+  projectCodeOrName: string;
+  /** 工作区绝对路径；null 表示清空（回退到默认） */
+  workspacePath: string | null;
+  /** 路径不存在时是否创建（默认 true；createIfMissing=false 时不存在则报 WORKSPACE_NOT_EXISTS） */
+  createIfMissing?: boolean;
+  /** 仅当 dryRun=true 时不实际写入 */
+  dryRun?: boolean;
+}
+
+export interface SetProjectWorkspaceResult {
+  readonly projectId: string;
+  readonly projectCode: string;
+  readonly projectName: string;
+  readonly resolvedPath: string;
+  readonly created: boolean;
+  readonly existed: boolean;
+  readonly cleared: boolean;
+  readonly dryRun: boolean;
+}
+
+export interface SetProjectWorkspaceToolDeps {
+  projectService: ProjectService;
+  projectRepo: ResolveProjectArgs["projectRepo"];
+  logger: Logger;
+}
+
+export class SetProjectWorkspaceTool
+  implements Tool<SetProjectWorkspaceArgs, SetProjectWorkspaceResult> {
+  readonly name = "set_project_workspace";
+  readonly description = "设置或清空项目的工作区路径。AI 工具会以这个路径作为 cwd 启动。" +
+    "传 null 表示清空，回退到默认 ~/Desktop/<项目编号>。" +
+    "createIfMissing=true 时若目录不存在会 mkdir 递归创建（默认 true）。" +
+    "传 dryRun=true 时不实际写入。";
+  readonly inputSchema = {
+    type: "object",
+    required: ["projectCodeOrName"],
+    properties: {
+      projectCodeOrName: { type: "string", description: "项目编号或名称" },
+      workspacePath: {
+        type: ["string", "null"],
+        description: "工作区绝对路径；null 表示清空回退到默认",
+      },
+      createIfMissing: { type: "boolean", default: true },
+      dryRun: { type: "boolean", default: false },
+    },
+    additionalProperties: false,
+  };
+  readonly requiresApproval = true;
+  readonly sideEffect = "write" as const;
+
+  constructor(private readonly deps: SetProjectWorkspaceToolDeps) {}
+
+  async execute(
+    args: SetProjectWorkspaceArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<SetProjectWorkspaceResult>> {
+    const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
+    if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
+
+    const cleared = args.workspacePath === null;
+    if (typeof args.workspacePath === "string") {
+      const trimmed = args.workspacePath.trim();
+      if (trimmed.length === 0) {
+        return fail("workspacePath must be a non-empty path or null");
+      }
+      const looksAbsolute = trimmed.startsWith("/") || /^[A-Za-z]:[\\/]/.test(trimmed);
+      if (!looksAbsolute) {
+        return fail(`workspacePath must be absolute: ${trimmed}`);
+      }
+    }
+
+    if (args.dryRun) {
+      return ok({
+        projectId: proj.id,
+        projectCode: proj.code,
+        projectName: proj.name,
+        resolvedPath: "",
+        created: false,
+        existed: true,
+        cleared,
+        dryRun: true,
+      });
+    }
+
+    if (cleared) {
+      const r = await this.deps.projectService.setWorkspace(proj.id, null);
+      if (!r.ok) return fail(r.error.message);
+      this.deps.logger.info("set_project_workspace", {
+        projectId: proj.id,
+        cleared: true,
+      });
+      return ok({
+        projectId: proj.id,
+        projectCode: proj.code,
+        projectName: proj.name,
+        resolvedPath: r.value.workspacePath ?? "",
+        created: false,
+        existed: true,
+        cleared: true,
+        dryRun: false,
+      });
+    }
+
+    const r = await this.deps.projectService.ensureWorkspace(proj.id, {
+      createIfMissing: args.createIfMissing ?? true,
+    });
+    if (!r.ok) return fail(r.error.message);
+    this.deps.logger.info("set_project_workspace", {
+      projectId: proj.id,
+      path: r.value.path,
+      created: r.value.created,
+    });
+    return ok({
+      projectId: proj.id,
+      projectCode: proj.code,
+      projectName: proj.name,
+      resolvedPath: r.value.path,
+      created: r.value.created,
+      existed: r.value.existed,
+      cleared: false,
+      dryRun: false,
+    });
+  }
+}
+
+// ===== 9. resolve_project_workspace =====
+//
+// 只读工具；查询项目当前生效的工作区路径（用户设置优先，否则 fallback）。
+
+export interface ResolveProjectWorkspaceArgs {
+  projectCodeOrName: string;
+}
+
+export interface ResolveProjectWorkspaceResult {
+  readonly projectId: string;
+  readonly projectCode: string;
+  readonly projectName: string;
+  readonly resolvedPath: string;
+  readonly source: "stored" | "default";
+}
+
+export interface ResolveProjectWorkspaceToolDeps {
+  projectService: ProjectService;
+  projectRepo: ResolveProjectArgs["projectRepo"];
+  logger: Logger;
+}
+
+export class ResolveProjectWorkspaceTool
+  implements Tool<ResolveProjectWorkspaceArgs, ResolveProjectWorkspaceResult> {
+  readonly name = "resolve_project_workspace";
+  readonly description =
+    "查询项目当前生效的工作区路径（用户显式设置优先，否则按 ~/Desktop/<项目编号> fallback）。" +
+    "AI 工具启动前可用这个工具拿路径，作为 Read/list_files 等文件操作工具的 cwd 参考。";
+  readonly inputSchema = {
+    type: "object",
+    required: ["projectCodeOrName"],
+    properties: {
+      projectCodeOrName: { type: "string", description: "项目编号或名称" },
+    },
+    additionalProperties: false,
+  };
+  readonly requiresApproval = false;
+  readonly sideEffect: "read" = "read";
+
+  constructor(private readonly deps: ResolveProjectWorkspaceToolDeps) {}
+
+  async execute(
+    args: ResolveProjectWorkspaceArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<ResolveProjectWorkspaceResult>> {
+    const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
+    if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
+    const r = await this.deps.projectService.resolveWorkspacePath(proj.id);
+    if (!r.ok) return fail(r.error.message);
+    // 区分 source：直接读 snapshot 比较
+    const snap = await this.deps.projectService.getProject(proj.id);
+    const source = snap.ok && snap.value.workspacePath ? "stored" : "default";
+    return ok({
+      projectId: proj.id,
+      projectCode: proj.code,
+      projectName: proj.name,
+      resolvedPath: r.value,
+      source,
     });
   }
 }
@@ -736,6 +1036,16 @@ export function buildWriteableTools(deps: WriteableToolsDeps): import("../tool.t
     }),
     new CreateSurveyTaskTool({
       surveyTaskUseCase: deps.surveyTaskUseCase,
+      projectRepo: deps.projectRepo,
+      logger: deps.logger,
+    }),
+    new SetProjectWorkspaceTool({
+      projectService: deps.projectService,
+      projectRepo: deps.projectRepo,
+      logger: deps.logger,
+    }),
+    new ResolveProjectWorkspaceTool({
+      projectService: deps.projectService,
       projectRepo: deps.projectRepo,
       logger: deps.logger,
     }),
