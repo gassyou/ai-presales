@@ -36,7 +36,7 @@
         :title="store.autoApprove
           ? '当前会话：所有工具自动执行（关掉恢复逐个审批）'
           : '当前会话：每个需审批的工具会问你（开启后全部自动执行）'"
-        @update:model-value="onAutoApproveChange"
+        @update:model-value="(v) => onAutoApproveChange(!!v)"
       />
     </div>
 

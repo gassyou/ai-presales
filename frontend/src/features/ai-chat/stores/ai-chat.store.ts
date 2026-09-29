@@ -9,7 +9,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { aiChatApi } from "../api/ai-chat.api.ts";
 import { subAgentApi } from "@frontend/features/sub-agent/api/sub-agent.api.ts";
-import { chatSessionApi } from "../api/chat-session.api.ts";
+import { chatSessionApi, type ChatSessionDTO } from "../api/chat-session.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 import type { ChatMessage, ToolCallEntry } from "../types.ts";
@@ -236,9 +236,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
   /** 当前会话 id；null = 未选（默认新对话） */
   const currentSessionId = ref<string | null>(null);
   /** session 列表 */
-  const sessions = ref<
-    { id: string; projectId: string | null; title: string; createdAt: string; updatedAt: string }[]
-  >([]);
+  const sessions = ref<ChatSessionDTO[]>([]);
   /** 加载会话列表（通常 mount 时） */
   async function loadSessions(projectId: string | null): Promise<void> {
     try {
