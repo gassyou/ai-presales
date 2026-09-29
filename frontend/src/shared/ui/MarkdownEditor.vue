@@ -178,8 +178,8 @@ function onChange(v: string): void {
   background: #f8fafc;
 }
 
-/* 最小高度：保证空内容时编辑器仍有合理体积 */
+/* 移除 min-height：让父容器 (MarkdownModuleView) 通过 flex-1 撑开 */
 .md-editor-wrapper :deep(.bytemd) {
-  min-height: 320px;
+  flex: 1 1 auto;
 }
 </style>
