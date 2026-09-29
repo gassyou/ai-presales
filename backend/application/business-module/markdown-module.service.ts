@@ -38,6 +38,8 @@ const KIND_TO_TITLE: Record<string, string> = {
   markdown_roi: "ROI 分析",
   markdown_precondition: "案件前提条件",
   markdown_hardware_cost: "硬件设备成本",
+  // 阶段 B2：交付物清单（markdown 页面）
+  markdown_deliverable: "交付物清单",
 };
 
 export function moduleTitle(kind: BusinessModuleKind): string {
@@ -218,6 +220,33 @@ const KIND_TO_TEMPLATE: Record<string, string> = {
 - 含税合计：…
 
 `,
+  // 阶段 B2：交付物清单模板
+  markdown_deliverable: `# 交付物清单
+
+## 主要交付物
+- 交付物 1：…
+  - 类型：
+  - 负责人：
+  - 交付日期：
+  - 状态：
+- 交付物 2：…
+  - 类型：
+  - 负责人：
+  - 交付日期：
+  - 状态：
+
+## 文档类
+- …
+
+## 软件类
+- …
+
+## 服务类
+- …
+
+## 备注
+- …
+`,
 };
 
 /**
@@ -236,6 +265,8 @@ const KIND_TO_SYSTEM_PROMPT: Record<string, string> = {
   markdown_roi: "请基于以下项目背景信息撰写「ROI 分析」章节 markdown。要求覆盖投入（软件/硬件/实施服务）、收益（直接/间接）、回收期（静态/动态）、五年累计 ROI 4 节；不要杜撰金额；信息不足时标注 TBD。",
   markdown_precondition: "请基于以下项目背景信息撰写「案件前提条件」章节 markdown。要求覆盖客户侧前提（组织/资源）、我方前提（人力投入/交付承诺）、商务前提（付款条件/知识产权）3 节；不要杜撰客户名 / 金额；信息不足时标注 TBD。",
   markdown_hardware_cost: "请基于以下项目背景信息撰写「硬件设备成本」章节 markdown。要求覆盖硬件清单表（类别/设备/数量/单价/小计 5 列；服务器/网络/存储/终端至少 3 类）、合计（硬件小计/含税合计）2 节；不要杜撰金额；信息不足时标注 TBD。",
+  // 阶段 B2：交付物清单 sub-agent prompt
+  markdown_deliverable: "请基于以下项目背景信息撰写「交付物清单」章节 markdown。要求覆盖主要交付物（每条含类型/负责人/交付日期/状态）、文档类、软件类、服务类 4 节；不要杜撰客户名 / 金额；信息不足时标注 TBD。",
 };
 
 /**
@@ -256,6 +287,8 @@ const KIND_TO_SUBAGENT: Record<string, string> = {
   markdown_roi: "markdown-author",
   markdown_precondition: "markdown-author",
   markdown_hardware_cost: "markdown-author",
+  // 阶段 B2：交付物清单 → 通用 markdown-author
+  markdown_deliverable: "markdown-author",
 };
 
 /** 阶段 7.5（H4）：可选注入 sub-agent 调用闭包；未注入时退化为模板占位 */

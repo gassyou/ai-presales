@@ -44,7 +44,8 @@ export type BusinessModuleKind =
   | "markdown_to_be"                 // TO-BE
   | "markdown_roi"                   // ROI
   | "markdown_precondition"          // 案件前提条件
-  | "markdown_hardware_cost";        // 硬件设备成本
+  | "markdown_hardware_cost"        // 硬件设备成本
+  | "markdown_deliverable";          // 阶段 B2：交付物清单（markdown 页面）
 
 /** 是否属于"纯 markdown 内容"形态（共用一套 UI） */
 export function isMarkdownKind(kind: BusinessModuleKind): boolean {
