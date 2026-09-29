@@ -166,7 +166,6 @@ import QuestionnaireView from "@frontend/features/business-module/components/Que
 import MarkdownModuleView from "@frontend/features/business-module/components/MarkdownModuleView.vue";
 import UseCaseView from "@frontend/features/business-module/components/UseCaseView.vue";
 import DeliverableView from "@frontend/features/business-module/components/DeliverableView.vue";
-import ReviewView from "@frontend/features/business-module/components/ReviewView.vue";
 import FunctionListView from "@frontend/features/business-module/components/FunctionListView.vue";
 import BudgetSettingsView from "@frontend/features/business-module/components/BudgetSettingsView.vue";
 import BudgetSummaryView from "@frontend/features/business-module/components/BudgetSummaryView.vue";
@@ -292,7 +291,7 @@ type ModuleKey =
   | "md_proposal" | "md_non_functional" | "md_it_environment"
   | "md_risk" | "md_to_be" | "md_roi" | "md_precondition"
   | "md_hardware_cost"
-  | "use-case" | "deliverable" | "review"
+  | "use-case" | "deliverable"
   | "function-list" | "budget-settings" | "budget-summary"
   | "hardware-items" | "quote"
   | "ppt" | "custom-pages"
@@ -324,7 +323,6 @@ const navGroups: Array<{ key: string; label: string; items: Array<{ key: ModuleK
       { key: "md_precondition", label: "案件前提条件" },
       { key: "use-case", label: "核心系统用例" },
       { key: "deliverable", label: "交付物清单" },
-      { key: "review", label: "方案 Review" },
       { key: "custom-pages", label: "自定义页面" },
     ],
   },
@@ -384,7 +382,6 @@ const activeComponent = computed(() => {
     case "questionnaire": return markRaw(QuestionnaireView);
     case "use-case": return markRaw(UseCaseView);
     case "deliverable": return markRaw(DeliverableView);
-    case "review": return markRaw(ReviewView);
     case "function-list": return markRaw(FunctionListView);
     case "budget-settings": return markRaw(BudgetSettingsView);
     case "budget-summary": return markRaw(BudgetSummaryView);
