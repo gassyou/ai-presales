@@ -53,26 +53,77 @@
             </a>
         </span>
       </div>
-
       <div class="flex flex-wrap items-center gap-2">
         <KnowledgeStatusBadge :project-id="project.id" />
-        <!-- 阶段 B1：移除 ProjectDetailView 顶部「生成报价单」按钮（QuoteView 模块内部已有同名按钮；避免两个入口导致 UX 歧义） -->
-        <button
-          type="button"
-          class="inline-flex h-8 items-center gap-1.5 rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
-          @click="onOpenEmail"
-        >
-          <span>发送邮件</span>
-        </button>
-        <button
-          type="button"
-          class="text-xs text-slate-500 underline-offset-4 hover:text-accent hover:underline"
-          @click="goBack"
-        >
-          返回列表
-        </button>
+        <!-- 阶段 1（task20）：主按钮区 —— 状态正向结果（高亮） -->
+        <div v-if="canDecideResult" class="flex items-center gap-2">
+          <el-button
+            v-if="canMarkWon"
+            type="success"
+            size="small"
+            :loading="statusSubmitting && statusDialog?.target === '中标'"
+            @click="openStatusDialog('中标')"
+          >
+            <span class="mr-1">✓</span>中标
+          </el-button>
+          <el-button
+            v-if="canMarkLost"
+            type="warning"
+            size="small"
+            :loading="statusSubmitting && statusDialog?.target === '未中标'"
+            @click="openStatusDialog('未中标')"
+          >
+            <span class="mr-1">✗</span>未中标
+          </el-button>
+        </div>
+        <!-- 阶段 1（task20）：次按钮区 —— 流程控制（link 风格，避免误操作） -->
+        <div class="flex items-center gap-3">
+          <button
+            v-if="canPause"
+            type="button"
+            class="text-xs text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+            @click="openStatusDialog('暂停')"
+          >暂停</button>
+          <button
+            v-if="canAbort"
+            type="button"
+            class="text-xs text-slate-500 underline-offset-4 hover:text-red-700 hover:underline"
+            @click="openAbortDialog"
+          >中止</button>
+          <button
+            type="button"
+            class="text-xs text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+            @click="onOpenEmail"
+          >发送邮件</button>
+          <button
+            type="button"
+            class="text-xs text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+            @click="goBack"
+          >返回列表</button>
+        </div>
       </div>
     </header>
+
+    <div class="flex flex-col gap-1 md:col-span-2">
+      <dt class="flex items-center justify-between text-slate-500">
+        <span>工作区路径</span>
+        <button
+          type="button"
+          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+          @click="openWorkspaceDialog"
+        >
+          编辑
+        </button>
+      </dt>
+      <dd class="text-slate-800">
+        <code v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
+          {{ project.workspacePath }}
+        </code>
+        <span v-else class="text-slate-500">
+          未设置（默认 ~/Desktop/{{ project.code }}）
+        </span>
+      </dd>
+    </div>
 
     <div v-if="loadError" class="rounded border border-red-700 bg-red-900/20 px-4 py-2 text-sm text-red-300">
       加载失败：{{ loadError }}
@@ -93,28 +144,7 @@
           <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">
             {{ project.projectIntro || "未填" }}
           </dd>
-        </div>
-
-        <div class="flex flex-col gap-1 md:col-span-2">
-          <dt class="flex items-center justify-between text-slate-500">
-            <span>工作区路径</span>
-            <button
-              type="button"
-              class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
-              @click="openWorkspaceDialog"
-            >
-              编辑
-            </button>
-          </dt>
-          <dd class="text-slate-800">
-            <code v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
-              {{ project.workspacePath }}
-            </code>
-            <span v-else class="text-slate-500">
-              未设置（默认 ~/Desktop/{{ project.code }}）
-            </span>
-          </dd>
-        </div>
+        </div>    
       </dl>
     </article>
 
@@ -270,19 +300,32 @@ async function onSubmitEdit(input: UpdateProjectInput): Promise<void> {
   }
 }
 
-/* ===== 状态变更（PR #1：中止） ===== */
-// "中止"仅在提案中 / 暂停 状态可见；terminal 状态（中标/未中标/中止）不显示
-const ABORTABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中", "暂停"]);
-const canAbort = computed(() => project.value ? ABORTABLE_STATUSES.has(project.value.status) : false);
+/* ===== 状态变更（PR #1 中止；task20 扩展 中标/未中标/暂停） ===== */
+// 4 个目标状态的可见性矩阵（基于状态机 TRANSITIONS）
+// - 中标/未中标：提案中 / 暂停 → 可达
+// - 暂停：仅提案中 → 暂停（已暂停不可重复）
+// - 中止：提案中 / 暂停 → 可达
+const DECIDABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中", "暂停"]);
+const PAUSABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中"]);
+
+const canMarkWon = computed(() => project.value ? DECIDABLE_STATUSES.has(project.value.status) : false);
+const canMarkLost = computed(() => project.value ? DECIDABLE_STATUSES.has(project.value.status) : false);
+const canAbort = computed(() => project.value ? DECIDABLE_STATUSES.has(project.value.status) : false);
+const canPause = computed(() => project.value ? PAUSABLE_STATUSES.has(project.value.status) : false);
+const canDecideResult = computed(() => canMarkWon.value || canMarkLost.value);
 
 const statusDialog = ref<{ target: ProjectStatusValue } | null>(null);
 const statusSubmitting = ref(false);
 const statusError = ref<string | null>(null);
 
-function openAbortDialog(): void {
+function openStatusDialog(target: ProjectStatusValue): void {
   if (!project.value) return;
   statusError.value = null;
-  statusDialog.value = { target: "中止" };
+  statusDialog.value = { target };
+}
+
+function openAbortDialog(): void {
+  openStatusDialog("中止");
 }
 
 function closeStatusDialog(): void {
@@ -290,6 +333,15 @@ function closeStatusDialog(): void {
   statusDialog.value = null;
   statusError.value = null;
 }
+
+const STATUS_SUCCESS_LABEL: Record<ProjectStatusValue, string> = {
+  "新建": "项目已新建",
+  "提案中": "项目已进入提案中",
+  "暂停": "项目已暂停",
+  "中标": "项目已中标 🎉",
+  "未中标": "项目已标记为未中标",
+  "中止": "项目已中止",
+};
 
 async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<void> {
   if (!project.value) return;
@@ -299,7 +351,7 @@ async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<vo
     const updated = await projectStore.changeStatus(project.value.id, input);
     project.value = updated;
     statusDialog.value = null;
-    ElMessage.success(input.target === "中止" ? "项目已中止" : "项目状态已更新");
+    ElMessage.success(STATUS_SUCCESS_LABEL[input.target] ?? "项目状态已更新");
   } catch (e) {
     statusError.value = e instanceof Error ? e.message : String(e);
   } finally {

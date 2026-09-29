@@ -95,4 +95,14 @@ export interface ChangeProjectStatusInput {
   pausedDate?: IsoDateTime;
   /** 中止时必填 */
   stopReason?: string;
+  /** 中标时必填（默认今天，后端兜底） */
+  wonDate?: IsoDateTime;
+  /** 中标时必填 */
+  bestPractice?: string;
+  /** 未中标时必填（默认今天，后端兜底） */
+  lostDate?: IsoDateTime;
+  /** 未中标时必填 */
+  lostReason?: string;
+  /** 未中标时必填（复盘要点） */
+  improvementNote?: string;
 }

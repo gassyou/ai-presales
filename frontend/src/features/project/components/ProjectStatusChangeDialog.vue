@@ -1,16 +1,17 @@
 <!--
   ProjectStatusChangeDialog.vue
   =============================
-  项目状态变更对话框（阶段 13 / PR #1）。
+  项目状态变更对话框（阶段 13 / PR #1；阶段 1 / task20 扩展中标/未中标）。
 
   设计：
-    - 接受 target 参数渲染不同表单（中止 / 暂停 / 后续扩展）
+    - 接受 target 参数渲染不同表单（中标 / 未中标 / 中止 / 暂停）
     - 模板沿用 ProjectEditDialog 的模式（el-dialog + el-form + 手写校验 + displayError）
     - 不持有 submitting 状态，由父组件控制（避免双源真理）
     - 字段布局：
-        target = "中止"   → 日期 + 原因（必填）
-        target = "暂停"   → 原因（必填）
-        其他 target       → 原因（必填，扩展位）
+        target = "中标"    → 中标日期（默认今天）+ 最佳实践（必填 200 字）
+        target = "未中标"  → 未中标日期（默认今天）+ 原因（必填 200 字）+ 复盘要点（必填 200 字）
+        target = "中止"    → 中止日期 + 原因（必填 200 字）
+        target = "暂停"    → 暂停原因（必填 200 字）
 
   Props / Emit：
     - props.project          当前项目（用于 header 展示）
@@ -24,34 +25,112 @@
   <el-dialog
     :model-value="true"
     :title="dialogTitle"
-    width="520"
+    width="560"
     :close-on-click-modal="!isSubmitting"
     :show-close="!isSubmitting"
     @update:model-value="(v) => !v && emit('close')"
   >
     <el-form :model="form" label-position="top" @submit.prevent>
-      <el-form-item v-if="target === '中止'" label="中止日期" required>
-        <el-date-picker
-          v-model="form.pausedDate"
-          type="datetime"
-          value-format="YYYY-MM-DDTHH:mm:ss"
-          placeholder="选择中止日期"
-          class="!w-full"
-          :disabled="isSubmitting"
-        />
-      </el-form-item>
+      <!-- 中标：日期 + 最佳实践 -->
+      <template v-if="target === '中标'">
+        <el-form-item label="中标日期" required>
+          <el-date-picker
+            v-model="form.wonDate"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            placeholder="选择中标日期"
+            class="!w-full"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+        <el-form-item label="最佳实践（中标要点）" required>
+          <el-input
+            v-model="form.bestPractice"
+            type="textarea"
+            :rows="4"
+            :maxlength="200"
+            show-word-limit
+            placeholder="总结本次中标的关键要素，便于后续复盘"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+      </template>
 
-      <el-form-item :label="reasonLabel" required>
-        <el-input
-          v-model="form.stopReason"
-          type="textarea"
-          :rows="3"
-          :maxlength="500"
-          show-word-limit
-          :placeholder="reasonPlaceholder"
-          :disabled="isSubmitting"
-        />
-      </el-form-item>
+      <!-- 未中标：日期 + 原因 + 复盘 -->
+      <template v-else-if="target === '未中标'">
+        <el-form-item label="未中标日期" required>
+          <el-date-picker
+            v-model="form.lostDate"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            placeholder="选择未中标日期"
+            class="!w-full"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+        <el-form-item label="未中标原因" required>
+          <el-input
+            v-model="form.lostReason"
+            type="textarea"
+            :rows="3"
+            :maxlength="200"
+            show-word-limit
+            placeholder="说明未中标的核心原因"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+        <el-form-item label="复盘要点（下次改进）" required>
+          <el-input
+            v-model="form.improvementNote"
+            type="textarea"
+            :rows="3"
+            :maxlength="200"
+            show-word-limit
+            placeholder="本次失分点 + 下次如何改进"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+      </template>
+
+      <!-- 中止：日期 + 原因 -->
+      <template v-else-if="target === '中止'">
+        <el-form-item label="中止日期" required>
+          <el-date-picker
+            v-model="form.pausedDate"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            placeholder="选择中止日期"
+            class="!w-full"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+        <el-form-item label="中止原因" required>
+          <el-input
+            v-model="form.stopReason"
+            type="textarea"
+            :rows="3"
+            :maxlength="200"
+            show-word-limit
+            placeholder="说明中止的原因，便于后续复盘"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+      </template>
+
+      <!-- 暂停：仅原因 -->
+      <template v-else-if="target === '暂停'">
+        <el-form-item label="暂停原因" required>
+          <el-input
+            v-model="form.reason"
+            type="textarea"
+            :rows="3"
+            :maxlength="200"
+            show-word-limit
+            placeholder="说明暂停的原因"
+            :disabled="isSubmitting"
+          />
+        </el-form-item>
+      </template>
 
       <el-alert
         v-if="displayError"
@@ -97,12 +176,34 @@ const emit = defineEmits<{
 }>();
 
 interface FormState {
+  wonDate: string;
+  bestPractice: string;
+  lostDate: string;
+  lostReason: string;
+  improvementNote: string;
   pausedDate: string;
   stopReason: string;
+  reason: string;
+}
+
+/** 默认日期：当前本地时间，YYYY-MM-DDTHH:mm:ss（el-date-picker value-format） */
+function nowLocalIso(): string {
+  const d = new Date();
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function buildForm(): FormState {
-  return { pausedDate: "", stopReason: "" };
+  return {
+    wonDate: nowLocalIso(),
+    bestPractice: "",
+    lostDate: nowLocalIso(),
+    lostReason: "",
+    improvementNote: "",
+    pausedDate: "",
+    stopReason: "",
+    reason: "",
+  };
 }
 
 const form = reactive<FormState>(buildForm());
@@ -121,61 +222,87 @@ watch(
 
 // —— 文案映射 ——
 const dialogTitle = computed(() => {
-  if (props.target === "中止") return "中止项目";
-  if (props.target === "暂停") return "暂停项目";
-  return `变更项目状态为「${props.target}」`;
-});
-
-const reasonLabel = computed(() => {
-  if (props.target === "中止") return "中止原因";
-  if (props.target === "暂停") return "暂停原因";
-  return "变更原因";
-});
-
-const reasonPlaceholder = computed(() => {
-  if (props.target === "中止") return "说明中止的原因，便于后续复盘";
-  if (props.target === "暂停") return "说明暂停的原因";
-  return "说明变更原因";
+  switch (props.target) {
+    case "中标": return "项目中标";
+    case "未中标": return "项目未中标";
+    case "中止": return "中止项目";
+    case "暂停": return "暂停项目";
+    default: return `变更项目状态为「${props.target}」`;
+  }
 });
 
 const confirmLabel = computed(() => {
-  if (props.target === "中止") return "确认中止";
-  if (props.target === "暂停") return "确认暂停";
-  return "确认变更";
+  switch (props.target) {
+    case "中标": return "确认中标";
+    case "未中标": return "确认未中标";
+    case "中止": return "确认中止";
+    case "暂停": return "确认暂停";
+    default: return "确认变更";
+  }
 });
 
 // —— 校验 ——
 const canSubmit = computed(() => {
   if (isSubmitting.value) return false;
-  if (!form.stopReason.trim()) return false;
-  if (props.target === "中止" && !form.pausedDate) return false;
-  return true;
+  switch (props.target) {
+    case "中标":
+      return form.wonDate.length > 0 && form.bestPractice.trim().length > 0;
+    case "未中标":
+      return form.lostDate.length > 0 &&
+        form.lostReason.trim().length > 0 &&
+        form.improvementNote.trim().length > 0;
+    case "中止":
+      return form.pausedDate.length > 0 && form.stopReason.trim().length > 0;
+    case "暂停":
+      return form.reason.trim().length > 0;
+    default:
+      return false;
+  }
 });
 
 function onSubmit(): void {
   if (isSubmitting.value) return;
   localError.value = null;
 
-  const stopReason = form.stopReason.trim();
-  if (!stopReason) {
-    localError.value = "请填写原因";
-    return;
-  }
-  if (props.target === "中止" && !form.pausedDate) {
-    localError.value = "请选择中止日期";
-    return;
-  }
+  const input: ChangeProjectStatusInput = { target: props.target };
 
-  const input: ChangeProjectStatusInput = {
-    target: props.target,
-    stopReason,
-  };
-  if (props.target === "中止" && form.pausedDate) {
-    input.pausedDate = form.pausedDate;
-  }
-  // 兼容旧 reason 字段（"暂停"等场景后端接受 reason）
-  if (props.target !== "中止") {
-    input.reason = stopReason;
+  switch (props.target) {
+    case "中标": {
+      if (!form.wonDate) { localError.value = "请选择中标日期"; return; }
+      const bp = form.bestPractice.trim();
+      if (!bp) { localError.value = "请填写最佳实践"; return; }
+      input.wonDate = form.wonDate;
+      input.bestPractice = bp;
+      break;
+    }
+    case "未中标": {
+      if (!form.lostDate) { localError.value = "请选择未中标日期"; return; }
+      const reason = form.lostReason.trim();
+      const note = form.improvementNote.trim();
+      if (!reason) { localError.value = "请填写未中标原因"; return; }
+      if (!note) { localError.value = "请填写复盘要点"; return; }
+      input.lostDate = form.lostDate;
+      input.lostReason = reason;
+      input.improvementNote = note;
+      break;
+    }
+    case "中止": {
+      if (!form.pausedDate) { localError.value = "请选择中止日期"; return; }
+      const sr = form.stopReason.trim();
+      if (!sr) { localError.value = "请填写中止原因"; return; }
+      input.pausedDate = form.pausedDate;
+      input.stopReason = sr;
+      break;
+    }
+    case "暂停": {
+      const r = form.reason.trim();
+      if (!r) { localError.value = "请填写暂停原因"; return; }
+      input.reason = r;
+      break;
+    }
+    default:
+      localError.value = `不支持的目标状态：${props.target}`;
+      return;
   }
 
   emit("submit", input);

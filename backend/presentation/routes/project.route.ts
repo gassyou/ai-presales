@@ -358,6 +358,11 @@ async function changeStatus(
     reason?: string;
     pausedDate?: string;
     stopReason?: string;
+    wonDate?: string;
+    bestPractice?: string;
+    lostDate?: string;
+    lostReason?: string;
+    improvementNote?: string;
   };
   if (typeof input.target !== "string") {
     return err(400, ErrorCode.VALIDATION_FAILED, "target is required");
@@ -372,9 +377,29 @@ async function changeStatus(
       ? input.reason.trim()
       : undefined);
 
+  // 解析"中标"日期
+  const wonDateParsed = parseIsoDate(input.wonDate, "wonDate");
+  if (wonDateParsed.error) return wonDateParsed.error;
+  const wonDate = wonDateParsed.value;
+  // 解析"未中标"日期
+  const lostDateParsed = parseIsoDate(input.lostDate, "lostDate");
+  if (lostDateParsed.error) return lostDateParsed.error;
+  const lostDate = lostDateParsed.value;
+
   const payload: Record<string, unknown> = {};
   if (pausedDate) payload.pausedDate = pausedDate;
   if (stopReason) payload.stopReason = stopReason;
+  if (wonDate) payload.wonDate = wonDate;
+  if (lostDate) payload.lostDate = lostDate;
+  if (typeof input.bestPractice === "string" && input.bestPractice.trim().length > 0) {
+    payload.bestPractice = input.bestPractice.trim();
+  }
+  if (typeof input.lostReason === "string" && input.lostReason.trim().length > 0) {
+    payload.lostReason = input.lostReason.trim();
+  }
+  if (typeof input.improvementNote === "string" && input.improvementNote.trim().length > 0) {
+    payload.improvementNote = input.improvementNote.trim();
+  }
   // 兼容旧调用方：仅传了 reason 时透传（保证非"中止"分支行为不变）
   if (
     !pausedDate && !stopReason && typeof input.reason === "string" && input.reason.trim().length > 0
