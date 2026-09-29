@@ -76,32 +76,21 @@
       </div>
 
       <div class="flex items-center gap-1">
-        <SubAgentPicker
-          :model-value="store.subAgentName"
-          @update:model-value="store.setSubAgent"
-        />
-        <!-- 阶段 H：tools 开关。开启后 chat 自动启用 agent loop，可下达项目修改命令 -->
-        <el-tooltip
-          v-if="!store.subAgentName"
-          :content="store.toolsEnabled ? '已启用工具：AI 可直接修改项目数据' : '关闭中：AI 只能回答，不能改数据'"
-          placement="top"
-        >
-          <el-button
-            :type="store.toolsEnabled ? 'primary' : 'default'"
-            size="small"
-            :title="store.toolsEnabled ? '工具已启用' : '工具已禁用'"
-            @click="store.setToolsEnabled(!store.toolsEnabled)"
-          >
-            <span class="text-xs">{{ store.toolsEnabled ? "🛠 工具" : "💬 纯聊" }}</span>
-          </el-button>
-        </el-tooltip>
+        <!-- 阶段 13（PR #6）：profile 下拉数据源改为 llm-profiles store（来自系统设置）；
+             删除 sub-agent picker 与 tools 切换（默认 agent 模式） -->
         <el-select
           :model-value="store.profile"
           size="small"
-          style="width: 110px"
-          @change="store.setProfile"
+          style="width: 150px"
+          :loading="llmStore.loading"
+          @change="onProfileChange"
         >
-          <el-option v-for="p in profiles" :key="p" :label="`⚡ ${p}`" :value="p" />
+          <el-option
+            v-for="p in llmStore.items"
+            :key="p.id"
+            :label="`${p.label}`"
+            :value="p.id"
+          />
         </el-select>
 
         <el-button
@@ -133,16 +122,41 @@
 import { computed, nextTick, onMounted, ref, reactive, watch } from "vue";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import MentionAutocomplete from "./MentionAutocomplete.vue";
-import SubAgentPicker from "@frontend/features/sub-agent/SubAgentPicker.vue";
 import { useSkillStore } from "@frontend/features/skill/stores/skill.store.ts";
+import { useLlmProfilesStore } from "@frontend/features/settings/stores/llm-profiles.store.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 
 const store = useAiChatStore();
 const skillStore = useSkillStore();
+const llmStore = useLlmProfilesStore();
 const input = ref("");
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 
-const profiles = ["fast", "deep", "local"];
+// 阶段 13（PR #6）：profile 默认值优先用 default profile，否则取首项；
+// 老的硬编码 ["fast","deep","local"] 彻底废弃。
+function resolveDefaultProfile(): string {
+  if (llmStore.defaultProfile) return llmStore.defaultProfile;
+  const first = llmStore.items[0]?.id;
+  return first ?? "";
+}
+
+// 当 store.profile 与当前可用 profile 不匹配 → 自动纠偏
+watch(
+  () => llmStore.items,
+  (items) => {
+    if (items.length === 0) return;
+    const valid = items.some((p) => p.id === store.profile);
+    if (!valid) {
+      const next = resolveDefaultProfile();
+      if (next) store.setProfile(next);
+    }
+  },
+  { immediate: true },
+);
+
+function onProfileChange(id: string): void {
+  store.setProfile(id);
+}
 
 const placeholder = computed(() => {
   if (store.currentProject) {
@@ -174,8 +188,10 @@ const slashState = reactive({
 });
 
 // 阶段 13（PR #5）：挂载时预加载 skill 列表，避免首次 "/" 弹空白
+// 阶段 13（PR #6）：同时拉 llm profiles，profile select 不再硬编码
 onMounted(() => {
   void skillStore.load();
+  void llmStore.load();
 });
 
 function autosize(): void {
