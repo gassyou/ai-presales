@@ -140,9 +140,10 @@ const opts = ref<QuoteGenerationOptions>({
   functionCostGrouping: "byModule",
   bufferAllocated: false,
   includeHardware: true,
-  includePrecondition: false,
-  includeDeliverables: false,
-  includeFunctions: false,
+  // 阶段 B6：报价单 checkbox 默认全选（用户要求）
+  includePrecondition: true,
+  includeDeliverables: true,
+  includeFunctions: true,
 });
 
 const hardwareTotal = computed(() =>
