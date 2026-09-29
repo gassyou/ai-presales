@@ -173,6 +173,8 @@ export class SqliteProjectRepository implements IProjectRepository {
       bestPractice: snap.bestPractice,
       improvementNote: snap.improvementNote,
       pauseReason: snap.pauseReason,
+      pausedDate: snap.pausedDate,
+      workspacePath: snap.workspacePath,
       clientWebsite: snap.clientWebsite,
       clientIntro: snap.clientIntro,
       projectIntro: snap.projectIntro,

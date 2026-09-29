@@ -45,6 +45,8 @@ export interface ProjectDTO {
   improvementNote?: string;
   wonDate?: IsoDateTime;
   bestPractice?: string;
+  /** 阶段 13（PR #2）：项目工作区路径；未设置时为 undefined（fallback 到 ~/Desktop/<code>） */
+  workspacePath?: string;
   primaryContact?: ProjectContactDTO;
   contacts: readonly ProjectContactDTO[];
   teamMembers: readonly TeamMemberDTO[];

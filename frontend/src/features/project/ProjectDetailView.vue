@@ -108,6 +108,27 @@
             {{ project.projectIntro || "未填" }}
           </dd>
         </div>
+
+        <div class="flex flex-col gap-1 md:col-span-2">
+          <dt class="flex items-center justify-between text-slate-500">
+            <span>工作区路径</span>
+            <button
+              type="button"
+              class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+              @click="openWorkspaceDialog"
+            >
+              编辑
+            </button>
+          </dt>
+          <dd class="text-slate-800">
+            <code v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
+              {{ project.workspacePath }}
+            </code>
+            <span v-else class="text-slate-500">
+              未设置（默认 ~/Desktop/{{ project.code }}）
+            </span>
+          </dd>
+        </div>
       </dl>
     </article>
 
@@ -160,6 +181,16 @@
       @close="closeStatusDialog"
       @submit="onSubmitStatusChange"
     />
+
+    <!-- 阶段 13（PR #2）：工作区路径编辑弹窗 -->
+    <ProjectWorkspaceDialog
+      v-if="workspaceDialog"
+      :project="project"
+      :submitting="workspaceSubmitting"
+      :error="workspaceError"
+      @close="closeWorkspaceDialog"
+      @submit="onSubmitWorkspace"
+    />
   </section>
 
   <section v-else-if="!loading" class="mx-auto p-6 text-sm text-slate-500">
@@ -198,6 +229,7 @@ import HardwareItemsView from "@frontend/features/business-module/components/Har
 import QuoteView from "@frontend/features/quote/components/QuoteView.vue";
 import ProjectEditDialog from "./components/ProjectEditDialog.vue";
 import ProjectStatusChangeDialog from "./components/ProjectStatusChangeDialog.vue";
+import ProjectWorkspaceDialog from "./components/ProjectWorkspaceDialog.vue";
 import { useEmailComposerStore } from "./stores/email-composer.store.ts";
 import { useQuoteComposerStore } from "@frontend/features/quote/stores/quote-composer.store.ts";
 import { useProjectStore } from "./stores/project.store.ts";
@@ -286,6 +318,43 @@ async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<vo
     statusError.value = e instanceof Error ? e.message : String(e);
   } finally {
     statusSubmitting.value = false;
+  }
+}
+
+/* ===== 工作区路径（PR #2） ===== */
+const workspaceDialog = ref(false);
+const workspaceSubmitting = ref(false);
+const workspaceError = ref<string | null>(null);
+
+function openWorkspaceDialog(): void {
+  if (!project.value) return;
+  workspaceError.value = null;
+  workspaceDialog.value = true;
+}
+
+function closeWorkspaceDialog(): void {
+  if (workspaceSubmitting.value) return;
+  workspaceDialog.value = false;
+  workspaceError.value = null;
+}
+
+async function onSubmitWorkspace(
+  input: { workspacePath: string | null },
+): Promise<void> {
+  if (!project.value) return;
+  workspaceError.value = null;
+  workspaceSubmitting.value = true;
+  try {
+    const updated = await projectStore.setWorkspace(project.value.id, input.workspacePath);
+    project.value = updated;
+    workspaceDialog.value = false;
+    ElMessage.success(
+      input.workspacePath === null ? "已清空工作区路径，回退到默认" : "工作区路径已更新",
+    );
+  } catch (e) {
+    workspaceError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    workspaceSubmitting.value = false;
   }
 }
 

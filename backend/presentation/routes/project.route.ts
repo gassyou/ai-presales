@@ -130,6 +130,7 @@ function snapshotToDTO(s: {
     })),
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
+    workspacePath: s.workspacePath ?? undefined,
   };
 }
 
@@ -161,15 +162,19 @@ export async function handleProjects(
   }
 
   // 子资源
-  const sub = path.match(/^\/api\/projects\/([0-9a-fA-F-]{36})(\/status)?$/);
+  const sub = path.match(/^\/api\/projects\/([0-9a-fA-F-]{36})(\/status|\/workspace)?$/);
   if (!sub) {
     return err(404, ErrorCode.NOT_FOUND, `route ${path} not found`);
   }
   const id = toProjectId(sub[1]);
 
-  if (sub[2]) {
-    // /status
+  if (sub[2] === "/status") {
     if (method === "POST") return changeStatus(req, deps, id);
+    return err(405, ErrorCode.INTERNAL, `method ${method} not allowed`);
+  }
+  if (sub[2] === "/workspace") {
+    if (method === "POST") return setWorkspace(req, deps, id);
+    if (method === "GET") return resolveWorkspace(req, deps, id);
     return err(405, ErrorCode.INTERNAL, `method ${method} not allowed`);
   }
 
@@ -385,6 +390,60 @@ async function changeStatus(
   const u = unwrap(r);
   if (u.response) return u.response;
   return new Response(JSON.stringify(snapshotToDTO(u.value!)), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+}
+
+// 阶段 13（PR #2）：POST /api/projects/:id/workspace
+//   body: { workspacePath: string | null }
+//   null 或空字符串视为清空（回退到默认 ~/Desktop/<code>）
+async function setWorkspace(
+  req: Request,
+  deps: ProjectRouteDeps,
+  id: ProjectId,
+): Promise<Response> {
+  let raw: unknown;
+  try {
+    raw = await readJson(req);
+  } catch (e) {
+    return err(
+      400,
+      ErrorCode.VALIDATION_FAILED,
+      e instanceof Error ? e.message : "invalid request",
+    );
+  }
+  if (!raw || typeof raw !== "object") {
+    return err(400, ErrorCode.VALIDATION_FAILED, "expected JSON object body");
+  }
+  const input = raw as { workspacePath?: unknown };
+  let workspacePath: string | null = null;
+  if (input.workspacePath !== undefined && input.workspacePath !== null) {
+    if (typeof input.workspacePath !== "string") {
+      return err(400, ErrorCode.VALIDATION_FAILED, "workspacePath must be a string or null");
+    }
+    workspacePath = input.workspacePath;
+  }
+  const r = await deps.service.setWorkspace(id, workspacePath);
+  const u = unwrap(r);
+  if (u.response) return u.response;
+  return new Response(JSON.stringify(snapshotToDTO(u.value!)), {
+    status: 200,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+}
+
+// 阶段 13（PR #2）：GET /api/projects/:id/workspace
+//   返回 { resolvedPath: string } —— 优先用项目自带 workspacePath，否则 fallback
+async function resolveWorkspace(
+  _req: Request,
+  deps: ProjectRouteDeps,
+  id: ProjectId,
+): Promise<Response> {
+  const r = await deps.service.resolveWorkspacePath(id);
+  const u = unwrap(r);
+  if (u.response) return u.response;
+  return new Response(JSON.stringify({ resolvedPath: u.value }), {
     status: 200,
     headers: { "content-type": "application/json; charset=utf-8" },
   });

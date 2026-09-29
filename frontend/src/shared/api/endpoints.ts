@@ -9,6 +9,8 @@ export const Endpoints = {
   health: "/api/health",
   projects: "/api/projects",
   project: (id: string) => `/api/projects/${id}`,
+  // 阶段 13（PR #2）：项目工作区
+  projectWorkspace: (id: string) => `/api/projects/${id}/workspace`,
   // AI
   aiChat: "/api/ai/chat",
   aiChatStream: "/api/ai/chat/stream",

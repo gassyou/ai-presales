@@ -51,8 +51,17 @@ export const projectApi = {
     return http.patch<ProjectDTO>(Endpoints.project(id), input);
   },
   /** 阶段 13（PR #1）：状态变更；input 透传给后端，由 service 校验必填字段 */
+/** 阶段 13（PR #2）：状态变更；input 透传给后端，由 service 校验必填字段 */
   changeStatus(id: string, input: ChangeProjectStatusInput) {
     return http.post<ProjectDTO>(`${Endpoints.project(id)}/status`, input);
+  },
+  /** 阶段 13（PR #2）：设置 / 清空项目工作区路径；workspacePath=null 表示清空回退到默认 */
+  setWorkspace(id: string, workspacePath: string | null) {
+    return http.post<ProjectDTO>(Endpoints.projectWorkspace(id), { workspacePath });
+  },
+  /** 阶段 13（PR #2）：查询当前生效的工作区路径 */
+  resolveWorkspace(id: string) {
+    return http.get<{ resolvedPath: string }>(Endpoints.projectWorkspace(id));
   },
   remove(id: string) {
     return http.del<void>(Endpoints.project(id));

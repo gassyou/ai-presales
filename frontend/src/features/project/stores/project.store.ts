@@ -68,6 +68,22 @@ export const useProjectStore = defineStore("project", () => {
     return dto;
   }
 
+  /** 阶段 13（PR #2）：设置 / 清空项目工作区路径 */
+  async function setWorkspace(
+    id: string,
+    workspacePath: string | null,
+  ): Promise<ProjectDTO> {
+    const dto = await projectApi.setWorkspace(id, workspacePath);
+    replace(dto);
+    return dto;
+  }
+
+  /** 阶段 13（PR #2）：查询当前生效的工作区路径 */
+  async function resolveWorkspace(id: string): Promise<string> {
+    const { resolvedPath } = await projectApi.resolveWorkspace(id);
+    return resolvedPath;
+  }
+
   async function remove(id: string): Promise<void> {
     await projectApi.remove(id);
     items.value = items.value.filter((p) => p.id !== id);
@@ -90,6 +106,8 @@ export const useProjectStore = defineStore("project", () => {
     create,
     rename,
     changeStatus,
+    setWorkspace,
+    resolveWorkspace,
     remove,
   };
 });
