@@ -348,14 +348,39 @@ async function changeStatus(
   if (!raw || typeof raw !== "object") {
     return err(400, ErrorCode.VALIDATION_FAILED, "expected JSON object body");
   }
-  const input = raw as { target?: string; reason?: string };
+  const input = raw as {
+    target?: string;
+    reason?: string;
+    pausedDate?: string;
+    stopReason?: string;
+  };
   if (typeof input.target !== "string") {
     return err(400, ErrorCode.VALIDATION_FAILED, "target is required");
   }
+  // 解析"中止"专用字段；其他 target 透传 reason 不变
+  const pausedDateParsed = parseIsoDate(input.pausedDate, "pausedDate");
+  if (pausedDateParsed.error) return pausedDateParsed.error;
+  const pausedDate = pausedDateParsed.value;
+  const stopReason = typeof input.stopReason === "string" && input.stopReason.trim().length > 0
+    ? input.stopReason.trim()
+    : (typeof input.reason === "string" && input.reason.trim().length > 0
+      ? input.reason.trim()
+      : undefined);
+
+  const payload: Record<string, unknown> = {};
+  if (pausedDate) payload.pausedDate = pausedDate;
+  if (stopReason) payload.stopReason = stopReason;
+  // 兼容旧调用方：仅传了 reason 时透传（保证非"中止"分支行为不变）
+  if (
+    !pausedDate && !stopReason && typeof input.reason === "string" && input.reason.trim().length > 0
+  ) {
+    payload.reason = input.reason.trim();
+  }
+
   const r = await deps.service.changeProjectStatus(
     id,
     input.target as ProjectStatusValue,
-    input.reason ? { reason: input.reason } : undefined,
+    Object.keys(payload).length > 0 ? payload : undefined,
   );
   const u = unwrap(r);
   if (u.response) return u.response;

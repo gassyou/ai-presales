@@ -5,6 +5,7 @@
 import { http } from "@frontend/shared/api/http-client.ts";
 import { Endpoints } from "@frontend/shared/api/endpoints.ts";
 import type {
+  ChangeProjectStatusInput,
   CreateProjectInput,
   ProjectDTO,
   ProjectStatusValue,
@@ -49,8 +50,9 @@ export const projectApi = {
   update(id: string, input: UpdateProjectInput) {
     return http.patch<ProjectDTO>(Endpoints.project(id), input);
   },
-  changeStatus(id: string, target: ProjectStatusValue, reason?: string) {
-    return http.post<ProjectDTO>(`${Endpoints.project(id)}/status`, { target, reason });
+  /** 阶段 13（PR #1）：状态变更；input 透传给后端，由 service 校验必填字段 */
+  changeStatus(id: string, input: ChangeProjectStatusInput) {
+    return http.post<ProjectDTO>(`${Endpoints.project(id)}/status`, input);
   },
   remove(id: string) {
     return http.del<void>(Endpoints.project(id));

@@ -57,6 +57,14 @@
       <div class="flex flex-wrap items-center gap-2">
         <KnowledgeStatusBadge :project-id="project.id" />
         <button
+          v-if="canAbort"
+          type="button"
+          class="inline-flex h-8 items-center gap-1.5 rounded border border-rose-300 bg-white px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
+          @click="openAbortDialog"
+        >
+          <span>中止项目</span>
+        </button>
+        <button
           type="button"
           class="inline-flex h-8 items-center gap-1.5 rounded bg-emerald-600 px-3 text-xs font-medium text-white transition hover:bg-emerald-700"
           @click="onOpenQuote"
@@ -141,6 +149,17 @@
       @close="closeEditDialog"
       @submit="onSubmitEdit"
     />
+
+    <!-- 阶段 13（PR #1）：状态变更弹窗（当前仅"中止"，后续 PR 复用同一组件） -->
+    <ProjectStatusChangeDialog
+      v-if="statusDialog"
+      :project="project"
+      :target="statusDialog.target"
+      :submitting="statusSubmitting"
+      :error="statusError"
+      @close="closeStatusDialog"
+      @submit="onSubmitStatusChange"
+    />
   </section>
 
   <section v-else-if="!loading" class="mx-auto p-6 text-sm text-slate-500">
@@ -178,15 +197,22 @@ import EmailComposerDialog from "./components/EmailComposerDialog.vue";
 import HardwareItemsView from "@frontend/features/business-module/components/HardwareItemsView.vue";
 import QuoteView from "@frontend/features/quote/components/QuoteView.vue";
 import ProjectEditDialog from "./components/ProjectEditDialog.vue";
+import ProjectStatusChangeDialog from "./components/ProjectStatusChangeDialog.vue";
 import { useEmailComposerStore } from "./stores/email-composer.store.ts";
 import { useQuoteComposerStore } from "@frontend/features/quote/stores/quote-composer.store.ts";
+import { useProjectStore } from "./stores/project.store.ts";
 import { ElMessage } from "element-plus";
-import type { UpdateProjectInput } from "@shared/types/dto/project.ts";
+import type {
+  ChangeProjectStatusInput,
+  ProjectStatusValue,
+  UpdateProjectInput,
+} from "@shared/types/dto/project.ts";
 
 const route = useRoute();
 const emailComposerStore = useEmailComposerStore();
 const quoteComposerStore = useQuoteComposerStore();
 const router = useRouter();
+const projectStore = useProjectStore();
 
 const project = ref<ProjectDTO | null>(null);
 const loading = ref(false);
@@ -223,6 +249,43 @@ async function onSubmitEdit(input: UpdateProjectInput): Promise<void> {
     editError.value = e instanceof Error ? e.message : String(e);
   } finally {
     editSubmitting.value = false;
+  }
+}
+
+/* ===== 状态变更（PR #1：中止） ===== */
+// "中止"仅在提案中 / 暂停 状态可见；terminal 状态（中标/未中标/中止）不显示
+const ABORTABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中", "暂停"]);
+const canAbort = computed(() => project.value ? ABORTABLE_STATUSES.has(project.value.status) : false);
+
+const statusDialog = ref<{ target: ProjectStatusValue } | null>(null);
+const statusSubmitting = ref(false);
+const statusError = ref<string | null>(null);
+
+function openAbortDialog(): void {
+  if (!project.value) return;
+  statusError.value = null;
+  statusDialog.value = { target: "中止" };
+}
+
+function closeStatusDialog(): void {
+  if (statusSubmitting.value) return;
+  statusDialog.value = null;
+  statusError.value = null;
+}
+
+async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<void> {
+  if (!project.value) return;
+  statusError.value = null;
+  statusSubmitting.value = true;
+  try {
+    const updated = await projectStore.changeStatus(project.value.id, input);
+    project.value = updated;
+    statusDialog.value = null;
+    ElMessage.success(input.target === "中止" ? "项目已中止" : "项目状态已更新");
+  } catch (e) {
+    statusError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    statusSubmitting.value = false;
   }
 }
 

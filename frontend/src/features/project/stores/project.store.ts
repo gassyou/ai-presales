@@ -10,6 +10,7 @@ import {
 } from "@frontend/features/project/api/project.api.ts";
 import { ApiError } from "@frontend/shared/api/http-client.ts";
 import type {
+  ChangeProjectStatusInput,
   CreateProjectInput,
   ProjectDTO,
 } from "@shared/types/dto/project.ts";
@@ -57,11 +58,12 @@ export const useProjectStore = defineStore("project", () => {
     return dto;
   }
 
+  /** 阶段 13（PR #1）：input 透传给后端，由 service 校验必填字段 */
   async function changeStatus(
     id: string,
-    target: ProjectDTO["status"],
+    input: ChangeProjectStatusInput,
   ): Promise<ProjectDTO> {
-    const dto = await projectApi.changeStatus(id, target);
+    const dto = await projectApi.changeStatus(id, input);
     replace(dto);
     return dto;
   }
