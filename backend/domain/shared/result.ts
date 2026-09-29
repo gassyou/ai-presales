@@ -27,7 +27,10 @@ export type DomainErrorCode =
   | "ILLEGAL_STATE_TRANSITION"
   | "NOT_IMPLEMENTED"
   | "ABORTED"
-  | "INTERNAL";
+  | "INTERNAL"
+  /** 阶段 2：工作区相关错误码 */
+  | "WORKSPACE_NOT_EXISTS"
+  | "WORKSPACE_CREATE_FAILED";
 
 export interface DomainError {
   readonly code: DomainErrorCode;

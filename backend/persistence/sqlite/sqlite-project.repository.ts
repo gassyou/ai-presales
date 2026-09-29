@@ -44,6 +44,7 @@ interface ProjectRow {
   improvement_note: string | null;
   pause_reason: string | null;
   paused_date: string | null;
+  workspace_path: string | null;
   client_website: string | null;
   client_intro: string | null;
   project_intro: string | null;
@@ -53,7 +54,7 @@ interface ProjectRow {
 
 /** SELECT 列表 —— 所有查询都返回全 18 列，避免多次维护。 */
 const SELECT_COLUMNS = "id, code, name, client_name, status, created_at, updated_at, " +
-  "won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason, paused_date, " +
+  "won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason, paused_date, workspace_path, " +
   "client_website, client_intro, project_intro, start_date, end_date";
 
 function baseRowToSnapshot(row: ProjectRow): ProjectSnapshot {
@@ -74,6 +75,7 @@ function baseRowToSnapshot(row: ProjectRow): ProjectSnapshot {
     improvementNote: row.improvement_note,
     pauseReason: row.pause_reason,
     pausedDate: row.paused_date ? new Date(row.paused_date) : null,
+    workspacePath: row.workspace_path,
     clientWebsite: row.client_website,
     clientIntro: row.client_intro,
     projectIntro: row.project_intro,
@@ -96,10 +98,10 @@ export class SqliteProjectRepository implements IProjectRepository {
         this.db.run(
           `INSERT INTO projects (
              id, code, name, client_name, status, created_at, updated_at,
-             won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason, paused_date,
+             won_date, lost_date, lost_reason, best_practice, improvement_note, pause_reason, paused_date, workspace_path,
              client_website, client_intro, project_intro, start_date, end_date
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              code = excluded.code,
              name = excluded.name,
@@ -113,6 +115,7 @@ export class SqliteProjectRepository implements IProjectRepository {
              improvement_note = excluded.improvement_note,
              pause_reason = excluded.pause_reason,
              paused_date = excluded.paused_date,
+             workspace_path = excluded.workspace_path,
              client_website = excluded.client_website,
              client_intro = excluded.client_intro,
              project_intro = excluded.project_intro,
@@ -133,6 +136,7 @@ export class SqliteProjectRepository implements IProjectRepository {
             snap.improvementNote,
             snap.pauseReason,
             snap.pausedDate ? snap.pausedDate.toISOString() : null,
+            snap.workspacePath,
             snap.clientWebsite,
             snap.clientIntro,
             snap.projectIntro,

@@ -41,6 +41,14 @@ export interface ProjectServiceDeps {
   /** 阶段 7.4e：可选注入，做二次补齐（仓储层一般已拼好） */
   contactsRepo?: IProjectContactsRepository;
   teamRepo?: IProjectTeamMembersRepository;
+  /** 阶段 2：工作区 mkdirSync 用的文件系统抽象（测试可注入）。默认 = real Deno.mkdir */
+  workspaceFs?: WorkspaceFs;
+}
+
+/** 工作区文件系统抽象 —— 仅暴露 setWorkspace 用到的 mkdir + stat */
+export interface WorkspaceFs {
+  mkdir(path: string, opts: { recursive: boolean }): Promise<void>;
+  stat(path: string): Promise<{ isDirectory: boolean }>;
 }
 
 export class ProjectService {
@@ -49,6 +57,7 @@ export class ProjectService {
   private readonly yearProvider: () => number;
   private readonly contactsRepo?: IProjectContactsRepository;
   private readonly teamRepo?: IProjectTeamMembersRepository;
+  private readonly workspaceFs: WorkspaceFs;
 
   constructor(deps: ProjectServiceDeps) {
     this.repo = deps.repo;
@@ -56,6 +65,18 @@ export class ProjectService {
     this.yearProvider = deps.yearProvider ?? (() => this.clock.now().getFullYear());
     this.contactsRepo = deps.contactsRepo;
     this.teamRepo = deps.teamRepo;
+    // 阶段 2：默认用真 Deno FS；测试可注入 mock
+    this.workspaceFs = deps.workspaceFs ?? {
+      mkdir: (path, opts) => Deno.mkdir(path, opts),
+      stat: async (path) => {
+        try {
+          const s = await Deno.stat(path);
+          return { isDirectory: s.isDirectory };
+        } catch {
+          return { isDirectory: false };
+        }
+      },
+    };
   }
 
   async createProject(
@@ -275,6 +296,81 @@ export class ProjectService {
       teamMembers: team.map(toMemberView),
     };
   }
+
+  // ---------- 阶段 2：项目工作区 ----------
+
+  /**
+   * 设置项目工作区路径。行为：
+   *   - workspacePath 为 null → 清空（fallback 到默认）
+   *   - workspacePath 非空 → 校验为绝对路径后持久化
+   * 不实际创建目录；如需创建调 ensureWorkspace。
+   */
+  async setWorkspace(
+    id: ProjectId,
+    workspacePath: string | null,
+  ): Promise<DomainResult<ProjectSnapshot>> {
+    const found = await this.repo.findById(id);
+    if (!found.ok) return found;
+    const r = found.value.setWorkspace(workspacePath, this.clock);
+    if (!r.ok) return r;
+    const saveR = await this.repo.save(found.value);
+    if (!saveR.ok) return saveR;
+    return domainOk(found.value.snapshot());
+  }
+
+  /**
+   * 解析项目当前的工作区路径（用户设置过 → 用用户的；
+   * 未设置 → 走默认策略 ~/Desktop/<projectCode>）。
+   * 纯计算，不写库也不创建文件。
+   */
+  resolveWorkspacePath(id: ProjectId, homeDir?: string): Promise<DomainResult<string>> {
+    return this.repo.findById(id).then((found) => {
+      if (!found.ok) return found;
+      return domainOk(found.value.resolveWorkspacePath(homeDir));
+    });
+  }
+
+  /**
+   * 一键创建工作区：若路径不存在则 mkdir(recursive: true)，
+   * 已存在则不动。返回最终路径 + created(bool) 让前端区分。
+   */
+  async ensureWorkspace(
+    id: ProjectId,
+    opts?: { createIfMissing?: boolean; homeDir?: string },
+  ): Promise<DomainResult<{ path: string; created: boolean; existed: boolean }>> {
+    const found = await this.repo.findById(id);
+    if (!found.ok) return found;
+    const path = found.value.resolveWorkspacePath(opts?.homeDir);
+    // 检查路径是否已存在
+    const stat = await this.workspaceFs.stat(path);
+    if (stat.isDirectory) {
+      return domainOk({ path, created: false, existed: true });
+    }
+    if (opts?.createIfMissing === false) {
+      return domainErr(
+        "WORKSPACE_NOT_EXISTS",
+        `workspace path does not exist: ${path}`,
+        { path },
+      );
+    }
+    // 用户要求"可以一键创建"——默认创建
+    try {
+      await this.workspaceFs.mkdir(path, { recursive: true });
+    } catch (e) {
+      return domainErr(
+        "WORKSPACE_CREATE_FAILED",
+        e instanceof Error ? e.message : String(e),
+        { path },
+      );
+    }
+    // 同时持久化到 DB（用户"选择"了此路径）
+    const setR = found.value.setWorkspace(path, this.clock);
+    if (setR.ok) {
+      await this.repo.save(found.value);
+    }
+    return domainOk({ path, created: true, existed: false });
+  }
+
 }
 
 function toContactView(c: {
@@ -307,4 +403,5 @@ function toMemberView(m: {
     email: m.email,
     phone: m.phone,
   };
+
 }

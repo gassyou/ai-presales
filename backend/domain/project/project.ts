@@ -63,6 +63,8 @@ export interface ProjectSnapshot {
   readonly pauseReason: string | null;
   /** 阶段 1："中止"状态的日期（区别于"暂停"） */
   readonly pausedDate: Date | null;
+  /** 阶段 2：项目工作区路径（AI 工具 cwd 起点）。null = 用默认策略（~/Desktop/<projectCode>） */
+  readonly workspacePath: string | null;
   /** 阶段 7.5：项目元信息编辑 —— 全部可空 */
   readonly clientWebsite: string | null;
   readonly clientIntro: string | null;
@@ -101,6 +103,7 @@ export class Project extends AggregateRoot<ProjectId> {
   private _improvementNote: string | null;
   private _pauseReason: string | null;
   private _pausedDate: Date | null;
+  private _workspacePath: string | null;
   /** 阶段 7.5：项目元信息编辑字段 */
   private _clientWebsite: string | null;
   private _clientIntro: string | null;
@@ -124,6 +127,7 @@ export class Project extends AggregateRoot<ProjectId> {
       improvementNote: string | null;
       pauseReason: string | null;
       pausedDate: Date | null;
+      workspacePath: string | null;
       clientWebsite: string | null;
       clientIntro: string | null;
       projectIntro: string | null;
@@ -137,6 +141,7 @@ export class Project extends AggregateRoot<ProjectId> {
       improvementNote: null,
       pauseReason: null,
       pausedDate: null,
+      workspacePath: null,
       clientWebsite: null,
       clientIntro: null,
       projectIntro: null,
@@ -158,6 +163,7 @@ export class Project extends AggregateRoot<ProjectId> {
     this._improvementNote = init.improvementNote;
     this._pauseReason = init.pauseReason;
     this._pausedDate = init.pausedDate;
+    this._workspacePath = init.workspacePath;
     this._clientWebsite = init.clientWebsite;
     this._clientIntro = init.clientIntro;
     this._projectIntro = init.projectIntro;
@@ -204,6 +210,7 @@ export class Project extends AggregateRoot<ProjectId> {
         improvementNote: null,
         pauseReason: null,
         pausedDate: null,
+        workspacePath: null,
         clientWebsite: trimToNull(args.clientWebsite),
         clientIntro: trimToNull(args.clientIntro),
         projectIntro: trimToNull(args.projectIntro),
@@ -237,6 +244,7 @@ export class Project extends AggregateRoot<ProjectId> {
     improvementNote?: string | null;
     pauseReason?: string | null;
     pausedDate?: Date | null;
+    workspacePath?: string | null;
     clientWebsite?: string | null;
     clientIntro?: string | null;
     projectIntro?: string | null;
@@ -266,6 +274,7 @@ export class Project extends AggregateRoot<ProjectId> {
         improvementNote: snap.improvementNote ?? null,
         pauseReason: snap.pauseReason ?? null,
         pausedDate: snap.pausedDate ?? null,
+        workspacePath: snap.workspacePath ?? null,
         clientWebsite: snap.clientWebsite ?? null,
         clientIntro: snap.clientIntro ?? null,
         projectIntro: snap.projectIntro ?? null,
@@ -474,6 +483,38 @@ export class Project extends AggregateRoot<ProjectId> {
     return domainOk(undefined);
   }
 
+  // ---------- 阶段 2：项目工作区 ----------
+
+  /** 设置项目工作区路径（绝对路径）。允许置空（清空）。 */
+  setWorkspace(workspacePath: string | null, clock: Clock): DomainResult<void> {
+    // 校验非空字符串：trim 后必须有内容，或显式为 null（清空）
+    if (workspacePath !== null) {
+      const trimmed = workspacePath.trim();
+      if (trimmed.length === 0) {
+        return domainErr("INVALID_INPUT", "workspacePath must be a non-empty path or null");
+      }
+      // 必须是绝对路径（mac/win/linux 都用绝对路径前缀）
+      // 注意：windows "C:\..." 用盘符；linux/mac "/..." 开头。我们接受两者。
+      if (!trimmed.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(trimmed)) {
+        return domainErr("INVALID_INPUT", "workspacePath must be absolute");
+      }
+    }
+    this._workspacePath = workspacePath?.trim() ?? null;
+    this._updatedAt = clock.now();
+    return domainOk(undefined);
+  }
+
+  /** 计算默认工作区路径：~/Desktop/<projectCode> */
+  computeDefaultWorkspacePath(homeDir?: string): string {
+    const home = homeDir ?? Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/tmp";
+    return `${home}/Desktop/${this._code}`;
+  }
+
+  /** 解析当前生效的 workspacePath（未设置时返回默认） */
+  resolveWorkspacePath(homeDir?: string): string {
+    return this._workspacePath ?? this.computeDefaultWorkspacePath(homeDir);
+  }
+
   // ---------- 阶段 7.5：项目元信息编辑 ----------
 
   /** 改名（沿用） —— 调用方按需触发，不强制 */
@@ -607,6 +648,7 @@ export class Project extends AggregateRoot<ProjectId> {
       improvementNote: this._improvementNote,
       pauseReason: this._pauseReason,
       pausedDate: this._pausedDate,
+      workspacePath: this._workspacePath,
       clientWebsite: this._clientWebsite,
       clientIntro: this._clientIntro,
       projectIntro: this._projectIntro,
