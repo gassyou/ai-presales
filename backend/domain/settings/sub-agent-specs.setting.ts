@@ -80,6 +80,8 @@ export class SubAgentSpecsSetting {
         toolNames: [...v.toolNames],
         ...(v.profileHint !== undefined ? { profileHint: v.profileHint } : {}),
         ...(v.outputSchema !== undefined ? { outputSchema: v.outputSchema } : {}),
+        // 阶段 4：保留 type（缺省 user）
+        type: v.type ?? "user",
       };
     }
     return { specs: out };

@@ -111,7 +111,9 @@ const PROJECT_EDITOR_SYSTEM = `你是"项目编辑" sub-agent（阶段 H 新增�
 只调用写工具；读操作仍走 read_module / search_knowledge。`;
 
 /** 阶段 7.4h + 7.5（H4）+ 阶段 H：导出 7 个 builtin spec 数据（用于 settings 启动 seed） */
+/** 阶段 4：builtin sub-agent 全部为 system 类型（用户不可删除/改名） */
 export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
+  // 源数据仍是手写 plain object；包一层 type=system 后导出
   return [
     {
       name: "project-creator",
@@ -120,6 +122,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       systemPrompt: PROJECT_CREATOR_SYSTEM,
       toolNames: ["current_datetime", "list_files", "read_file"],
       profileHint: "fast",
+      type: "system",
     },
     {
       name: "survey-researcher",
@@ -128,6 +131,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       systemPrompt: SURVEY_RESEARCHER_SYSTEM,
       toolNames: ["read_file", "list_files", "search_knowledge"],
       profileHint: "deep",
+      type: "system",
     },
     {
       name: "proposal-drafter",
@@ -136,6 +140,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       systemPrompt: PROPOSAL_DRAFTER_SYSTEM,
       toolNames: ["read_file", "list_files", "search_knowledge"],
       profileHint: "deep",
+      type: "system",
     },
     {
       name: "ppt-designer",
@@ -144,6 +149,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       systemPrompt: PPT_DESIGNER_SYSTEM,
       toolNames: ["read_module", "search_knowledge"],
       profileHint: "deep",
+      type: "system",
     },
     {
       name: "business-email-writer",
@@ -152,6 +158,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       systemPrompt: BUSINESS_EMAIL_WRITER_SYSTEM,
       toolNames: ["read_module", "search_knowledge"],
       profileHint: "fast",
+      type: "system",
     },
     // 阶段 7.5（H4）：11 个 markdown 模块的章节生成器
     {
@@ -161,6 +168,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
       systemPrompt: MARKDOWN_AUTHOR_SYSTEM,
       toolNames: ["read_module", "search_knowledge"],
       profileHint: "fast",
+      type: "system",
     },
     // 阶段 H：项目编辑（写入操作）
     {
@@ -179,6 +187,7 @@ export function getBuiltinSubAgentSpecs(): SubAgentSpecData[] {
         "create_survey_task",
       ],
       profileHint: "fast",
+      type: "system",
     },
   ];
 }

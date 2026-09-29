@@ -14,6 +14,8 @@ import { type DomainResult, domainOk, domainErr } from "../shared/result.ts";
 
 export type SubAgentName = string; // 主键类型；实际使用 brand 更安全，本期先 string
 
+export type SubAgentSpecType = "system" | "user";
+
 export interface SubAgentSpecData {
   readonly name: SubAgentName;
   readonly displayName: string;
@@ -25,6 +27,13 @@ export interface SubAgentSpecData {
   readonly profileHint?: string;
   /** 输出 JSON Schema（可选） */
   readonly outputSchema?: Record<string, unknown>;
+  /**
+   * 阶段 4（任务 4）：
+   *   - "system" = 内置 sub-agent，前端不允许删除/改名（只展示）
+   *   - "user"   = 用户创建，可增删改
+   * 旧数据缺省视为 "user"（向后兼容）。
+   */
+  readonly type?: SubAgentSpecType;
 }
 
 const NAME_PATTERN = /^[a-z][a-z0-9_-]{2,63}$/;
@@ -61,6 +70,10 @@ export class SubAgentSpecVO {
         return domainErr("INVALID_INPUT", "toolNames contains non-string or empty entry");
       }
     }
+    // 阶段 4：type 校验（可选，缺省 user）
+    if (input.type !== undefined && input.type !== "system" && input.type !== "user") {
+      return domainErr("INVALID_INPUT", `type must be "system" or "user"`);
+    }
 
     return domainOk(new SubAgentSpecVO({
       name: input.name,
@@ -70,6 +83,8 @@ export class SubAgentSpecVO {
       toolNames: Object.freeze([...input.toolNames]),
       ...(input.profileHint !== undefined ? { profileHint: input.profileHint } : {}),
       ...(input.outputSchema !== undefined ? { outputSchema: input.outputSchema } : {}),
+      // 阶段 4：缺省 user
+      type: input.type ?? "user",
     }));
   }
 
@@ -94,6 +109,10 @@ export class SubAgentSpecVO {
   get outputSchema(): Record<string, unknown> | undefined {
     return this.data.outputSchema;
   }
+  /** 阶段 4：sub-agent 类型 */
+  get type(): SubAgentSpecType {
+    return this.data.type ?? "user";
+  }
 
   /** DTO —— 用于 API 响应 / 前端 */
   toDTO(): SubAgentSpecData {
@@ -105,6 +124,7 @@ export class SubAgentSpecVO {
       toolNames: this.data.toolNames,
       ...(this.data.profileHint !== undefined ? { profileHint: this.data.profileHint } : {}),
       ...(this.data.outputSchema !== undefined ? { outputSchema: this.data.outputSchema } : {}),
+      type: this.type,
     };
   }
 }

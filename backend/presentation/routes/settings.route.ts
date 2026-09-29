@@ -74,6 +74,14 @@ export async function handleSettings(
   if (path === "/api/settings/agent-specs") {
     if (method === "GET") return await getAgentSpecs(deps);
     if (method === "PUT") return await updateAgentSpecs(req, deps);
+    if (method === "POST") return await createAgentSpec(req, deps);
+    return jsonError(405, "INVALID_INPUT", `method ${method} not allowed`);
+  }
+  // 阶段 4：单条 sub-agent CRUD（按 name 路径参数）
+  if (path.startsWith("/api/settings/agent-specs/")) {
+    const name = decodeURIComponent(path.slice("/api/settings/agent-specs/".length));
+    if (method === "PATCH") return await patchAgentSpec(req, deps, name);
+    if (method === "DELETE") return await deleteAgentSpec(deps, name);
     return jsonError(405, "INVALID_INPUT", `method ${method} not allowed`);
   }
   // 阶段 7.7：embedding provider 配置
@@ -224,6 +232,54 @@ async function updateAgentSpecs(req: Request, deps: SettingsRouteDeps): Promise<
     return jsonOk({ specs: r.value.value.specs, updatedAt: r.value.updatedAt });
   } catch (e) {
     return jsonErr(deps.logger, "settings.updateAgentSpecs failed", e);
+  }
+}
+
+// 阶段 4：单条 sub-agent CRUD handlers
+async function createAgentSpec(req: Request, deps: SettingsRouteDeps): Promise<Response> {
+  let raw: unknown;
+  try { raw = await req.json(); } catch (e) {
+    return jsonError(400, "INVALID_INPUT", `invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const body = (raw ?? {}) as Partial<SubAgentSpecData>;
+  try {
+    const r = await deps.useCase.createAgentSpec(body as SubAgentSpecData);
+    if (!r.ok) return jsonErrorForDomain(r.error);
+    return jsonOk({ specs: r.value.value.specs, updatedAt: r.value.updatedAt });
+  } catch (e) {
+    return jsonErr(deps.logger, "settings.createAgentSpec failed", e);
+  }
+}
+
+async function patchAgentSpec(
+  req: Request,
+  deps: SettingsRouteDeps,
+  name: string,
+): Promise<Response> {
+  let raw: unknown;
+  try { raw = await req.json(); } catch (e) {
+    return jsonError(400, "INVALID_INPUT", `invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const patch = (raw ?? {}) as Partial<SubAgentSpecData>;
+  // 不允许改 name 和 type
+  delete (patch as { name?: unknown }).name;
+  delete (patch as { type?: unknown }).type;
+  try {
+    const r = await deps.useCase.updateAgentSpec(name, patch);
+    if (!r.ok) return jsonErrorForDomain(r.error);
+    return jsonOk({ specs: r.value.value.specs, updatedAt: r.value.updatedAt });
+  } catch (e) {
+    return jsonErr(deps.logger, "settings.patchAgentSpec failed", e);
+  }
+}
+
+async function deleteAgentSpec(deps: SettingsRouteDeps, name: string): Promise<Response> {
+  try {
+    const r = await deps.useCase.deleteAgentSpec(name);
+    if (!r.ok) return jsonErrorForDomain(r.error);
+    return jsonOk({ specs: r.value.value.specs, updatedAt: r.value.updatedAt });
+  } catch (e) {
+    return jsonErr(deps.logger, "settings.deleteAgentSpec failed", e);
   }
 }
 

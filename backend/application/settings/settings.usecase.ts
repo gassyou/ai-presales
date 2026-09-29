@@ -12,12 +12,13 @@
  */
 
 import type { Clock } from "@backend/domain/shared/clock.ts";
-import { type DomainResult, domainOk } from "@backend/domain/shared/result.ts";
+import { type DomainResult, domainErr, domainOk } from "@backend/domain/shared/result.ts";
 import type { ISystemSettingRepository, SystemSettingRead } from "@backend/domain/settings/system-setting.repository.ts";
 import { LLMProfilesSetting, type LLMProfilesSettingData } from "@backend/domain/settings/llm-profiles.setting.ts";
 import { MailAccountsSetting, type MailAccountsSettingData } from "@backend/domain/settings/mail-accounts.setting.ts";
 import { ToolConfigsSetting, type ToolConfigsSettingData } from "@backend/domain/settings/tool-configs.setting.ts";
 import { SubAgentSpecsSetting, type SubAgentSpecsSettingData } from "@backend/domain/settings/sub-agent-specs.setting.ts";
+import type { SubAgentSpecData } from "@backend/domain/sub-agent/sub-agent-spec.ts";
 import { EmbeddingConfigSetting, type EmbeddingConfigSettingData } from "@backend/domain/settings/embedding-config.setting.ts";
 import type { ToolRegistry } from "@backend/ai/tool/tool-registry.ts";
 import type { SqliteBackedSubAgentRegistry } from "@backend/persistence/sqlite/sqlite-sub-agent-registry.ts";
@@ -140,6 +141,97 @@ export class SettingsUseCase {
     if (!out.ok) return out;
     await this.afterAgentSpecsChanged();
     return out;
+  }
+
+  // ===== 阶段 4：sub-agent 单条 CRUD（system 拒绝用户操作） =====
+
+  /**
+   * 新增一个 user 类型 sub-agent spec。
+   * - name 全局唯一（与 builtin 不冲突）
+   * - 缺省 type = "user"
+   * - 写入前自动合并现有 spec
+   */
+  async createAgentSpec(
+    spec: SubAgentSpecData,
+  ): Promise<DomainResult<SystemSettingRead<SubAgentSpecsSettingData>>> {
+    const cur = await this.deps.settings.getAgentSpecs();
+    const curSpecs = cur?.value.specs ?? {};
+    const merged = { ...curSpecs, [spec.name]: { ...spec, type: spec.type ?? "user" } };
+    return await this.updateAgentSpecs({ specs: merged }, cur?.updatedAt);
+  }
+
+  /**
+   * 更新单个 spec（按 name）。不允许把 system spec 改成 user spec 或 vice-versa
+   * （type 锁定）。
+   */
+  async updateAgentSpec(
+    name: string,
+    patch: Partial<Omit<SubAgentSpecData, "name" | "type">>,
+  ): Promise<DomainResult<SystemSettingRead<SubAgentSpecsSettingData>>> {
+    const cur = await this.deps.settings.getAgentSpecs();
+    const curSpecs = cur?.value.specs ?? {};
+    const existing = curSpecs[name];
+    if (!existing) {
+      return domainErr("NOT_FOUND", `sub-agent spec not found: ${name}`);
+    }
+    // 阶段 4：system spec 不能改名为 user 或被用户篡改 type
+    const merged = {
+      ...curSpecs,
+      [name]: { ...existing, ...patch, type: existing.type ?? "user" },
+    };
+    return await this.updateAgentSpecs({ specs: merged }, cur?.updatedAt);
+  }
+
+  /**
+   * 删除单个 spec。阶段 4：type=system 拒绝删除（INTERNAL 错误）。
+   */
+  async deleteAgentSpec(
+    name: string,
+  ): Promise<DomainResult<SystemSettingRead<SubAgentSpecsSettingData>>> {
+    const cur = await this.deps.settings.getAgentSpecs();
+    const curSpecs = cur?.value.specs ?? {};
+    const existing = curSpecs[name];
+    if (!existing) {
+      return domainErr("NOT_FOUND", `sub-agent spec not found: ${name}`);
+    }
+    if ((existing.type ?? "user") === "system") {
+      return domainErr(
+        "INTERNAL",
+        `system sub-agent cannot be deleted: ${name}`,
+      );
+    }
+    const { [name]: _, ...rest } = curSpecs;
+    return await this.updateAgentSpecs({ specs: rest }, cur?.updatedAt);
+  }
+
+  /**
+   * 阶段 4：seed builtin sub-agent specs（启动时调用）。如果 spec 已存在但 type
+   * 缺失或为 user，会把 type 修正为 system（保持运行时的状态）。
+   */
+  async seedBuiltinAgentSpecsIfMissing(): Promise<void> {
+    // 复用 builtin 列表（已含 type=system）
+    const { getBuiltinSubAgentSpecs } = await import("../sub-agent/builtin-sub-agents.ts");
+    const builtins = getBuiltinSubAgentSpecs();
+    const cur = await this.deps.settings.getAgentSpecs();
+    const curSpecs = cur?.value.specs ?? {};
+    let dirty = false;
+    const next: Record<string, SubAgentSpecData> = { ...curSpecs };
+    for (const b of builtins) {
+      const exist = curSpecs[b.name];
+      if (!exist) {
+        next[b.name] = b;
+        dirty = true;
+        continue;
+      }
+      // 已存在但缺 type → 修正
+      if ((exist.type ?? "user") !== "system") {
+        next[b.name] = { ...exist, type: "system" };
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      await this.updateAgentSpecs({ specs: next }, cur?.updatedAt);
+    }
   }
 
   // 阶段 7.7：embedding provider 配置
