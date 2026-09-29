@@ -11,8 +11,8 @@
     └──────────────────────────────────────────────────────┘
 
   - textarea 自动扩展高度（1-5 行）
-  - 底栏左侧：⊕ 添加（占位）、📎 附件（占位）
-  - 底栏右侧：profile 下拉（fast/deep/local）+ 发送按钮
+  - 底栏左侧：⊕ 添加（实际触发文件选择，PR #7）、📎 附件（占位，移除由 / 命令 + skill 提供）
+  - 底栏右侧：profile 下拉（来自 llm-profiles store）+ 发送按钮
   - 加载中显示"停止"按钮替换发送按钮
   - @ mention 弹窗仍然支持
 -->
@@ -68,11 +68,25 @@
     </div>
 
     <div class="flex items-center justify-between gap-2 border-t border-border px-2 py-1.5">
-      <!-- 阶段 10：附件 icon 已删除（用户原话"取消附件 icon"）。改由 / 命令 + skill 系统提供附件能力 -->
+      <!-- 阶段 13（PR #7）：⊕ 按钮触发 hidden <input type="file">；选完 → 上传 → 写入 session 历史 -->
       <div class="flex items-center gap-1 text-slate-500">
-        <el-button link size="small" title="添加（占位）" class="!text-slate-500">
+        <el-button
+          link
+          size="small"
+          :disabled="store.loading"
+          :title="store.currentSessionId ? '添加附件' : '请先选择会话'"
+          class="!text-slate-500"
+          @click="onPickFileClick"
+        >
           <span class="text-base leading-none">⊕</span>
         </el-button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          class="hidden"
+          @change="onFilesPicked"
+        />
       </div>
 
       <div class="flex items-center gap-1">
@@ -120,10 +134,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, reactive, watch } from "vue";
+import { ElMessage } from "element-plus";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import MentionAutocomplete from "./MentionAutocomplete.vue";
 import { useSkillStore } from "@frontend/features/skill/stores/skill.store.ts";
 import { useLlmProfilesStore } from "@frontend/features/settings/stores/llm-profiles.store.ts";
+import { chatAttachmentApi } from "./api/ai-chat.api.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
 
 const store = useAiChatStore();
@@ -313,6 +329,49 @@ function onSlashPick(entry: SlashEntry): void {
 function closeSlash(): void {
   slashState.visible = false;
   slashState.activeIndex = 0;
+}
+
+// 阶段 13（PR #7）：⊕ 按钮 → file picker → 上传到当前 session
+const fileInputRef = ref<HTMLInputElement | null>(null);
+function onPickFileClick(): void {
+  if (!store.currentSessionId) {
+    ElMessage.warning("请先选择会话");
+    return;
+  }
+  fileInputRef.value?.click();
+}
+async function onFilesPicked(e: Event): Promise<void> {
+  const target = e.target as HTMLInputElement | null;
+  const files = target?.files;
+  if (!files || files.length === 0) return;
+  const sid = store.currentSessionId;
+  if (!sid) return;
+  // 顺序上传，简单稳妥（base64 内联，不并发）
+  for (const f of Array.from(files)) {
+    try {
+      const buf = await f.arrayBuffer();
+      const base64 = arrayBufferToBase64(buf);
+      const dto = await chatAttachmentApi.upload({
+        sessionId: sid,
+        fileName: f.name,
+        mimeType: f.type || "application/octet-stream",
+        contentBase64: base64,
+      });
+      // 上传后端已自动 appendMessage；触发消息列表刷新
+      await store.refreshMessages(sid);
+      ElMessage.success(`附件 ${dto.fileName} 上传完成`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      ElMessage.error(`附件 ${f.name} 上传失败：${msg}`);
+    }
+  }
+  if (target) target.value = "";
+}
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
 }
 
 function onKeyDown(e: Event | KeyboardEvent): void {

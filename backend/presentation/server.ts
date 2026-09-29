@@ -23,6 +23,10 @@ import { handleProjects, type ProjectRouteDeps } from "./routes/project.route.ts
 import { type AiChatRouteDeps, handleAiChat, handleAiChatStream } from "./routes/ai.route.ts";
 import { handleSubAgents, type SubAgentRouteDeps } from "./routes/sub-agent.route.ts";
 import { type ChatSessionRouteDeps, handleChatSession } from "./routes/chat-session.route.ts";
+import {
+  type ChatAttachmentRouteDeps,
+  handleChatAttachmentRoute,
+} from "./routes/chat-attachment.route.ts";
 import { type AutoModeRouteDeps, handleAutoMode } from "./routes/auto-mode.route.ts";
 import { handleKnowledge, type KnowledgeRouteDeps } from "./routes/knowledge.route.ts";
 import {
@@ -121,6 +125,8 @@ export interface AppDeps {
   /** 阶段 7.4h：系统设置（4 类）路由依赖 */
   settingsRoute?: SettingsRouteDeps;
   chatSessionRoute?: ChatSessionRouteDeps;
+  /** 阶段 13（PR #7）：chat 附件上传/列表 路由依赖 */
+  chatAttachmentRoute?: ChatAttachmentRouteDeps;
   /** 阶段 13（PR #5）：skill 系统（list + invoke）路由依赖 */
   skillRoute?: SkillRouteDeps;
   autoModeRoute?: AutoModeRouteDeps;
@@ -668,6 +674,20 @@ export function createApp(deps: AppDeps): App {
         );
       }
       return await handleChatSession(req, deps.chatSessionRoute, url);
+    }
+    // 阶段 13（PR #7）：chat 附件上传/列表（路径先于 skills 兜底）
+    if (path.match(/^\/api\/chat\/sessions\/[^/]+\/attachments$/)) {
+      if (!deps.chatAttachmentRoute) {
+        return new Response(
+          JSON.stringify({
+            code: "NOT_IMPLEMENTED",
+            message: "chat attachment service not wired",
+            traceId: "",
+          }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      return await handleChatAttachmentRoute(req, deps.chatAttachmentRoute, url);
     }
     // 阶段 13（PR #5）：skill 系统路由（list + invoke）
     if (path === "/api/skills" || path.startsWith("/api/skills/")) {

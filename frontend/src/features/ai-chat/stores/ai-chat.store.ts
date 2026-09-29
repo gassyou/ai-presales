@@ -273,6 +273,20 @@ export const useAiChatStore = defineStore("aiChat", () => {
         : {}),
     }));
   }
+  /** 阶段 13（PR #7）：附件上传后端已自动 appendMessage；调此方法刷前端列表 */
+  async function refreshMessages(sessionId: string): Promise<void> {
+    if (currentSessionId.value !== sessionId) return;
+    const list = await chatSessionApi.listMessages(sessionId);
+    messages.value = list.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt,
+      ...(m.toolCalls !== undefined
+        ? { toolCalls: [...m.toolCalls] as unknown as ToolCallEntry[] }
+        : {}),
+    }));
+  }
   async function deleteCurrentSession(): Promise<void> {
     if (!currentSessionId.value) return;
     const id = currentSessionId.value;
@@ -437,5 +451,6 @@ export const useAiChatStore = defineStore("aiChat", () => {
     persistMessage,
     loadMentionCandidates,
     executeSkill,
+    refreshMessages,
   };
 });

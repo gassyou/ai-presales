@@ -40,6 +40,9 @@ import { ChatSessionUseCase } from "@backend/application/chat-session/chat-sessi
 // 阶段 13（PR #5）：skill 系统 —— 默认 registry + 3 个 builtin skill
 import { buildDefaultSkillRegistry, type SkillRegistry } from "@backend/ai/skill/skill.ts";
 import { makeBuiltinSkills } from "@backend/ai/skill/builtin-skills.ts";
+// 阶段 13（PR #7）：chat 附件上传（migration 015 + repo + use case + route）
+import { SqliteChatAttachmentRepository } from "@backend/persistence/sqlite/sqlite-chat-attachment.repository.ts";
+import { ChatAttachmentUseCase } from "@backend/application/chat-attachment/chat-attachment.usecase.ts";
 import { SqliteKnowledgeRepository } from "@backend/persistence/sqlite/sqlite-knowledge.repository.ts";
 import { SqliteKnowledgeChunkRepository } from "@backend/persistence/sqlite/sqlite-knowledge-chunk.repository.ts";
 import { createEmbeddingProvider } from "@backend/ai/embedding/factory.ts";
@@ -203,6 +206,48 @@ const projectService = new ProjectService({
   teamRepo: projectTeamRepo,
 });
 const clock = new SystemClock();
+
+// 阶段 13（PR #7）：fallback profile —— 当 settings 还没加载时用 config.profiles[defaultProfile]
+const fakeProfile: import("@backend/infrastructure/config/types.ts").ProfileConfig = (() => {
+  const p = config.profiles[config.defaultProfile];
+  return p ?? { provider: "openai", model: "gpt-4o-mini", temperature: 0.2, maxTokens: 2048 };
+})();
+
+/**
+ * 阶段 13（PR #7）：把异步的 llmClientResolver 包成同步可传的 ILLMClient。
+ * chat() 调用时 lazy 触发 resolver；任何错误（resolver 未就绪 / LLM 不可用）都会被
+ * 上层 try/catch 吞掉，AI 解析失败 ≠ upload 失败。
+ */
+function makeLazyLlmClient(
+  resolver: { get(name: string): Promise<import("@backend/ai/client/llm-client.ts").ILLMClient> },
+  profileName: string,
+): import("@backend/ai/client/llm-client.ts").ILLMClient {
+  let cached: import("@backend/ai/client/llm-client.ts").ILLMClient | null = null;
+  return {
+    provider: "openai",
+    async chat(req) {
+      if (cached === null) {
+        cached = await resolver.get(profileName);
+      }
+      return await cached.chat(req);
+    },
+    async *stream(req) {
+      if (cached === null) {
+        cached = await resolver.get(profileName);
+      }
+      yield* cached.stream(req);
+    },
+    capabilities() {
+      return {
+        provider: "openai",
+        supportsTools: false,
+        supportsStreaming: true,
+        supportsStructuredOutput: false,
+        contextWindow: 128000,
+      };
+    },
+  };
+}
 
 // LLM client factory —— 阶段 7.7：从 settings DB 取 profile（不再走 config.profiles）
 const transport = new SdkTransport({
@@ -584,6 +629,20 @@ const chatSessionUseCase = new ChatSessionUseCase({
   repo: new SqliteChatSessionRepository(database),
   clock,
 });
+// 阶段 13（PR #7）：chat 附件 use case —— 复用 chatSessionRepo + llm client
+// 注：llmClient 是 lazy 包装 —— 启动时 resolver 不一定就绪；tryParseSummary 内部 catch
+// 任何错误，AI 解析失败不阻塞 upload。storageDir = dataDir/chat-attachments。
+const chatAttachmentUseCase = new ChatAttachmentUseCase({
+  repo: new SqliteChatAttachmentRepository(database),
+  chatSessionRepo: new SqliteChatSessionRepository(database),
+  llmClient: makeLazyLlmClient(
+    llmClientResolver,
+    defaultProfileConfig()?.model ?? config.defaultProfile,
+  ),
+  defaultProfile: defaultProfileConfig() ?? fakeProfile,
+  storageDir: `${config.app.dataDir}/chat-attachments`,
+  clock,
+});
 {
   const profile = defaultProfileConfig();
   if (profile) {
@@ -786,6 +845,11 @@ const app = createApp({
   chatSessionRoute: {
     logger,
     useCase: chatSessionUseCase,
+  },
+  // 阶段 13（PR #7）：chat 附件上传/列表路由
+  chatAttachmentRoute: {
+    logger,
+    useCase: chatAttachmentUseCase,
   },
   // 阶段 13（PR #5）：skill 路由（list + invoke）；与 skillRegistry 共享同一实例
   skillRoute: {

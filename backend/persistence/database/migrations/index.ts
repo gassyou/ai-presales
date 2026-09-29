@@ -16,6 +16,7 @@ import { MIGRATION_011 } from "./011_project_metadata.sql.ts";
 import { MIGRATION_012 } from "./012_project_paused_date.sql.ts";
 import { MIGRATION_013 } from "./013_project_workspace.sql.ts";
 import { MIGRATION_014 } from "./014_chat_sessions.sql.ts";
+import { MIGRATION_015 } from "./015_chat_attachments.sql.ts";
 import type { Migration } from "./runner.ts";
 
 export const BUILTIN_MIGRATIONS: readonly Migration[] = [
@@ -33,4 +34,5 @@ export const BUILTIN_MIGRATIONS: readonly Migration[] = [
   MIGRATION_012,
   MIGRATION_013,
   MIGRATION_014,
+  MIGRATION_015,
 ];
