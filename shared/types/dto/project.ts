@@ -4,7 +4,13 @@
 
 import type { IsoDateTime } from "../common.ts";
 
-export type ProjectStatusValue = "新建" | "提案中" | "暂停" | "中标" | "未中标";
+export type ProjectStatusValue =
+  | "新建"
+  | "提案中"
+  | "暂停"
+  | "中标"
+  | "未中标"
+  | "中止";
 
 export interface ProjectContactDTO {
   id: string;

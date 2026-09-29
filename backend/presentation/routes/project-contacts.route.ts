@@ -79,6 +79,10 @@ function mapDomainError(domainCode: DomainErrorCode): { status: number; code: Er
       return { status: 501, code: ErrorCode.INTERNAL };
     case "INTERNAL":
       return { status: 500, code: ErrorCode.INTERNAL };
+    case "WORKSPACE_NOT_EXISTS":
+      return { status: 404, code: ErrorCode.NOT_FOUND };
+    case "WORKSPACE_CREATE_FAILED":
+      return { status: 500, code: ErrorCode.INTERNAL };
   }
 }
 

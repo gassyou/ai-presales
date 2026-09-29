@@ -22,6 +22,7 @@ import { healthHandler, type HealthDeps } from "./routes/health.route.ts";
 import { handleProjects, type ProjectRouteDeps } from "./routes/project.route.ts";
 import { handleAiChat, handleAiChatStream, type AiChatRouteDeps } from "./routes/ai.route.ts";
 import { handleSubAgents, type SubAgentRouteDeps } from "./routes/sub-agent.route.ts";
+import { handleChatSession, type ChatSessionRouteDeps } from "./routes/chat-session.route.ts";
 import { handleKnowledge, type KnowledgeRouteDeps } from "./routes/knowledge.route.ts";
 import {
   handleBusinessModule,
@@ -134,6 +135,8 @@ export interface AppDeps {
   dashboardRoute?: DashboardRouteDeps;
   /** 阶段 7.4h：系统设置（4 类）路由依赖 */
   settingsRoute?: SettingsRouteDeps;
+  chatSessionRoute?: ChatSessionRouteDeps;
+  // ...其他省略...
   /** 阶段 7.4h：返回当前 default profile 快照（sub-agent invoke 时读 temperature/maxTokens） */
   profileSnapshot?: () => import("@backend/ai/sub-agent/sub-agent-runner.ts").ProfileSnapshot | undefined;
   /** 阶段 7.5（H8）：invoke 改走 InvokeSubAgentUseCase 单点入口；不传则 route 走原 inline 路径 */
@@ -552,6 +555,16 @@ export function createApp(deps: AppDeps): App {
         );
       }
       return await handleSettings(req, deps.settingsRoute, url);
+    }
+    // 阶段 6（任务 6）：AI chat 会话历史
+    if (path === "/api/chat/sessions" || path.startsWith("/api/chat/sessions/")) {
+      if (!deps.chatSessionRoute) {
+        return new Response(
+          JSON.stringify({ code: "NOT_IMPLEMENTED", message: "chat session service not wired", traceId: "" }),
+          { status: 501, headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+      return await handleChatSession(req, deps.chatSessionRoute, url);
     }
     return new Response(JSON.stringify({ code: "NOT_FOUND", message: `route ${path} not implemented`, traceId: "" }), {
       status: 404,

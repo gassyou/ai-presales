@@ -30,6 +30,9 @@ const badgeClass = computed<string>(() => {
       return "bg-emerald-500/20 text-emerald-700";
     case "未中标":
       return "bg-red-500/20 text-red-300";
+    // 阶段 1："中止" 用深灰色（终态，与"未中标"区分）
+    case "中止":
+      return "bg-slate-700 text-slate-100";
   }
 });
 </script>
