@@ -11,6 +11,8 @@ export const Endpoints = {
   project: (id: string) => `/api/projects/${id}`,
   // 阶段 13（PR #2）：项目工作区
   projectWorkspace: (id: string) => `/api/projects/${id}/workspace`,
+  // 阶段 13（PR #2）：跨平台元信息（OS + 用户主目录 + 路径分隔符）
+  systemPlatform: "/api/system/platform",
   // AI
   aiChat: "/api/ai/chat",
   aiChatStream: "/api/ai/chat/stream",

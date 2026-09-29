@@ -109,8 +109,9 @@
       <span v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
         {{ project.workspacePath }}
       </span>
+      <!-- 阶段 13（PR #2）：按 OS 区分默认路径（mac/win/linux） -->
       <span v-else class="text-slate-500">
-        ~/Desktop/{{ project.name }}
+        {{ defaultWorkspaceHint }}
       </span>
       <!-- 阶段 13（PR #2）：「变更」按钮触发隐藏文件夹选择 input；
            「创建文件夹」按钮调后端 mkdir(recursive) 跨平台创建 -->
@@ -235,6 +236,8 @@
 
 <script setup lang="ts">
 import { computed, markRaw, onMounted, ref, watch } from "vue";
+// 阶段 13（PR #2）：跨平台元信息（OS + 主目录 + 分隔符），用于渲染 workspace 默认路径
+import { systemApi, type PlatformInfoDTO } from "@frontend/shared/api/system.api.ts";
 import { useRoute, useRouter } from "vue-router";
 import { projectApi } from "./api/project.api.ts";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
@@ -376,6 +379,43 @@ async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<vo
 }
 
 /* ===== 工作区路径（PR #2） ===== */
+// 阶段 13（PR #2）：跨平台元信息（OS + 用户主目录 + 分隔符）
+const platformInfo = ref<PlatformInfoDTO | null>(null);
+
+async function loadPlatformInfo(): Promise<void> {
+  try {
+    platformInfo.value = await systemApi.getPlatform();
+  } catch {
+    // 失败时不显示（保留旧 "~/Desktop/<name>" 字面量也不致命）
+    platformInfo.value = null;
+  }
+}
+
+/**
+ * 阶段 13（PR #2）：按当前 OS 渲染 workspace 默认路径提示。
+ *  - macOS / Linux:  /Users/<u>/Desktop/<name>
+ *  - Windows:        C:\Users\<u>\Desktop\<name>
+ *  - 拿不到后端信息 → 回退到 ~/Desktop/<name>（兼容旧 UI）
+ */
+const defaultWorkspaceHint = computed<string>(() => {
+  const p = platformInfo.value;
+  if (!p || !project.value) return `~/Desktop/${project.value?.name ?? ""}`;
+  // 简化主目录展示：仅保留末段
+  const homeTail = p.home.split(/[\\/]/).filter(Boolean).pop() ?? p.home;
+  const sep = p.sep;
+  // macOS/Linux 显示 ~ ；Windows 显示完整盘符路径
+  if (p.platform === "windows") {
+    return `${p.home}${sep}Desktop${sep}${project.value.name}`;
+  }
+  if (p.platform === "darwin") {
+    return `~${sep}Desktop${sep}${project.value.name}（实际：${homeTail}${sep}Desktop${sep}${project.value.name}）`;
+  }
+  if (p.platform === "linux") {
+    return `~${sep}Desktop${sep}${project.value.name}（实际：${homeTail}${sep}Desktop${sep}${project.value.name}）`;
+  }
+  return `~${sep}Desktop${sep}${project.value.name}`;
+});
+
 const workspaceDialog = ref(false);
 const workspaceSubmitting = ref(false);
 const workspaceError = ref<string | null>(null);
@@ -705,6 +745,7 @@ watch(
 
 onMounted(() => {
   loadNavWidth();
+  void loadPlatformInfo(); // 阶段 13（PR #2）：跨平台 workspace 默认值
   const id = route.params.id;
   if (typeof id === "string") {
     void load(id);

@@ -74,6 +74,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import type { ProjectDTO } from "@shared/types/dto/project.ts";
+// 阶段 13（PR #2）：跨平台默认路径
+import { systemApi, type PlatformInfoDTO } from "@frontend/shared/api/system.api.ts";
 
 const props = defineProps<{
   project: ProjectDTO;
@@ -99,8 +101,30 @@ const localError = ref<string | null>(null);
 const isSubmitting = computed(() => props.submitting ?? false);
 const displayError = computed(() => props.error ?? localError.value);
 
-// 纯前端默认值提示（不调后端解析，避免 UI 启动一次网络往返）
-const defaultHint = computed(() => `~/Desktop/${props.project.code}`);
+// 阶段 13（PR #2）：跨平台元信息
+const platformInfo = ref<PlatformInfoDTO | null>(null);
+watch(
+  () => props.project.id,
+  async () => {
+    try {
+      platformInfo.value = await systemApi.getPlatform();
+    } catch {
+      platformInfo.value = null;
+    }
+  },
+  { immediate: true },
+);
+
+/** 阶段 13（PR #2）：按当前 OS 拼接默认工作区路径 */
+const defaultHint = computed<string>(() => {
+  const p = platformInfo.value;
+  const sep = p?.sep ?? "/";
+  if (p) {
+    return `${p.home}${sep}Desktop${sep}${props.project.code}`;
+  }
+  // 拿不到后端信息 → 回退到 ~/Desktop/<code>（兼容旧 UI）
+  return `~/Desktop/${props.project.code}`;
+});
 
 // project prop 变化时同步
 watch(

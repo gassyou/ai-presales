@@ -19,6 +19,7 @@ import { errorHandler } from "./middleware/error-handler.ts";
 import { requestLogMiddleware } from "./middleware/request-log.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
 import { type HealthDeps, healthHandler } from "./routes/health.route.ts";
+import { handleSystemPlatform } from "./routes/system.route.ts";
 import { handleProjects, type ProjectRouteDeps } from "./routes/project.route.ts";
 import { type AiChatRouteDeps, handleAiChat, handleAiChatStream } from "./routes/ai.route.ts";
 import { handleSubAgents, type SubAgentRouteDeps } from "./routes/sub-agent.route.ts";
@@ -244,6 +245,10 @@ export function createApp(deps: AppDeps): App {
     }
     if (path === "/api/health") {
       return await healthHandler(req, healthDeps);
+    }
+    // 阶段 13（PR #2）：跨平台元信息
+    if (path === "/api/system/platform") {
+      return handleSystemPlatform(req);
     }
     if (path === "/api/projects" || path.startsWith("/api/projects/")) {
       // 阶段 7.4e：联系人 / 团队成员必须在 handleProjects 之前拦截，

@@ -506,8 +506,15 @@ export class Project extends AggregateRoot<ProjectId> {
 
   /** 计算默认工作区路径：~/Desktop/<projectCode> */
   computeDefaultWorkspacePath(homeDir?: string): string {
-    const home = homeDir ?? Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? "/tmp";
-    return `${home}/Desktop/${this._code}`;
+    // 跨平台默认值：Mac/Linux 用 /Desktop/，Windows 用 \Desktop\
+    const platform = Deno.build.os;
+    const sep = platform === "windows" ? "\\" : "/";
+    const home =
+      homeDir ??
+      Deno.env.get("HOME") ??
+      Deno.env.get("USERPROFILE") ??
+      (platform === "windows" ? "C:\\Users\\Default" : "/tmp");
+    return `${home}${sep}Desktop${sep}${this._code}`;
   }
 
   /** 解析当前生效的 workspacePath（未设置时返回默认） */
