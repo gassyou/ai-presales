@@ -35,13 +35,18 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import MessageBubble from "./MessageBubble.vue";
 import ChatComposer from "./ChatComposer.vue";
 
 const store = useAiChatStore();
 const scrollRef = ref<HTMLElement | null>(null);
+
+// 阶段 9（任务 9）：挂载时装载 @mention 候选项目列表
+onMounted(() => {
+  void store.loadMentionCandidates();
+});
 
 watch(
   () => store.messages.length,

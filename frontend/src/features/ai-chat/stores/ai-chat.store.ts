@@ -193,6 +193,22 @@ export const useAiChatStore = defineStore("aiChat", () => {
     // 轻量：只存 id；详情通过 projectApi.get 异步补全（路由层负责）
     currentProject.value = { ...(currentProject.value ?? {} as ProjectDTO), id } as ProjectDTO;
   }
+  
+  /**
+   * 阶段 9（任务 9）：从 /api/projects 拉取候选项目列表，给 ChatComposer @mention 用。
+   * 前端在 mount 时调用；用户后续创建/删除项目时再调一次刷新。
+   */
+  async function loadMentionCandidates(): Promise<void> {
+    try {
+      const { projectApi } = await import("@frontend/features/project/api/project.api.ts");
+      const resp = await projectApi.list({ limit: 200 });
+      setMentionCandidates(resp.items);
+    } catch (e) {
+      // 静默：@ 功能是辅助；列表空也不阻塞主流程
+      console.warn("loadMentionCandidates failed", e);
+    }
+  }
+
   function setMentionCandidates(items: ProjectDTO[]): void {
     mentionCandidates.value = items;
   }
@@ -238,5 +254,6 @@ export const useAiChatStore = defineStore("aiChat", () => {
     setCurrentProject,
     setCurrentProjectId,
     setMentionCandidates,
+    loadMentionCandidates,
   };
 });
