@@ -25,11 +25,7 @@
           >
             <template #reference>
               <el-button size="small" :disabled="busy">
-                <span class="inline-flex items-center gap-1">
-                  <span aria-hidden="true">🕐</span>
-                  <span>会话历史</span>
-                  <span class="text-slate-400">({{ store.sessions.length }})</span>
-                </span>
+                <span>会话历史 ({{ store.sessions.length }})</span>
               </el-button>
             </template>
 
@@ -72,15 +68,9 @@
           </el-popover>
         </div>
 
-        <span v-if="store.currentSessionId" class="truncate text-sm font-medium text-slate-700">
+        <span class="truncate text-sm font-medium text-slate-700">
           {{ currentTitle }}
         </span>
-        <span v-else class="truncate text-sm text-slate-400">未选择会话</span>
-
-        <div v-if="store.currentSessionId" class="flex shrink-0 gap-2">
-          <el-button size="small" :disabled="busy" @click="onRename">改名</el-button>
-          <el-button size="small" type="danger" :disabled="busy" @click="onDelete">删除</el-button>
-        </div>
       </header>
 
       <div ref="scrollRef" class="flex-1 space-y-2 overflow-y-auto px-4 py-3">
@@ -113,7 +103,6 @@
 import { ElMessage, ElMessageBox } from "element-plus";
 // 阶段 9：mention 候选装载依赖 onMounted，保留 `nextTick, onMounted` 在前以满足 task9-mention 静态断言
 import { nextTick, onMounted, computed, ref, watch } from "vue";
-import { chatSessionApi } from "./api/chat-session.api.ts";
 import { useAiChatStore } from "./stores/ai-chat.store.ts";
 import ChatComposer from "./ChatComposer.vue";
 import MessageBubble from "./MessageBubble.vue";
@@ -126,9 +115,9 @@ const historySearch = ref("");
 
 const currentTitle = computed(() => {
   const id = store.currentSessionId;
-  if (!id) return "未选择会话";
+  if (!id) return "新会话";
   const s = store.sessions.find((x) => x.id === id);
-  return s?.title ?? "未选择会话";
+  return s?.title ?? "新会话";
 });
 
 const filteredSessions = computed(() => {
@@ -215,55 +204,6 @@ async function onDeleteFromHistory(id: string, title: string): Promise<void> {
   busy.value = true;
   try {
     await store.deleteSessionById(id);
-    ElMessage.success("会话已删除");
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e));
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function onRename(): Promise<void> {
-  if (!store.currentSessionId) return;
-  let nextTitle: string;
-  try {
-    const r = await ElMessageBox.prompt("输入新标题", "改名", {
-      confirmButtonText: "保存",
-      cancelButtonText: "取消",
-      inputValue: currentTitle.value,
-      inputValidator: (v) => (typeof v === "string" && v.trim().length > 0 ? true : "标题不能为空"),
-    });
-    nextTitle = r.value;
-  } catch {
-    return; // 用户取消
-  }
-  busy.value = true;
-  try {
-    const id = store.currentSessionId;
-    await chatSessionApi.rename(id, nextTitle.trim());
-    await store.loadSessions(store.currentProject?.id ?? null);
-    ElMessage.success("已改名");
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e));
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function onDelete(): Promise<void> {
-  if (!store.currentSessionId) return;
-  try {
-    await ElMessageBox.confirm("确认删除当前会话？消息不可恢复。", "删除会话", {
-      type: "warning",
-      confirmButtonText: "删除",
-      cancelButtonText: "取消",
-    });
-  } catch {
-    return;
-  }
-  busy.value = true;
-  try {
-    await store.deleteCurrentSession();
     ElMessage.success("会话已删除");
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e));
