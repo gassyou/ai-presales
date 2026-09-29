@@ -104,26 +104,25 @@
       </div>
     </header>
 
-    <div class="flex flex-col gap-1 md:col-span-2">
+    <div class="text-xs font-normal">
       <span>工作区路径:</span>
-      <span v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5">
+      <span v-if="project.workspacePath" class="rounded bg-surface-alt px-1.5 py-0.5 mr-3">
         {{ project.workspacePath }}
       </span>
       <!-- 阶段 13（PR #2）：按 OS 区分默认路径（mac/win/linux） -->
-      <span v-else class="text-slate-500">
+      <span v-else class="text-slate-500 mr-3">
         {{ defaultWorkspaceHint }}
       </span>
       <!-- 阶段 13（PR #2）：「变更」按钮触发隐藏文件夹选择 input；
            「创建文件夹」按钮调后端 mkdir(recursive) 跨平台创建 -->
-      <div class="flex flex-wrap items-center gap-2">
         <button type="button"
-          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline"
+          class=" text-slate-500 underline-offset-4 hover:text-accent hover:underline mr-2"
           @click="openFolderPicker">
           变更
         </button>
         <button type="button"
           :disabled="creatingWorkspace"
-          class="text-xs font-normal text-slate-500 underline-offset-4 hover:text-accent hover:underline disabled:opacity-50"
+          class=" text-slate-500 underline-offset-4 hover:text-accent hover:underline disabled:opacity-50"
           @click="onCreateWorkspace">
           {{ creatingWorkspace ? "创建中…" : "创建文件夹" }}
         </button>
@@ -138,7 +137,6 @@
           class="hidden"
           @change="onFolderPicked"
         />
-      </div>
       <p v-if="workspaceError" class="text-xs text-red-500">{{ workspaceError }}</p>
     </div>
 
@@ -408,10 +406,10 @@ const defaultWorkspaceHint = computed<string>(() => {
     return `${p.home}${sep}Desktop${sep}${project.value.name}`;
   }
   if (p.platform === "darwin") {
-    return `~${sep}Desktop${sep}${project.value.name}（实际：${homeTail}${sep}Desktop${sep}${project.value.name}）`;
+    return `${homeTail}${sep}Desktop${sep}${project.value.name}`;
   }
   if (p.platform === "linux") {
-    return `~${sep}Desktop${sep}${project.value.name}（实际：${homeTail}${sep}Desktop${sep}${project.value.name}）`;
+    return `${homeTail}${sep}Desktop${sep}${project.value.name}`;
   }
   return `~${sep}Desktop${sep}${project.value.name}`;
 });
