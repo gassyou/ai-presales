@@ -101,17 +101,32 @@ async function seedProject(
   const p = r.value;
   // 状态推进
   const c2 = new FixedClock(args.updatedAt ?? new Date("2026-09-15T00:00:00Z"));
-  if (args.status === "提案中" || args.status === "暂停" || args.status === "中标" || args.status === "未中标") {
+  if (
+    args.status === "提案中" || args.status === "暂停" ||
+    args.status === "中标" || args.status === "未中标" || args.status === "中止"
+  ) {
     p.changeStatus("提案中", c2);
   }
   if (args.status === "暂停") {
     p.markPaused({ pauseReason: "测试暂停" }, c2);
   } else if (args.status === "中标") {
-    p.markWon({ wonDate: args.wonDate ?? new Date("2026-06-01"), bestPractice: args.bestPractice }, c2);
+    p.markWon({
+      wonDate: args.wonDate ?? new Date("2026-06-01"),
+      // 阶段 1：bestPractice 改为必填，测试 fixture 兜底"测试经验"
+      bestPractice: args.bestPractice ?? "测试经验",
+    }, c2);
   } else if (args.status === "未中标") {
     p.markLost({
       lostDate: args.lostDate ?? new Date("2026-07-01"),
       lostReason: args.lostReason ?? "测试未中标",
+      // 阶段 1：improvementNote 改为必填，测试 fixture 兜底"测试反省"
+      improvementNote: "测试反省",
+    }, c2);
+  } else if (args.status === "中止") {
+    // 阶段 1：新状态"中止"
+    p.markStopped({
+      pausedDate: new Date("2026-09-15T00:00:00Z"),
+      stopReason: "测试中止",
     }, c2);
   }
   const saveR = await svc["repo"].save(p);

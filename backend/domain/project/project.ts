@@ -61,6 +61,8 @@ export interface ProjectSnapshot {
   readonly bestPractice: string | null;
   readonly improvementNote: string | null;
   readonly pauseReason: string | null;
+  /** 阶段 1："中止"状态的日期（区别于"暂停"） */
+  readonly pausedDate: Date | null;
   /** 阶段 7.5：项目元信息编辑 —— 全部可空 */
   readonly clientWebsite: string | null;
   readonly clientIntro: string | null;
@@ -98,6 +100,7 @@ export class Project extends AggregateRoot<ProjectId> {
   private _bestPractice: string | null;
   private _improvementNote: string | null;
   private _pauseReason: string | null;
+  private _pausedDate: Date | null;
   /** 阶段 7.5：项目元信息编辑字段 */
   private _clientWebsite: string | null;
   private _clientIntro: string | null;
@@ -120,6 +123,7 @@ export class Project extends AggregateRoot<ProjectId> {
       bestPractice: string | null;
       improvementNote: string | null;
       pauseReason: string | null;
+      pausedDate: Date | null;
       clientWebsite: string | null;
       clientIntro: string | null;
       projectIntro: string | null;
@@ -132,6 +136,7 @@ export class Project extends AggregateRoot<ProjectId> {
       bestPractice: null,
       improvementNote: null,
       pauseReason: null,
+      pausedDate: null,
       clientWebsite: null,
       clientIntro: null,
       projectIntro: null,
@@ -152,6 +157,7 @@ export class Project extends AggregateRoot<ProjectId> {
     this._bestPractice = init.bestPractice;
     this._improvementNote = init.improvementNote;
     this._pauseReason = init.pauseReason;
+    this._pausedDate = init.pausedDate;
     this._clientWebsite = init.clientWebsite;
     this._clientIntro = init.clientIntro;
     this._projectIntro = init.projectIntro;
@@ -197,6 +203,7 @@ export class Project extends AggregateRoot<ProjectId> {
         bestPractice: null,
         improvementNote: null,
         pauseReason: null,
+        pausedDate: null,
         clientWebsite: trimToNull(args.clientWebsite),
         clientIntro: trimToNull(args.clientIntro),
         projectIntro: trimToNull(args.projectIntro),
@@ -229,6 +236,7 @@ export class Project extends AggregateRoot<ProjectId> {
     bestPractice?: string | null;
     improvementNote?: string | null;
     pauseReason?: string | null;
+    pausedDate?: Date | null;
     clientWebsite?: string | null;
     clientIntro?: string | null;
     projectIntro?: string | null;
@@ -257,6 +265,7 @@ export class Project extends AggregateRoot<ProjectId> {
         bestPractice: snap.bestPractice ?? null,
         improvementNote: snap.improvementNote ?? null,
         pauseReason: snap.pauseReason ?? null,
+        pausedDate: snap.pausedDate ?? null,
         clientWebsite: snap.clientWebsite ?? null,
         clientIntro: snap.clientIntro ?? null,
         projectIntro: snap.projectIntro ?? null,
@@ -340,8 +349,8 @@ export class Project extends AggregateRoot<ProjectId> {
   // 旧有 changeStatus(target, clock, reason?) 仍保留以兼容旧调用方；
   // 新流程（ProjectService.changeProjectStatus）按 target 路由到这三个方法。
 
-  /** 标记为中标：要求当前状态为"提案中"，写入 wonDate + 可选 bestPractice */
-  markWon(args: { wonDate: Date; bestPractice?: string }, clock: Clock): DomainResult<void> {
+  /** 标记为中标：要求当前状态为"提案中"，wonDate 必填，bestPractice（经验）必填 */
+  markWon(args: { wonDate: Date; bestPractice: string }, clock: Clock): DomainResult<void> {
     if (this._status.value !== "提案中") {
       return domainErr(
         "ILLEGAL_STATE_TRANSITION",
@@ -352,28 +361,29 @@ export class Project extends AggregateRoot<ProjectId> {
     if (!(args.wonDate instanceof Date) || isNaN(args.wonDate.getTime())) {
       return domainErr("INVALID_INPUT", "wonDate must be a valid Date");
     }
+    const practice = args.bestPractice.trim();
+    if (practice.length === 0) {
+      return domainErr("INVALID_INPUT", "bestPractice is required");
+    }
     const tr = this._status.transition("中标");
     if (!tr.ok) return tr;
     const from = this._status.value;
     this._status = tr.value;
     this._wonDate = args.wonDate;
-    if (args.bestPractice !== undefined) {
-      const trimmed = args.bestPractice.trim();
-      this._bestPractice = trimmed.length > 0 ? trimmed : null;
-    }
+    this._bestPractice = practice;
     const now = clock.now();
     this._updatedAt = now;
     this.addDomainEvent(
-      new ProjectStatusChangedEvent(this.id, from, "中标", now, args.bestPractice),
+      new ProjectStatusChangedEvent(this.id, from, "中标", now, practice),
     );
     return domainOk(undefined);
   }
 
-  /** 标记为未中标：接受"提案中"/"暂停"，要求 lostReason，lostDate 必填 */
+  /** 标记为未中标：接受"提案中"/"暂停"，要求 lostReason + lostDate + improvementNote（反省事项）均必填 */
   markLost(args: {
     lostDate: Date;
     lostReason: string;
-    improvementNote?: string;
+    improvementNote: string;
   }, clock: Clock): DomainResult<void> {
     if (this._status.value !== "提案中" && this._status.value !== "暂停") {
       return domainErr(
@@ -386,6 +396,10 @@ export class Project extends AggregateRoot<ProjectId> {
     if (reason.length === 0) {
       return domainErr("INVALID_INPUT", "lostReason is required");
     }
+    const reflection = args.improvementNote.trim();
+    if (reflection.length === 0) {
+      return domainErr("INVALID_INPUT", "improvementNote is required");
+    }
     if (!(args.lostDate instanceof Date) || isNaN(args.lostDate.getTime())) {
       return domainErr("INVALID_INPUT", "lostDate must be a valid Date");
     }
@@ -395,10 +409,7 @@ export class Project extends AggregateRoot<ProjectId> {
     this._status = tr.value;
     this._lostDate = args.lostDate;
     this._lostReason = reason;
-    if (args.improvementNote !== undefined) {
-      const trimmed = args.improvementNote.trim();
-      this._improvementNote = trimmed.length > 0 ? trimmed : null;
-    }
+    this._improvementNote = reflection;
     const now = clock.now();
     this._updatedAt = now;
     this.addDomainEvent(
@@ -429,6 +440,36 @@ export class Project extends AggregateRoot<ProjectId> {
     this._updatedAt = now;
     this.addDomainEvent(
       new ProjectStatusChangedEvent(this.id, from, "暂停", now, reason),
+    );
+    return domainOk(undefined);
+  }
+
+  /** 阶段 1：标记为中止（终态）；要求"提案中"/"暂停"，写日期+原因。 */
+  markStopped(args: { pausedDate: Date; stopReason: string }, clock: Clock): DomainResult<void> {
+    if (this._status.value !== "提案中" && this._status.value !== "暂停") {
+      return domainErr(
+        "ILLEGAL_STATE_TRANSITION",
+        `cannot mark project as 中止 from status "${this._status.value}"`,
+        { current: this._status.value, allowed: ["提案中", "暂停"] },
+      );
+    }
+    if (!(args.pausedDate instanceof Date) || isNaN(args.pausedDate.getTime())) {
+      return domainErr("INVALID_INPUT", "pausedDate must be a valid Date");
+    }
+    const reason = args.stopReason.trim();
+    if (reason.length === 0) {
+      return domainErr("INVALID_INPUT", "stopReason is required");
+    }
+    const tr = this._status.transition("中止");
+    if (!tr.ok) return tr;
+    const from = this._status.value;
+    this._status = tr.value;
+    this._pausedDate = args.pausedDate;
+    this._pauseReason = reason; // 复用 pauseReason 字段存"中止原因"
+    const now = clock.now();
+    this._updatedAt = now;
+    this.addDomainEvent(
+      new ProjectStatusChangedEvent(this.id, from, "中止", now, reason),
     );
     return domainOk(undefined);
   }
@@ -565,6 +606,7 @@ export class Project extends AggregateRoot<ProjectId> {
       bestPractice: this._bestPractice,
       improvementNote: this._improvementNote,
       pauseReason: this._pauseReason,
+      pausedDate: this._pausedDate,
       clientWebsite: this._clientWebsite,
       clientIntro: this._clientIntro,
       projectIntro: this._projectIntro,

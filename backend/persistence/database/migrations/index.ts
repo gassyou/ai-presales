@@ -13,6 +13,7 @@ import { MIGRATION_008 } from "./008_quote_templates.sql.ts";
 import { MIGRATION_009 } from "./009_project_status_fields.sql.ts";
 import { MIGRATION_010 } from "./010_system_settings.sql.ts";
 import { MIGRATION_011 } from "./011_project_metadata.sql.ts";
+import { MIGRATION_012 } from "./012_project_paused_date.sql.ts";
 import type { Migration } from "./runner.ts";
 
 export const BUILTIN_MIGRATIONS: readonly Migration[] = [
@@ -27,4 +28,5 @@ export const BUILTIN_MIGRATIONS: readonly Migration[] = [
   MIGRATION_009,
   MIGRATION_010,
   MIGRATION_011,
+  MIGRATION_012,
 ];

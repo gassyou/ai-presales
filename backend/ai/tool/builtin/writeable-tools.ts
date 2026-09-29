@@ -52,13 +52,22 @@ async function resolveProjectId(
 
 export interface WriteProjectStatusArgs {
   projectCodeOrName: string;
-  /** 5 态："新建" | "提案中" | "暂停" | "中标" | "未中标"。
-   *  "中标" / "未中标" / "暂停" 需要 reason 字段（市场惯例：客户/内部必填） */
-  status: "新建" | "提案中" | "暂停" | "中标" | "未中标";
+  /** 6 态："新建" | "提案中" | "暂停" | "中标" | "未中标" | "中止"。
+   *  阶段 1：中标要求 bestPractice；未中标要求 lostReason + improvementNote；
+   *  暂停要求 reason；中止要求 pausedDate + stopReason。 */
+  status: "新建" | "提案中" | "暂停" | "中标" | "未中标" | "中止";
   /** 仅当 dryRun=true 时不实际写入，仅返"将做什么"摘要 */
   dryRun?: boolean;
-  /** 状态切换原因（中标/未中标/暂停时必填；其他选填） */
+  /** 状态切换原因（中标/未中标/暂停/中止时必填；其他选填） */
   reason?: string;
+  /** 阶段 1：中标时必填（写项目经验） */
+  bestPractice?: string;
+  /** 阶段 1：未中标时必填（反省事项） */
+  improvementNote?: string;
+  /** 阶段 1：中止时必填（YYYY-MM-DD 或 ISO） */
+  pausedDate?: string;
+  /** 阶段 1：中止时必填（替代 reason 用） */
+  stopReason?: string;
 }
 
 export interface WriteProjectStatusResult {
@@ -87,9 +96,13 @@ export class WriteProjectStatusTool implements Tool<WriteProjectStatusArgs, Writ
     required: ["projectCodeOrName", "status"],
     properties: {
       projectCodeOrName: { type: "string", description: "项目编号（如 2026-00001）或项目名称" },
-      status: { type: "string", enum: ["新建", "提案中", "暂停", "中标", "未中标"] },
+      status: { type: "string", enum: ["新建", "提案中", "暂停", "中标", "未中标", "中止"] },
       dryRun: { type: "boolean", default: false },
-      reason: { type: "string", description: "状态切换原因（中标/未中标/暂停时必填）" },
+      reason: { type: "string", description: "状态切换原因（中标/未中标/暂停/中止时必填）" },
+      bestPractice: { type: "string", description: "中标时必填：项目经验复盘" },
+      improvementNote: { type: "string", description: "未中标时必填：反省事项" },
+      pausedDate: { type: "string", description: "中止时必填：YYYY-MM-DD 或 ISO 日期字符串" },
+      stopReason: { type: "string", description: "中止时必填：中止原因" },
     },
     additionalProperties: false,
   };
@@ -104,16 +117,55 @@ export class WriteProjectStatusTool implements Tool<WriteProjectStatusArgs, Writ
     if (args.status === proj.status) {
       return fail(`project ${proj.code} is already in status "${args.status}"`);
     }
-    if ((args.status === "中标" || args.status === "未中标" || args.status === "暂停") && (!args.reason || !args.reason.trim())) {
-      return fail(`reason is required when transitioning to "${args.status}"`);
+    // 阶段 1：按目标状态做必填校验（前端 + 后端都校验，双保险）
+    if (args.status === "中标" && (!args.bestPractice || !args.bestPractice.trim())) {
+      return fail(`bestPractice is required when transitioning to "中标"`);
+    }
+    if (args.status === "未中标") {
+      if (!args.reason || !args.reason.trim()) {
+        return fail(`reason (lostReason) is required when transitioning to "未中标"`);
+      }
+      if (!args.improvementNote || !args.improvementNote.trim()) {
+        return fail(`improvementNote is required when transitioning to "未中标"`);
+      }
+    }
+    if (args.status === "暂停" && (!args.reason || !args.reason.trim())) {
+      return fail(`reason (pauseReason) is required when transitioning to "暂停"`);
+    }
+    if (args.status === "中止") {
+      if (!args.pausedDate) {
+        return fail(`pausedDate is required when transitioning to "中止"`);
+      }
+      const stopReason = args.stopReason ?? args.reason;
+      if (!stopReason || !stopReason.trim()) {
+        return fail(`stopReason is required when transitioning to "中止"`);
+      }
     }
     if (args.dryRun) {
       return ok({ projectId: proj.id, projectCode: proj.code, projectName: proj.name, fromStatus: proj.status, toStatus: args.status, dryRun: true });
     }
+    // 阶段 1：组装 payload（按目标状态映射字段名）
+    let payload: Parameters<typeof this.deps.projectService.changeProjectStatus>[2] | undefined;
+    if (args.status === "中标" && args.bestPractice) {
+      payload = { bestPractice: args.bestPractice };
+    } else if (args.status === "未中标" && args.reason && args.improvementNote) {
+      payload = { lostReason: args.reason, improvementNote: args.improvementNote };
+    } else if (args.status === "暂停" && args.reason) {
+      payload = { reason: args.reason };
+    } else if (args.status === "中止") {
+      const stopReason = args.stopReason ?? args.reason;
+      if (!args.pausedDate || !stopReason) {
+        // 上方校验已挡，这里只是 narrow 类型
+        return fail("internal: missing pausedDate/stopReason for 中止");
+      }
+      payload = { pausedDate: new Date(args.pausedDate), stopReason };
+    } else if (args.reason) {
+      payload = { reason: args.reason };
+    }
     const result = await this.deps.projectService.changeProjectStatus(
       proj.id,
       args.status,
-      args.reason ? { reason: args.reason } : undefined,
+      payload,
     );
     if (!result.ok) return fail(result.error.message);
     this.deps.logger.info("write_project_status", { projectId: proj.id, from: proj.status, to: args.status });

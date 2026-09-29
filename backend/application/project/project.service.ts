@@ -167,6 +167,9 @@ export class ProjectService {
       lostDate?: Date;
       lostReason?: string;
       improvementNote?: string;
+      /** 阶段 1：中止状态用 */
+      pausedDate?: Date;
+      stopReason?: string;
     },
   ): Promise<DomainResult<ProjectSnapshot>> {
     const found = await this.repo.findById(id);
@@ -174,25 +177,34 @@ export class ProjectService {
     // 阶段 7.4g：按 target 路由到 markWon/markLost/markPaused，
     // 让"中标/未中标/暂停"这些需要附加字段的状态切换走专用入口。
     // 未传必填日期时，clock.now() 兜底（保持旧调用方兼容）。
+    // 阶段 1：markWon.bestPractice / markLost.improvementNote 改为必填，
+    // 新增 markStopped 用于"中止"状态（要求 pausedDate + stopReason）。
     let r: DomainResult<void>;
     switch (target) {
-      case "中标":
+      case "中标": {
+        // 阶段 1：bestPractice 必填（升级原可选字段）
+        if (!payload?.bestPractice || payload.bestPractice.trim().length === 0) {
+          return domainErr("INVALID_INPUT", "bestPractice is required", { target });
+        }
         r = found.value.markWon({
           wonDate: payload?.wonDate ?? this.clock.now(),
-          ...(payload?.bestPractice !== undefined ? { bestPractice: payload.bestPractice } : {}),
+          bestPractice: payload.bestPractice,
         }, this.clock);
         break;
+      }
       case "未中标": {
         const reason = payload?.lostReason ?? payload?.reason;
         if (!reason || reason.trim().length === 0) {
           return domainErr("INVALID_INPUT", "lostReason is required", { target });
         }
+        // 阶段 1：improvementNote 必填（升级原可选字段）
+        if (!payload?.improvementNote || payload.improvementNote.trim().length === 0) {
+          return domainErr("INVALID_INPUT", "improvementNote is required", { target });
+        }
         r = found.value.markLost({
           lostDate: payload?.lostDate ?? this.clock.now(),
           lostReason: reason,
-          ...(payload?.improvementNote !== undefined
-            ? { improvementNote: payload.improvementNote }
-            : {}),
+          improvementNote: payload.improvementNote,
         }, this.clock);
         break;
       }
@@ -204,8 +216,23 @@ export class ProjectService {
         r = found.value.markPaused({ pauseReason: reason }, this.clock);
         break;
       }
+      case "中止": {
+        // 阶段 1：新状态路由。pausedDate + stopReason 均必填。
+        if (!payload?.pausedDate) {
+          return domainErr("INVALID_INPUT", "pausedDate is required", { target });
+        }
+        const reason = payload?.stopReason ?? payload?.reason;
+        if (!reason || reason.trim().length === 0) {
+          return domainErr("INVALID_INPUT", "stopReason is required", { target });
+        }
+        r = found.value.markStopped({
+          pausedDate: payload.pausedDate,
+          stopReason: reason,
+        }, this.clock);
+        break;
+      }
       default:
-        // 其他状态（新建 / 提案中 / 中标 / 未中标）：无附加字段要求，走旧 changeStatus
+        // 其他状态（新建 / 提案中）：无附加字段要求，走旧 changeStatus
         r = found.value.changeStatus(target, this.clock, payload?.reason);
         break;
     }

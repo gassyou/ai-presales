@@ -4,7 +4,11 @@
  * 状态：
  *   新建 ──→ 提案中 ──→ 中标
  *                  ├──→ 暂停 ──→ 提案中
- *                  ├──→ 未中标
+ *                  ├──→ 中止  ──→ （终态；写日期+原因）
+ *                  └──→ 未中标
+ *
+ * 阶段 1：新增"中止"状态（区别于"暂停"的"可恢复性"——
+ * "暂停"可恢复，"中止"是终态），要求日期+原因必填。
  *
  * 不合法跳转返回 DomainError，状态机集中在 VO 里而非聚合根，
  * 让"状态"也能脱离聚合根单独被测试。
@@ -12,7 +16,13 @@
 
 import { type DomainResult, domainErr, domainOk } from "../shared/result.ts";
 
-export type ProjectStatusValue = "新建" | "提案中" | "暂停" | "中标" | "未中标";
+export type ProjectStatusValue =
+  | "新建"
+  | "提案中"
+  | "暂停"
+  | "中标"
+  | "未中标"
+  | "中止";
 
 export const PROJECT_STATUSES: readonly ProjectStatusValue[] = [
   "新建",
@@ -20,14 +30,16 @@ export const PROJECT_STATUSES: readonly ProjectStatusValue[] = [
   "暂停",
   "中标",
   "未中标",
+  "中止",
 ] as const;
 
 const TRANSITIONS: Record<ProjectStatusValue, readonly ProjectStatusValue[]> = {
   "新建": ["提案中"],
-  "提案中": ["暂停", "中标", "未中标"],
-  "暂停": ["提案中", "未中标"],
+  "提案中": ["暂停", "中标", "未中标", "中止"],
+  "暂停": ["提案中", "未中标", "中止"],
   "中标": [],
   "未中标": [],
+  "中止": [],
 };
 
 export class ProjectStatus {

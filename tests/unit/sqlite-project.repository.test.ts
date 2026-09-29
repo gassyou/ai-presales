@@ -118,7 +118,12 @@ Deno.test("repo —— 状态机非法跳转返回 ILLEGAL_STATE_TRANSITION", as
   if (!r.ok) return;
   const id = r.value.id;
 
-  const bad = await svc.changeProjectStatus(id, "中标");
+  // 先推进到"提案中"
+  const toProposal = await svc.changeProjectStatus(id, "提案中");
+  assert(toProposal.ok);
+  if (!toProposal.ok) return;
+  // 再尝试"提案中"→"新建"的非法跳转（按状态机不允许）
+  const bad = await svc.changeProjectStatus(id, "新建");
   assertEquals(bad.ok, false);
   if (bad.ok) return;
   assertEquals(bad.error.code, "ILLEGAL_STATE_TRANSITION");
