@@ -24,6 +24,7 @@ import type { Tool } from "../tool.ts";
 import { fail, ok } from "../tool.ts";
 import type { ProjectId } from "@shared/types/ids.ts";
 import type { BusinessModuleService } from "@backend/application/business-module/business-module.service.ts";
+import { MarkdownModuleService } from "@backend/application/business-module/markdown-module.service.ts";
 import type { SurveyQuestionnaireUseCase } from "@backend/application/business-module/survey-questionnaire.usecase.ts";
 import type { SurveyTaskUseCase } from "@backend/application/business-module/survey-task.usecase.ts";
 import type { ProjectService } from "@backend/application/project/project.service.ts";
@@ -415,6 +416,10 @@ const ALLOWED_MARKDOWN_KINDS: readonly BusinessModuleKind[] = [
   "markdown_roi",
   "markdown_precondition",
   "markdown_hardware_cost",
+  // 阶段 B2：交付物清单（markdown 页面）
+  "markdown_deliverable",
+  // 阶段 B-sprint13：项目计划（markdown 页面）
+  "markdown_project_plan",
 ];
 
 export interface UpdateMarkdownModuleArgs {
@@ -443,14 +448,96 @@ export interface UpdateMarkdownModuleToolDeps {
   logger: Logger;
 }
 
+// ===== 4b. read_markdown_module =====
+// 阶段 B-sprint13：让 LLM 能按 kind 精确读取项目计划 / 交付物清单等 markdown 模块的内容
+//   （之前 LLM 只能用模糊的 read_module + RAG 召回；现在可以按 kind 直接拿全模块正文）
+
+export interface ReadMarkdownModuleArgs {
+  projectCodeOrName: string;
+  /** 13 种 markdown_* kind 之一 */
+  kind: BusinessModuleKind;
+}
+
+export interface ReadMarkdownModuleResult {
+  readonly projectId: string;
+  readonly kind: BusinessModuleKind;
+  readonly found: boolean;
+  readonly title: string;
+  readonly content: string;
+  readonly updatedAt?: string;
+}
+
+export interface ReadMarkdownModuleToolDeps {
+  markdownModuleService: MarkdownModuleService;
+  projectRepo: ResolveProjectArgs["projectRepo"];
+  logger: Logger;
+}
+
+export class ReadMarkdownModuleTool
+  implements Tool<ReadMarkdownModuleArgs, ReadMarkdownModuleResult> {
+  readonly name = "read_markdown_module";
+  readonly description = "按 kind 精确读取某个项目的某个 markdown 模块的全文。" +
+    "kind 取值（13 种）：business_current / pain_point / improvement / proposal / " +
+    "non_functional / it_environment / risk / to_be / roi / precondition / hardware_cost / " +
+    "deliverable / project_plan。" +
+    "适用场景：在调用 update_markdown_module 之前先读全文以避免覆盖丢失；" +
+    "或在回答客户问题时拿『项目计划』『交付物清单』等结构化模块的完整内容。" +
+    "未找到时返回 found=false，不要与 RAG 召回的 read_module 混淆——本工具是结构化数据源，不是知识库检索。";
+  readonly inputSchema = {
+    type: "object",
+    required: ["projectCodeOrName", "kind"],
+    properties: {
+      projectCodeOrName: { type: "string" },
+      kind: { type: "string", enum: ALLOWED_MARKDOWN_KINDS as unknown as string[] },
+    },
+    additionalProperties: false,
+  };
+  readonly requiresApproval = false;
+  readonly sideEffect: "read" = "read";
+
+  constructor(private readonly deps: ReadMarkdownModuleToolDeps) {}
+
+  async execute(
+    args: ReadMarkdownModuleArgs,
+    _ctx: import("../tool.ts").ToolContext,
+  ): Promise<import("../tool.ts").ToolResult<ReadMarkdownModuleResult>> {
+    const proj = await resolveProjectId(args.projectCodeOrName, this.deps);
+    if (!proj) return fail(`project not found: ${args.projectCodeOrName}`);
+    if (!ALLOWED_MARKDOWN_KINDS.includes(args.kind)) {
+      return fail(`kind must be a markdown_* kind, got ${args.kind}`);
+    }
+    const r = await this.deps.markdownModuleService.get(proj.id, args.kind);
+    if (!r.ok) return fail(r.error.message);
+    if (!r.value) {
+      return ok({
+        projectId: proj.id,
+        kind: args.kind,
+        found: false,
+        title: "",
+        content: "",
+      });
+    }
+    return ok({
+      projectId: proj.id,
+      kind: args.kind,
+      found: true,
+      title: r.value.title,
+      content: r.value.content,
+      updatedAt: r.value.updatedAt,
+    });
+  }
+}
+
 export class UpdateMarkdownModuleTool
   implements Tool<UpdateMarkdownModuleArgs, UpdateMarkdownModuleResult> {
   readonly name = "update_markdown_module";
   readonly description = "写入/覆盖某个项目的某个 markdown 模块的正文。" +
-    "kind 取值：business_current / pain_point / improvement / proposal / " +
-    "non_functional / it_environment / risk / to_be / roi / precondition / hardware_cost。" +
-    "调用示例：write『构想方案』可传 kind=proposal, content=完整 Markdown 正文。" +
-    "默认采用覆盖式（不追加）；调用方若想保留原内容需先 read_markdown_module 读取再合并。";
+    "kind 取值（13 种）：business_current / pain_point / improvement / proposal / " +
+    "non_functional / it_environment / risk / to_be / roi / precondition / hardware_cost / " +
+    "deliverable / project_plan。" +
+    "调用示例：write『项目计划』可传 kind=project_plan, content=完整 Markdown 正文；" +
+    "write『交付物清单』可传 kind=deliverable, content=完整 Markdown 正文。" +
+    "默认采用覆盖式（不追加）；调用方若想保留原内容需先 read_module 读取再合并。";
   readonly inputSchema = {
     type: "object",
     required: ["projectCodeOrName", "kind", "content"],
@@ -989,6 +1076,8 @@ export class ResolveProjectWorkspaceTool
 export interface WriteableToolsDeps {
   projectService: ProjectService;
   businessModuleService: BusinessModuleService;
+  // 阶段 B-sprint13：精确读 markdown_* 模块（ReadMarkdownModuleTool 需要）
+  markdownModuleService: MarkdownModuleService;
   surveyQuestionnaireUseCase: SurveyQuestionnaireUseCase;
   surveyTaskUseCase: SurveyTaskUseCase;
   contactsRepo: IProjectContactsRepository;
@@ -1020,6 +1109,12 @@ export function buildWriteableTools(deps: WriteableToolsDeps): import("../tool.t
     }),
     new UpdateMarkdownModuleTool({
       businessModuleService: deps.businessModuleService,
+      projectRepo: deps.projectRepo,
+      logger: deps.logger,
+    }),
+    // 阶段 B-sprint13：精确读 markdown_* 模块（不在 WriteableTools 里——read 是只读不需审批，但 buildWriteableTools 是统一入口）
+    new ReadMarkdownModuleTool({
+      markdownModuleService: deps.markdownModuleService,
       projectRepo: deps.projectRepo,
       logger: deps.logger,
     }),

@@ -17,6 +17,7 @@ import { SqliteBusinessModuleRepository } from "@backend/persistence/sqlite/sqli
 import { SqliteProjectContactsRepository } from "@backend/persistence/sqlite/sqlite-project-contacts.repository.ts";
 import { ProjectService } from "@backend/application/project/project.service.ts";
 import { BusinessModuleService } from "@backend/application/business-module/business-module.service.ts";
+import { MarkdownModuleService } from "@backend/application/business-module/markdown-module.service.ts";
 import { SurveyTaskUseCase } from "@backend/application/business-module/survey-task.usecase.ts";
 import { SurveyQuestionnaireUseCase } from "@backend/application/business-module/survey-questionnaire.usecase.ts";
 import { FixedClock } from "@backend/domain/shared/clock.ts";
@@ -50,6 +51,8 @@ function newDb(): Database {
 interface Setup {
   projectService: ProjectService;
   businessModuleService: BusinessModuleService;
+  // 阶段 B-sprint13：ReadMarkdownModuleTool 需要
+  markdownModuleService: MarkdownModuleService;
   surveyTaskUseCase: SurveyTaskUseCase;
   surveyQuestionnaireUseCase: SurveyQuestionnaireUseCase;
   contactsRepo: SqliteProjectContactsRepository;
@@ -67,6 +70,8 @@ async function setup(): Promise<Setup> {
   const clock = new FixedClock(new Date("2026-05-01T00:00:00Z"));
   const projectService = new ProjectService({ repo: projectRepo, contactsRepo, teamRepo: undefined as never, clock });
   const businessModuleService = new BusinessModuleService({ repo: businessRepo, clock });
+  // 阶段 B-sprint13：ReadMarkdownModuleTool 的依赖
+  const markdownModuleService = new MarkdownModuleService({ businessModuleService, clock });
   const surveyTaskUseCase = new SurveyTaskUseCase({ businessModuleService: businessModuleService, clock });
   const surveyQuestionnaireUseCase = new SurveyQuestionnaireUseCase({ businessModuleService, clock });
 
@@ -78,6 +83,7 @@ async function setup(): Promise<Setup> {
   const deps: WriteableToolsDeps = {
     projectService,
     businessModuleService,
+    markdownModuleService,
     surveyTaskUseCase,
     surveyQuestionnaireUseCase,
     contactsRepo,
@@ -85,7 +91,7 @@ async function setup(): Promise<Setup> {
     clock,
     logger,
   };
-  return { projectService, businessModuleService, surveyTaskUseCase, surveyQuestionnaireUseCase, contactsRepo, projectRepo, clock, deps };
+  return { projectService, businessModuleService, markdownModuleService, surveyTaskUseCase, surveyQuestionnaireUseCase, contactsRepo, projectRepo, clock, deps };
 }
 
 function fakeCtx(): ToolContext {
@@ -583,7 +589,7 @@ Deno.test("create_survey_task — dryRun 不写", async () => {
 
 // ========== 装配校验 ==========
 
-Deno.test("buildWriteableTools — 9 个工具注册到 registry", async () => {
+Deno.test("buildWriteableTools — 10 个工具注册到 registry", async () => {
   const { deps } = await setup();
   // 动态 import 避免循环依赖
   const { buildWriteableTools } = await import("@backend/ai/tool/builtin/writeable-tools.ts");
@@ -591,13 +597,14 @@ Deno.test("buildWriteableTools — 9 个工具注册到 registry", async () => {
   const r = new ToolRegistry();
   const tools = buildWriteableTools(deps);
   for (const t of tools) r.register(t);
-  // 9 个写工具（7 原始 + SetProjectWorkspaceTool + ResolveProjectWorkspaceTool）
-  assertEquals(tools.length, 9);
-  assertEquals(r.names().length, 9);
+  // 10 个写工具（7 原始 + SetProjectWorkspaceTool + ResolveProjectWorkspaceTool + ReadMarkdownModuleTool）
+  assertEquals(tools.length, 10);
+  assertEquals(r.names().length, 10);
   assert(r.has("write_project_status"));
   assert(r.has("create_activity"));
   assert(r.has("create_function_list_item"));
   assert(r.has("update_markdown_module"));
+  assert(r.has("read_markdown_module"));
   assert(r.has("set_project_workspace"));
   assert(r.has("resolve_project_workspace"));
   assert(r.has("save_questionnaire_outline"));

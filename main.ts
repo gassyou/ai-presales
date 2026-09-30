@@ -494,6 +494,11 @@ const businessModuleServiceForWrites = new BusinessModuleService({
     return { name: r.value.name, clientName: r.value.clientName };
   },
 });
+// 阶段 B-sprint13：ReadMarkdownModuleTool 需要独立的 MarkdownModuleService（与上面的 BMService 配套）
+const markdownModuleServiceForWrites = new MarkdownModuleService({
+  businessModuleService: businessModuleServiceForWrites,
+  clock,
+});
 const surveyTaskUseCaseForWrites = new SurveyTaskUseCase({
   businessModuleService: new BusinessModuleService({
     repo: new SqliteBusinessModuleRepository(database),
@@ -513,6 +518,8 @@ const surveyQuestionnaireUseCaseForWrites = new SurveyQuestionnaireUseCase({
 registerWriteableTools(toolRegistry, {
   projectService,
   businessModuleService: businessModuleServiceForWrites,
+  // 阶段 B-sprint13：ReadMarkdownModuleTool 需要
+  markdownModuleService: markdownModuleServiceForWrites,
   surveyTaskUseCase: surveyTaskUseCaseForWrites,
   surveyQuestionnaireUseCase: surveyQuestionnaireUseCaseForWrites,
   contactsRepo: projectContactsRepo,
