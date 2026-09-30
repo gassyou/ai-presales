@@ -10,6 +10,14 @@
       · 末尾：+ 按钮新增 tab
     - 主体：当前选中 tab 对应的 MarkdownEditor（Bytemd）
     - 缺省至少有 1 个空白 tab
+
+  数据流：
+    - activeTab.content 是当前编辑内容的唯一来源（响应式）。
+    - MarkdownEditor 的 :model-value 直接绑 activeTab.content，
+      切换 tab 时 Vue 同步派发新值，Bytemd 拿到的 value 就是新 tab 的内容。
+      不需要 :key 重挂载，也不需要在 watch 里同步 draft 变量。
+    - 用户输入通过 @update:model-value → onDraftChange → 写回 activeTab.content
+      并触发 800ms debounce 保存。
 -->
 <template>
   <section class="flex h-full min-h-0 flex-col">
@@ -61,12 +69,12 @@
     <!-- 当前 tab 内容 -->
     <div class="flex-1 min-h-0 overflow-hidden p-3">
       <div v-if="activeTab" class="flex h-full min-h-0 flex-col">
-        <!-- 阶段 B14：用 :key=activeTab.id 强制 MarkdownEditor 在切换 tab 后重新挂载，
-            避免 bytemd 内部状态在新旧内容间残留（用户反馈：tab 切换了但内容没变） -->
+        <!-- 内容来源：activeTab.content（响应式）。切换 tab 时 modelValue 同步切换，
+            Bytemd 拿到的 value 就是新 tab 的内容，不需要 key 重挂载或 watch 同步。 -->
         <MarkdownEditor
-          :key="activeTab.id"
-          v-model="draft"
+          :model-value="activeTab.content"
           :placeholder="`编辑 ${activeTab.title || '未命名'}…`"
+          @update:model-value="onDraftChange"
         />
       </div>
     </div>
@@ -94,7 +102,6 @@ interface Tab {
 
 const tabs = ref<Tab[]>([]);
 const activeId = ref<string>("");
-const draft = ref<string>("");
 const loadError = ref<string | null>(null);
 const renamingId = ref<string | null>(null);
 const renameDraft = ref<string>("");
@@ -128,11 +135,9 @@ async function load(): Promise<void> {
       // 空态：自动给一个空白 tab（不立即创建到后端，等用户输入标题/内容再决定保存）
       tabs.value = [newTab("新页面")];
       activeId.value = tabs.value[0].id;
-      draft.value = "";
     } else {
       tabs.value = items.map(itemToTab);
       activeId.value = tabs.value[0].id;
-      draft.value = tabs.value[0].content;
     }
   } catch (e) {
     loadError.value = errMsg(e);
@@ -157,7 +162,6 @@ async function onNewTab(): Promise<void> {
   const t = newTab(`新页面 ${tabs.value.length + 1}`);
   tabs.value.push(t);
   activeId.value = t.id;
-  draft.value = "";
 }
 
 /** 重命名 tab */
@@ -203,10 +207,7 @@ async function onClose(id: string): Promise<void> {
     tabs.value = tabs.value.filter((x) => x.id !== id);
     if (activeId.value === id) {
       const first = tabs.value[0];
-      if (first) {
-        activeId.value = first.id;
-        draft.value = first.content;
-      }
+      if (first) activeId.value = first.id;
     }
     return;
   }
@@ -220,10 +221,7 @@ async function onClose(id: string): Promise<void> {
   tabs.value = tabs.value.filter((x) => x.id !== id);
   if (activeId.value === id) {
     const first = tabs.value[0];
-    if (first) {
-      activeId.value = first.id;
-      draft.value = first.content;
-    }
+    if (first) activeId.value = first.id;
   }
 }
 
@@ -261,14 +259,14 @@ async function persist(t: Tab): Promise<void> {
   }
 }
 
-/** 把当前 tab 的最新内容写入 draft，再根据 dirty 状态决定是否 flush */
+/** debounce 800ms 后保存当前 tab 到后端。
+ * 内容来源是 activeTab.content（onDraftChange 已经实时写入） */
 let saveTimer: number | null = null;
 function scheduleFlush(): void {
   if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const t = activeTab.value;
     if (!t) return;
-    t.content = draft.value;
     t.dirty = true;
     t.pending = true;
     if (!t.id.startsWith("tmp-") && t.content !== "") {
@@ -291,7 +289,6 @@ function scheduleFlush(): void {
 async function flushActive(): Promise<void> {
   const t = activeTab.value;
   if (!t) return;
-  t.content = draft.value;
   if (t.id.startsWith("tmp-")) {
     if (t.title.trim().length === 0 && t.content.trim().length === 0) return;
     await persist(t);
@@ -300,17 +297,20 @@ async function flushActive(): Promise<void> {
   }
 }
 
-// draft 变化 → schedule flush
-watch(draft, () => {
+/** MarkdownEditor 的 update:model-value 回调：写回 activeTab.content + 触发 debounce 保存 */
+function onDraftChange(value: string): void {
+  const t = activeTab.value;
+  if (!t) return;
+  if (t.content === value) return;
+  t.content = value;
   scheduleFlush();
-});
+}
 
-// 切换 tab → 把当前 draft 落回 tab；新 tab 的 draft 同步
+// 切换 tab：保存旧 tab 的 pending 内容。编辑器从 activeTab.content 直接读，
+// 不需要在切换时同步「draft」变量 —— template 的 :model-value 是响应式的。
 watch(activeId, async () => {
   if (saveTimer !== null) clearTimeout(saveTimer);
   await flushActive();
-  const t = activeTab.value;
-  draft.value = t?.content ?? "";
 });
 
 watch(() => props.projectId, async () => {

@@ -5,8 +5,10 @@
  *   - label class 是 flex flex-col gap-1
  *   - 内部 label 文字用 div（不是 span）
  *
- * t14 (B14): 自定义页签切换时 MarkdownEditor 重新挂载
- *   - <MarkdownEditor :key="activeTab.id">
+ * t14 (B14): 自定义页签切换时内容同步显示
+ *   - MarkdownEditor 的 modelValue 直接绑 activeTab.content（响应式）
+ *   - 不再用 :key="activeTab.id" 强制重挂载
+ *   - 用户输入通过 @update:model-value → onDraftChange 写回 activeTab.content
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
@@ -32,11 +34,20 @@ Deno.test("b13 — 硬件清单新增表单 label / input 各占一行（flex-co
   assert(!/<span>备注<\/span>/.test(block), "label 文本不应再是 <span>");
 });
 
-Deno.test("b14 — 自定义页签 MarkdownEditor 用 :key=activeTab.id 强制重挂载", () => {
+Deno.test("b14 — 自定义页签切换时编辑器内容随 activeTab.content 同步", () => {
   const src = readText("frontend/src/features/business-module/components/CustomPagesView.vue");
-  // MarkdownEditor 有 :key="activeTab.id"
-  assert(/<MarkdownEditor\s+:key="activeTab\.id"/.test(src));
-  // watch(activeId) 还在（保持原行为）
+  // MarkdownEditor 用 :model-value 直接绑 activeTab.content（响应式）
+  assert(/<MarkdownEditor\s+[\s\S]*?:model-value="activeTab\.content"/.test(src));
+  // 用户输入通过 @update:model-value 写回
+  assert(/@update:model-value="onDraftChange"/.test(src));
+  // 不再用 :key 强制重挂载（应被删除）
+  assert(!/:key="activeTab\.id"/.test(src), "不应再用 :key=activeTab.id 强制重挂载");
+  // 不再有 draft ref 和 draft.value = t?.content 同步
+  assert(!/const\s+draft\s*=/.test(src), "不应再有 draft ref");
+  assert(!/draft\.value\s*=\s*t\?\.content/.test(src), "不应再有 draft 同步逻辑");
+  // onDraftChange 把内容写回 activeTab.content
+  assertStringIncludes(src, "function onDraftChange(value: string)");
+  assertStringIncludes(src, "t.content = value");
+  // watch(activeId) 仍然在（保留用于 flushActive）
   assert(/watch\(\s*activeId/.test(src));
-  assertStringIncludes(src, "draft.value = t?.content ?? \"\"");
 });
