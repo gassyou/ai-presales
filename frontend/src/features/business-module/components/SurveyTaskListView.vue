@@ -128,7 +128,7 @@
         </label>
         <label class="flex flex-col gap-1 text-xs text-slate-600">
           详细调查内容
-          <el-input v-model="form.content" type="textarea" :rows="4" placeholder="需要 AI 调查的要点" />
+          <el-input v-model="form.detail" type="textarea" :rows="4" placeholder="需要 AI 调查的要点" />
         </label>
       </form>
       <template #footer>
@@ -155,13 +155,10 @@
           主题提示
           <el-input v-model="editForm.topicHint" placeholder="如：客户背景信息、行业背景" />
         </label>
-        <label v-if="canEditContent" class="flex flex-col gap-1 text-xs text-slate-600">
+        <label class="flex flex-col gap-1 text-xs text-slate-600">
           详细调查内容
-          <el-input v-model="editForm.content" type="textarea" :rows="4" placeholder="需要 AI 调查的要点" />
+          <el-input v-model="editForm.detail" type="textarea" :rows="4" placeholder="需要 AI 调查的要点" />
         </label>
-        <p v-else class="text-[11px] text-slate-500">
-          调查任务执行中 / 已完成，详细内容已被调查结果覆盖，不可修改。
-        </p>
         <p v-if="editError" class="text-xs text-red-300">{{ editError }}</p>
       </form>
       <template #footer>
@@ -222,7 +219,7 @@ const store = useSurveyTaskStore();
 const tasks = computed(() => store.getList(props.projectId));
 
 const showCreate = ref(false);
-const form = reactive({ title: "", topicHint: "", content: "" });
+const form = reactive({ title: "", topicHint: "", detail: "" });
 
 const drawerOpen = ref(false);
 const drawerTask = ref<SurveyTaskResult | null>(null);
@@ -239,18 +236,11 @@ const showEdit = ref(false);
 const editTask = ref<SurveyTaskResult | null>(null);
 const editSaving = ref(false);
 const editError = ref<string | null>(null);
-const editForm = reactive({ title: "", topicHint: "", content: "" });
+const editForm = reactive({ title: "", topicHint: "", detail: "" });
 
 const editTitle = computed(() =>
   editTask.value ? `编辑调查任务 · ${editTask.value.title}` : "编辑调查任务",
 );
-
-const canEditContent = computed(() => {
-  const t = editTask.value;
-  if (!t) return false;
-  const s = effectiveStatus(t);
-  return s === "idle" || s === "aborted";
-});
 
 function effectiveStatus(t: SurveyTaskResult): SurveyTaskStatus {
   return store.getLiveStatus(t.id) ?? t.taskStatus;
@@ -305,12 +295,12 @@ async function onCreate(): Promise<void> {
   await store.create(props.projectId, {
     title: form.title,
     topicHint: form.topicHint || undefined,
-    content: form.content,
+    content: form.detail,
   });
   showCreate.value = false;
   form.title = "";
   form.topicHint = "";
-  form.content = "";
+  form.detail = "";
 }
 
 async function onStart(id: string): Promise<void> {
@@ -353,9 +343,8 @@ function openEdit(t: SurveyTaskResult): void {
   editTask.value = t;
   editForm.title = t.title;
   editForm.topicHint = t.topicHint ?? "";
-  // 后端 SurveyTaskResult 把 snap.content 暴露为 resultContent；
-  // idle 状态下 resultContent 即用户原始输入，running/completed 已被调查结果覆盖。
-  editForm.content = t.resultContent ?? "";
+  // 「详细调查内容」独立字段 detail；与「调查结果」(resultContent) 不再共用。
+  editForm.detail = t.detail ?? "";
   editError.value = null;
   showEdit.value = true;
 }
@@ -364,6 +353,17 @@ function closeEdit(): void {
   showEdit.value = false;
   editTask.value = null;
   editError.value = null;
+}
+
+/** 解析 SurveyTaskResult 上透传的 payload_json 字符串；损坏时回退到空对象。 */
+function parseStoredPayload(t: SurveyTaskResult): Record<string, unknown> {
+  if (!t.payloadJson) return {};
+  try {
+    const obj = JSON.parse(t.payloadJson) as unknown;
+    return (obj && typeof obj === "object") ? obj as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
 }
 
 async function onSaveEdit(): Promise<void> {
@@ -376,18 +376,18 @@ async function onSaveEdit(): Promise<void> {
   editSaving.value = true;
   editError.value = null;
   try {
-    const payload = { topicHint: editForm.topicHint || undefined };
-    // 仅在 idle / aborted 状态（content 还是用户原始输入）写回 content，
-    // running / completed 时避免覆盖已生成的调查结果。
-    const status = effectiveStatus(t);
-    const updateBody: { title: string; payloadJson: string; content?: string } = {
-      title: editForm.title.trim(),
-      payloadJson: JSON.stringify(payload),
+    // 合并 payload_json：保留生命周期字段（taskStatus / startedAt / ...），
+    // 仅覆盖用户可编辑的 topicHint / detail。content (调查结果) 不再被触碰。
+    const existingPayload = parseStoredPayload(t);
+    const nextPayload = {
+      ...existingPayload,
+      topicHint: editForm.topicHint || undefined,
+      detail: editForm.detail,
     };
-    if (status === "idle" || status === "aborted") {
-      updateBody.content = editForm.content;
-    }
-    await businessModuleApi.update(t.id, updateBody);
+    await businessModuleApi.update(t.id, {
+      title: editForm.title.trim(),
+      payloadJson: JSON.stringify(nextPayload),
+    });
     await store.load(props.projectId);
     showEdit.value = false;
   } catch (e) {

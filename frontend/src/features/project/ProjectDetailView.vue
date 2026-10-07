@@ -613,12 +613,11 @@ type ModuleKey =
   | "md_proposal" | "md_non_functional" | "md_it_environment"
   | "md_risk" | "md_to_be" | "md_roi" | "md_precondition"
   | "md_hardware_cost"
-  // 阶段 B-sprint13：项目计划
-  | "md_project_plan"
+  // 阶段 B-sprint13：项目计划（与风险分析等 markdown_* 模块一致：共用 MarkdownModuleView）
+  | "project_plan"
   | "use-case" | "deliverable"
   | "function-list" | "budget-settings" | "budget-summary"
   | "hardware-items" | "quote"
-  | "project-plan"
   | "ppt" | "custom-pages"
   | "contacts" | "team-members" | "email-history";
 
@@ -661,7 +660,7 @@ const navGroups: Array<{ key: string; label: string; items: Array<{ key: ModuleK
       { key: "budget-summary", label: "预算汇总" },
       { key: "quote", label: "报价单" },
       // 阶段 B-sprint13：报价单组下新增"项目计划"模块
-      { key: "project-plan", label: "项目计划" },
+      { key: "project_plan", label: "项目计划" },
     ],
   },
   {
@@ -695,8 +694,8 @@ const MARKDOWN_MODULES: Record<string, { kind: BusinessModuleKind; title: string
   md_roi: { kind: "markdown_roi", title: "ROI 分析" },
   md_precondition: { kind: "markdown_precondition", title: "案件前提条件" },
   md_hardware_cost: { kind: "markdown_hardware_cost", title: "硬件设备成本" },
-  // 阶段 B-sprint13：项目计划
-  md_project_plan: { kind: "markdown_project_plan", title: "项目计划" },
+  // 阶段 B-sprint13：项目计划（共用 MarkdownModuleView）
+  project_plan: { kind: "markdown_project_plan", title: "项目计划" },
 };
 
 const MarkdownModuleViewCmp = markRaw(MarkdownModuleView);

@@ -15,11 +15,6 @@
 -->
 <template>
   <div class="flex h-[70vh] min-h-[480px] flex-col gap-2">
-    <div class="rounded border border-border bg-white/40 p-2 text-[11px] text-slate-600">
-      <span class="font-medium text-slate-700">操作：</span>
-      双击改名 / 右键节点弹出菜单（添加子节点 / 插入兄弟 / 左右方向键调层级 / 删除 / 复制粘贴）/
-      拖拽节点 / 右上角撤销重做 / 滚轮缩放
-    </div>
     <div class="flex-1 overflow-hidden rounded border border-border bg-white/30">
       <mindmap
         v-model="data"

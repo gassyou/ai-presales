@@ -9,11 +9,15 @@
  * 设计：
  *   - 任务本身存 `business_module_items` 表（kind="survey_task"）
  *   - status 字段 = 调查结果采纳状态（pending / adopted / unadopted）
- *   - payload_json 字段 = { taskStatus, topicHint, startedAt, completedAt, error }
- *   - content 字段 = 调查结果 markdown 文本
+ *   - payload_json 字段 = { taskStatus, topicHint, detail, startedAt, completedAt, error }
+ *   - content 字段 = 调查结果 markdown 文本（AI 生成或用户手填，覆盖语义清晰）
  *
  * 这样：通用 BusinessModuleService 直接覆盖 list / get / adopt / unadopt；
  * 只在应用层加 start / stop / poll 等专用 use case。
+ *
+ * 「详细调查内容」(detail) 与「调查结果」(content) 是两个独立字段：
+ *   - detail 存 payload_json 内，用户可随时编辑
+ *   - content 由 AI 生成（或用户在抽屉中编辑），任务执行时被覆盖
  */
 
 import type { BusinessModuleKind } from "./business-module.ts";
@@ -25,6 +29,8 @@ export interface SurveyTaskPayload {
   taskStatus: SurveyTaskStatus;
   /** 调查主题提示（自由文本，比如"客户背景信息 / 行业背景"） */
   topicHint?: string;
+  /** 用户填写的「详细调查内容」（独立于 AI 生成的 content，可任意编辑） */
+  detail?: string;
   /** 开始时间 ISO */
   startedAt?: string;
   /** 完成时间 ISO */
@@ -59,6 +65,7 @@ export function parseSurveyTaskPayload(json: string): SurveyTaskPayload {
     return {
       taskStatus: obj.taskStatus ?? "idle",
       topicHint: obj.topicHint,
+      detail: obj.detail,
       startedAt: obj.startedAt,
       completedAt: obj.completedAt,
       error: obj.error,

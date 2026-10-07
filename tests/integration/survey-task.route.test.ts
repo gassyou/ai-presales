@@ -275,7 +275,7 @@ Deno.test("业务模块 list —— GET 列表返回所有 survey_task", async (
   assertEquals(body.items.length, 3);
 });
 
-Deno.test("业务模块 list —— GET 列表应返回 topicHint / taskStatus / resultContent (enriched)", async () => {
+Deno.test("业务模块 list —— GET 列表应返回 topicHint / detail / taskStatus / resultContent (enriched)", async () => {
   const { pid, deps } = await setup();
   const path = `/api/projects/${pid}/modules/survey_task/items`;
   const createRes = await handleBusinessModule(
@@ -303,6 +303,7 @@ Deno.test("业务模块 list —— GET 列表应返回 topicHint / taskStatus /
       id: string;
       title: string;
       topicHint?: string;
+      detail?: string;
       taskStatus: string;
       resultContent: string;
       adoptionStatus: string;
@@ -312,8 +313,9 @@ Deno.test("业务模块 list —— GET 列表应返回 topicHint / taskStatus /
   const it = body.items[0];
   assertEquals(it!.title, "客户背景信息");
   assertEquals(it!.topicHint, "客户背景"); // 主题：必须出现在 list 响应里
+  assertEquals(it!.detail, "请调查年度营业额、组织架构"); // 详细调查内容：必须出现在 list 响应里
   assertEquals(it!.taskStatus, "idle");
-  assertEquals(it!.resultContent, "请调查年度营业额、组织架构"); // 内容：必须出现在 list 响应里
+  assertEquals(it!.resultContent, ""); // 调查结果：新建时为空，由 AI 完成时填入
   assertEquals(it!.adoptionStatus, "pending");
 });
 

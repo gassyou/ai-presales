@@ -209,11 +209,12 @@ export async function handleBusinessModule(
         payloadJson: body.payloadJson,
         initialStatus: body.initialStatus,
       };
-      // 调查任务：把 topicHint 注入 payload（通过 SurveyTaskUseCase.create 走更稳）
+      // 调查任务：把 topicHint / detail 注入 payload（通过 SurveyTaskUseCase.create 走更稳）
       if (kind === SURVEY_TASK_KIND) {
         if (!deps.surveyTaskUseCase) {
           return json({ code: "NOT_IMPLEMENTED", message: "survey task use case not wired", traceId: "" }, 501);
         }
+        // wire 上的 body.content 即「详细调查内容」(detail)；content 列留给 AI 输出的调查结果。
         const detail = typeof body.content === "string" ? body.content : "";
         const payload = body.payloadJson ? JSON.parse(body.payloadJson) : {};
         const topicHint = typeof payload.topicHint === "string" ? payload.topicHint : undefined;

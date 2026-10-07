@@ -36,6 +36,10 @@ export interface SurveyTaskResult {
   resultContent: string;
   adoptionStatus: "pending" | "adopted" | "unadopted";
   topicHint?: string;
+  /** 用户填写的「详细调查内容」（独立于 resultContent，任务执行也不会覆盖） */
+  detail?: string;
+  /** 原始 payload_json 字符串，便于在不丢生命周期字段的前提下就地更新部分字段 */
+  payloadJson?: string;
   startedAt?: string;
   completedAt?: string;
   error?: string;
@@ -69,6 +73,9 @@ function snapshotToResult(snap: BusinessModuleItemSnapshot): SurveyTaskResult {
     resultContent: snap.content,
     adoptionStatus: snap.status,
     topicHint: payload.topicHint,
+    detail: payload.detail,
+    // 同时透传原始 payload_json 字符串，便于在不丢生命周期字段的前提下就地更新部分字段
+    payloadJson: snap.payloadJson,
     startedAt: payload.startedAt,
     completedAt: payload.completedAt,
     error: payload.error,
@@ -106,7 +113,8 @@ export class SurveyTaskUseCase {
     return domainOk(snapshotToResult(r.value));
   }
 
-  /** 新建调查任务（任务名 + 调查内容；初始 taskStatus=idle） */
+  /** 新建调查任务（任务名 + 详细调查内容；初始 taskStatus=idle）。
+   *  注意：「详细调查内容」(detail) 写入 payload_json，不写入 content —— content 留给 AI 输出的调查结果。 */
   async create(
     projectId: string,
     title: string,
@@ -114,10 +122,10 @@ export class SurveyTaskUseCase {
     opts?: { topicHint?: string },
   ): Promise<DomainResult<SurveyTaskResult>> {
     if (!title.trim()) return domainErr("INVALID_INPUT", "title is required");
-    const payload = makeSurveyTaskPayload({ topicHint: opts?.topicHint });
+    const payload = makeSurveyTaskPayload({ topicHint: opts?.topicHint, detail });
     const r = await this.bm.createItem(projectId as never, SURVEY_TASK_KIND, {
       title: title.trim(),
-      content: detail,
+      // content 留空：AI 完成时由 execute() 写入调查结果 markdown
       payloadJson: JSON.stringify(payload),
     });
     if (!r.ok) return r;
@@ -252,26 +260,18 @@ export class SurveyTaskUseCase {
           );
         } catch (e) {
           if ((e as { name?: string })?.name === "AbortError") throw e;
-          // LLM 失败时降级到占位（不阻塞任务完成）
-          resultContent = snap.value.content && snap.value.content.trim().length > 0
-            ? snap.value.content
-            : `# 调查：${snap.value.title}\n\n主题：${topicHint}\n\n（AI 生成失败：${e instanceof Error ? e.message : String(e)}）\n`;
+          // LLM 失败时降级到占位（不阻塞任务完成）。detail 不再影响 fallback 文案。
+          resultContent = `# 调查：${snap.value.title}\n\n主题：${topicHint}\n\n（AI 生成失败：${e instanceof Error ? e.message : String(e)}）\n`;
         }
       } else {
         // 旧占位路径（dev/测试 fallback）
         await sleep(this.simulateDurationMs);
-        resultContent = snap.value.content && snap.value.content.trim().length > 0
-          ? snap.value.content
-          : `# 调查：${snap.value.title}\n\n主题：${topicHint}\n\n（本结果由本地占位逻辑生成，后续阶段接入 survey-researcher sub-agent）\n`;
+        resultContent = `# 调查：${snap.value.title}\n\n主题：${topicHint}\n\n（本结果由本地占位逻辑生成，后续阶段接入 survey-researcher sub-agent）\n`;
       }
 
-      // 仅在 content 为空时采用 LLM 输出；若用户在 idle 阶段手动填写过调查结果，则保留用户结果，
-      // 避免执行完成后用户填的内容被覆盖丢失。
-      const finalContent = snap.value.content && snap.value.content.trim().length > 0
-        ? snap.value.content
-        : resultContent;
+      // content 字段语义明确为「调查结果」，任务完成时直接覆盖。
       await this.bm.updateItem(taskId, {
-        content: finalContent,
+        content: resultContent,
         payloadJson: JSON.stringify({
           ...payload,
           taskStatus: "completed",

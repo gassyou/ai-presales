@@ -24,6 +24,10 @@ export interface SurveyTaskResult {
   resultContent: string;
   adoptionStatus: AdoptionStatus;
   topicHint?: string;
+  /** 用户填写的「详细调查内容」（独立于 resultContent，任务执行也不会覆盖） */
+  detail?: string;
+  /** 原始 payload_json 字符串（含 taskStatus / startedAt / completedAt / error 等生命周期字段） */
+  payloadJson?: string;
   startedAt?: string;
   completedAt?: string;
   error?: string;

@@ -58,7 +58,7 @@ function newSvc() {
 
 const pid = crypto.randomUUID() as ProjectId;
 
-Deno.test("SurveyTaskUseCase.create —— 默认 taskStatus=idle", async () => {
+Deno.test("SurveyTaskUseCase.create —— 默认 taskStatus=idle，detail 写入 payload", async () => {
   const { useCase } = newSvc();
   const r = await useCase.create(pid, "客户背景信息调查", "请调查该客户的年度营业额等");
   assert(r.ok);
@@ -66,7 +66,10 @@ Deno.test("SurveyTaskUseCase.create —— 默认 taskStatus=idle", async () => 
   assertEquals(r.value.title, "客户背景信息调查");
   assertEquals(r.value.taskStatus, "idle");
   assertEquals(r.value.adoptionStatus, "pending");
-  assertEquals(r.value.resultContent, "请调查该客户的年度营业额等");
+  // detail 是用户输入，单独存在 payload_json 里
+  assertEquals(r.value.detail, "请调查该客户的年度营业额等");
+  // resultContent 留给 AI 完成时填入，新建时为空
+  assertEquals(r.value.resultContent, "");
 });
 
 Deno.test("SurveyTaskUseCase.start —— 异步完成后 taskStatus=completed", async () => {
@@ -184,11 +187,11 @@ Deno.test("SURVEY_TASK_KIND —— 等于 survey_task 枚举", () => {
   assertEquals(SURVEY_TASK_KIND, "survey_task");
 });
 
-Deno.test("regression —— 用户手动填写的调查结果不应被 LLM 完成输出覆盖", async () => {
+Deno.test("regression —— detail (详细调查内容) 与 resultContent (调查结果) 独立存储", async () => {
   const clock = new FixedClock(new Date("2026-05-01T00:00:00Z"));
   const repo = new InMemoryBusinessModuleRepository();
   const bm = new BusinessModuleService({ repo, clock });
-  const LLM_OUTPUT = "# LLM 默认输出\n\n这是 AI 生成的内容（不应覆盖用户结果）。\n";
+  const LLM_OUTPUT = "# LLM 默认输出\n\n这是 AI 生成的内容。\n";
   const fakeStream = (async function* () {
     yield { type: "chunk" as const, delta: LLM_OUTPUT, messageId: "m1" };
     yield { type: "done" as const, messageId: "m1", usage: { inputTokens: 0, outputTokens: 10, totalTokens: 10 } };
@@ -204,19 +207,17 @@ Deno.test("regression —— 用户手动填写的调查结果不应被 LLM 完�
     invokeSubAgent: invokeSubAgent as never,
   });
 
-  // 1) 创建 idle task
-  const created = await useCase.create(pid, "客户背景信息", "请调查…", { topicHint: "客户" });
+  const USER_DETAIL = "请调查客户的年度营业额、组织架构、主营业务";
+  // 1) 创建 idle task，detail 写入 payload_json，content 留空
+  const created = await useCase.create(pid, "客户背景信息", USER_DETAIL, { topicHint: "客户" });
   assert(created.ok);
   if (!created.ok) return;
   const taskId = created.value.id;
   assertEquals(created.value.taskStatus, "idle");
+  assertEquals(created.value.detail, USER_DETAIL);
+  assertEquals(created.value.resultContent, "");
 
-  // 2) 用户在 idle 状态下手动填写调查结果并保存（PATCH content）
-  const USER_RESULT = "# 客户背景\n\n年度营业额：100 亿\n主营：制造业\n";
-  const upd = await bm.updateItem(taskId, { content: USER_RESULT });
-  assert(upd.ok);
-
-  // 3) 用户点「执行」
+  // 2) 用户点「执行」
   const started = await useCase.start(taskId);
   assert(started.ok);
   if (!started.ok) return;
@@ -229,14 +230,19 @@ Deno.test("regression —— 用户手动填写的调查结果不应被 LLM 完�
     if (got.ok && got.value.taskStatus === "completed") break;
   }
 
-  // 4) 验证用户填写的结果仍在；LLM 默认输出不能覆盖
+  // 3) 验证：detail 字段保留（用户输入未被覆盖）；resultContent 字段被 LLM 输出覆盖
   const after = await useCase.get(taskId);
   assert(after.ok);
   if (!after.ok) return;
   assertEquals(after.value.taskStatus, "completed");
   assertEquals(
+    after.value.detail,
+    USER_DETAIL,
+    "detail（详细调查内容）必须在任务执行后保留",
+  );
+  assertEquals(
     after.value.resultContent,
-    USER_RESULT,
-    "用户手动填写的调查结果必须保留，不应被 LLM 完成输出覆盖",
+    LLM_OUTPUT,
+    "resultContent（调查结果）必须被 LLM 输出覆盖",
   );
 });

@@ -24,11 +24,7 @@
       </h2>
       <div class="flex flex-wrap gap-2">
         <!-- 阶段 B25：移除「从脑图生成问题」按钮（用户要求；保留 surveyQuestionnaireApi.batchFromMindmap + 后端路由供 auto-mode sub-agent 调用） -->
-        <el-button
-          v-if="questions.length > 0 && viewMode !== 'mindmap'"
-          size="small"
-          @click="onDownload"
-        >
+        <el-button v-if="questions.length > 0 && viewMode !== 'mindmap'" size="small" @click="onDownload">
           下载 Word
         </el-button>
         <el-radio-group v-model="viewMode" size="small">
@@ -43,111 +39,58 @@
 
     <!-- 视图：脑图（直接在主区编辑；首次进入若无大纲则一键创建根节点） -->
     <div v-if="viewMode === 'mindmap'" class="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
-      <div class="rounded border border-border bg-amber-50/50 p-2 text-[11px] text-slate-600">
-        <span class="font-medium text-slate-700">操作：</span>
-        双击节点改名 / 右键节点弹出菜单（添加子节点 / 插入兄弟 / 左右方向键调层级 / 删除 / 复制粘贴）/
-        拖拽节点 / 滚轮缩放 / 右上角撤销重做
-        <span class="ml-2 text-slate-500">
-          {{ outlineSaveStatus }}
-        </span>
-      </div>
       <div class="flex-1 overflow-hidden rounded border border-border bg-white/30">
-        <MindmapEditor
-          v-if="outlineDraft"
-          :nodes="outlineDraft.children"
-          @update:nodes="onOutlineNodesChange"
-        />
-        <div v-else class="flex h-full items-center justify-center">
-          <el-button type="primary" @click="initOutlineDraft">+ 创建脑图根节点</el-button>
-        </div>
+        <MindmapEditor v-if="outlineDraft" :nodes="outlineDraft.children" @update:nodes="onOutlineNodesChange" />
       </div>
-      <p v-if="outline && questions.length > 0" class="text-[11px] text-slate-500">
-        当前脑图关联的问题：{{ questions.length }} 题。
-        <el-button link type="primary" size="small" @click="viewMode = 'sticky'">查看便签贴</el-button>
-      </p>
     </div>
 
     <!-- 视图：便签贴式 -->
     <div v-else-if="viewMode === 'sticky'" class="flex-1 min-h-0 overflow-auto">
-      <div v-if="questions.length === 0" class="rounded border border-dashed border-border bg-white/30 p-4 text-center text-xs text-slate-500">
-        还没有问题。点击右上角手动添加问题。
-      </div>
-      <div v-else class="space-y-3">
-        <div
-          v-for="group in groupedQuestions"
-          :key="group.path"
-          class="flex flex-col gap-2"
-        >
-          <h3 class="text-xs font-medium text-slate-600">{{ group.path || "（未分组）" }}</h3>
-          <ul class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
-            <li
-              v-for="q in group.items"
-              :key="q.id"
-              class="rounded border border-border bg-amber-50 p-3 text-xs text-slate-800"
-            >
-              <div class="font-medium">{{ q.title }}</div>
-              <div v-if="q.answer" class="mt-1 whitespace-pre-wrap text-slate-600">
-                答：{{ q.answer }}
-              </div>
-              <div class="mt-2 flex justify-end">
-                <el-button link type="danger" size="small" @click="onDeleteQuestion(q.id)">删除</el-button>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </div>
-      <el-button
-        v-if="outline && questions.length > 0"
-        class="self-start"
-        size="small"
-        @click="onAddManualQuestion"
-      >
+      <el-button class="self-start" size="small" @click="onAddManualQuestion">
         + 手动添加问题
       </el-button>
+      <div v-for="group in groupedQuestions" :key="group.path" class="flex flex-col gap-2">
+        <h3 class="text-xs font-medium text-slate-600">{{ group.path || "（未分组）" }}</h3>
+        <ul class="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+          <li v-for="q in group.items" :key="q.id"
+            class="rounded border border-border bg-amber-50 p-3 text-xs text-slate-800">
+            <div class="font-medium">{{ q.title }}</div>
+            <div v-if="q.answer" class="mt-1 whitespace-pre-wrap text-slate-600">
+              答：{{ q.answer }}
+            </div>
+            <div class="mt-2 flex justify-end">
+              <el-button link type="danger" size="small" @click="onDeleteQuestion(q.id)">删除</el-button>
+            </div>
+          </li>
+        </ul>
+      </div>
     </div>
 
     <!-- 视图：回答模式（双栏） -->
-    <div v-else-if="viewMode === 'answer'" class="grid flex-1 min-h-0 grid-cols-1 gap-3 overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+    <div v-else-if="viewMode === 'answer'"
+      class="grid flex-1 min-h-0 grid-cols-1 gap-3 overflow-hidden md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <!-- 左：列表 -->
       <aside class="flex flex-col gap-1">
         <div class="flex items-center justify-between text-xs text-slate-600">
           <span>问题列表（{{ questions.length }}）</span>
           <div class="flex gap-1">
-            <el-button
-              v-if="outline"
-              link
-              size="small"
-              title="添加"
-              @click="onAddManualQuestion"
-            ><el-icon><Plus /></el-icon></el-button>
+            <el-button v-if="outline" link size="small" title="添加" @click="onAddManualQuestion"><el-icon>
+                <Plus />
+              </el-icon></el-button>
           </div>
         </div>
         <ul class="max-h-[480px] overflow-auto rounded border border-border">
-          <li
-            v-for="(q, i) in questions"
-            :key="q.id"
-            :class="[
-              'cursor-pointer border-b border-border px-3 py-2 text-xs',
-              selectedId === q.id ? 'bg-accent/20 text-slate-900' : 'text-slate-700 hover:bg-surface-alt/60',
-            ]"
-            @click="selectedId = q.id"
-          >
+          <li v-for="(q, i) in questions" :key="q.id" :class="[
+            'cursor-pointer border-b border-border px-3 py-2 text-xs',
+            selectedId === q.id ? 'bg-accent/20 text-slate-900' : 'text-slate-700 hover:bg-surface-alt/60',
+          ]" @click="selectedId = q.id">
             <div class="flex items-start justify-between gap-2">
               <span class="line-clamp-2 flex-1">{{ i + 1 }}. {{ q.title }}</span>
               <div class="flex shrink-0 gap-1">
-                <el-button
-                  link
-                  size="small"
-                  title="复制"
-                  @click.stop="onCopyQuestion(q.id)"
-                >⎘</el-button>
-                <el-button
-                  link
-                  type="danger"
-                  size="small"
-                  title="删除"
-                  @click.stop="onDeleteQuestion(q.id)"
-                ><el-icon><Close /></el-icon></el-button>
+                <el-button link size="small" title="复制" @click.stop="onCopyQuestion(q.id)">⎘</el-button>
+                <el-button link type="danger" size="small" title="删除" @click.stop="onDeleteQuestion(q.id)"><el-icon>
+                    <Close />
+                  </el-icon></el-button>
               </div>
             </div>
           </li>
@@ -160,22 +103,12 @@
         <div v-if="selected" class="flex flex-col gap-3">
           <div class="flex flex-col gap-1 text-xs">
             <label class="text-slate-500">问题显示区</label>
-            <el-input
-              v-model="selected.title"
-              type="textarea"
-              :rows="3"
-              @change="onUpdateTitle(selected)"
-            />
+            <el-input v-model="selected.title" type="textarea" :rows="3" @change="onUpdateTitle(selected)" />
           </div>
           <div class="flex flex-col gap-1 text-xs">
             <label class="text-slate-500">回答输入区</label>
-            <el-input
-              v-model="answerDraft"
-              type="textarea"
-              :rows="6"
-              placeholder="光标默认在此输入回答…"
-              @input="onAnswerDraftChange"
-            />
+            <el-input v-model="answerDraft" type="textarea" :rows="6" placeholder="光标默认在此输入回答…"
+              @input="onAnswerDraftChange" />
             <p v-if="savingAnswer" class="text-[10px] text-slate-500">保存中…</p>
             <p v-else-if="lastSavedAnswerAt" class="text-[10px] text-emerald-400">
               已保存 {{ formatRelative(lastSavedAnswerAt) }}
@@ -340,7 +273,6 @@ async function onAddManualQuestion(): Promise<void> {
     });
     questions.value = [...questions.value, q];
     selectedId.value = q.id;
-    viewMode.value = "answer";
   } catch (e) {
     error.value = e instanceof ApiError
       ? `${e.envelope.code}: ${e.envelope.message}`
