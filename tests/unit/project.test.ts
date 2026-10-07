@@ -245,6 +245,32 @@ Deno.test("Project.markWon —— 从'新建'直接 → 中标 合法（状态�
   assertEquals(p.snapshot().bestPractice, "客户高层支持");
 });
 
+Deno.test("Project.markWon —— 从'暂停'直接 → 中标 合法（取消恢复后路径）", () => {
+  // "恢复"功能已移除，暂停是单向流程；暂停后唯一出路就是 中标/未中标。
+  // 这里专门覆盖 markWon 接受"暂停"作为源状态的路径。
+  const r = Project.create(validArgs());
+  assert(r.ok);
+  if (!r.ok) return;
+  const p = r.value;
+  p.changeStatus("提案中", clock());
+  const rPause = p.markPaused(
+    { pauseReason: "客户内审", pausedDate: new Date("2026-04-01") },
+    clock(),
+  );
+  assert(rPause.ok);
+  if (!rPause.ok) return;
+  assertEquals(p.statusValue, "暂停");
+
+  const rWin = p.markWon(
+    { wonDate: new Date("2026-06-15"), bestPractice: "客户高层支持" },
+    clock(),
+  );
+  assert(rWin.ok, `markWon from 暂停 should succeed, got: ${JSON.stringify(rWin)}`);
+  if (!rWin.ok) return;
+  assertEquals(p.statusValue, "中标");
+  assertEquals(p.snapshot().bestPractice, "客户高层支持");
+});
+
 Deno.test("Project.markLost —— 缺 lostReason → INVALID_INPUT", () => {
   const r = Project.create(validArgs());
   assert(r.ok);

@@ -358,13 +358,17 @@ export class Project extends AggregateRoot<ProjectId> {
   // 旧有 changeStatus(target, clock, reason?) 仍保留以兼容旧调用方；
   // 新流程（ProjectService.changeProjectStatus）按 target 路由到这三个方法。
 
-  /** 标记为中标：要求当前状态为"提案中"或"新建"，wonDate 必填，bestPractice（经验）必填 */
+  /** 标记为中标：接受"提案中"/"新建"/"暂停"，wonDate + bestPractice（经验）必填 */
   markWon(args: { wonDate: Date; bestPractice: string }, clock: Clock): DomainResult<void> {
-    if (this._status.value !== "提案中" && this._status.value !== "新建") {
+    if (
+      this._status.value !== "提案中" &&
+      this._status.value !== "新建" &&
+      this._status.value !== "暂停"
+    ) {
       return domainErr(
         "ILLEGAL_STATE_TRANSITION",
         `cannot mark project as 中标 from status "${this._status.value}"`,
-        { current: this._status.value, allowed: ["提案中", "新建"] },
+        { current: this._status.value, allowed: ["提案中", "新建", "暂停"] },
       );
     }
     if (!(args.wonDate instanceof Date) || isNaN(args.wonDate.getTime())) {
