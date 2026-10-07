@@ -157,41 +157,50 @@
       </dl>
     </article>
 
-    <!-- 状态元数据（中标 / 未中标 / 暂停）：只展示有值的字段；新建/提案中无数据时整卡不渲染 -->
-    <article v-if="hasStatusMetadata" class="card flex flex-col gap-3">
-      <dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-xs md:grid-cols-2">
-        <!-- 中标 -->
-        <div v-if="project.wonDate" class="flex flex-col gap-1">
-          <dt class="text-slate-500">中标日期</dt>
-          <dd class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.wonDate) }}</dd>
+    <!-- 状态元数据（中标 / 未中标 / 暂停）：按状态分 3 个小节；新建/提案中无数据时整卡不渲染 -->
+    <article v-if="hasStatusMetadata" class="card flex flex-col gap-4">
+      <!-- 中标 -->
+      <section v-if="hasWonBlock" class="flex flex-col gap-2">
+        <h3 class="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+          <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+          <span class="mr-3">中标</span>
+          <span v-if="project.wonDate" class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.wonDate) }}</span>
+        </h3>
+        <div v-if="project.bestPractice" class="text-md">
+          <span class="text-slate-500 mr-2">中标要点:</span>
+          <span class="text-slate-800">{{ project.bestPractice }}</span>
         </div>
-        <div v-if="project.bestPractice" class="flex flex-col gap-1">
-          <dt class="text-slate-500">最佳实践（中标要点）</dt>
-          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.bestPractice }}</dd>
+      </section>
+
+      <!-- 未中标 -->
+      <section v-if="hasLostBlock" class="flex flex-col gap-2">
+        <h3 class="flex items-center gap-2 text-xs font-semibold text-amber-700">
+          <span class="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
+          <span class="mr-3">未中标</span>
+          <span v-if="project.lostDate" class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.lostDate) }}</span>
+        </h3>
+        <div v-if="project.lostReason" class="text-md">
+          <span class="text-slate-500 mr-2">落标原因:</span>
+          <span class="text-slate-800">{{ project.lostReason }}</span>
         </div>
-        <!-- 未中标 -->
-        <div v-if="project.lostDate" class="flex flex-col gap-1">
-          <dt class="text-slate-500">未中标日期</dt>
-          <dd class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.lostDate) }}</dd>
+        <div v-if="project.improvementNote" class="text-md">
+          <span class="text-slate-500 mr-2">复盘要点:</span>
+          <span class="text-slate-800">{{ project.improvementNote }}</span>
         </div>
-        <div v-if="project.lostReason" class="flex flex-col gap-1">
-          <dt class="text-slate-500">未中标原因</dt>
-          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.lostReason }}</dd>
+      </section>
+
+      <!-- 暂停 -->
+      <section v-if="hasPausedBlock" class="flex flex-col gap-2">
+        <h3 class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+          <span class="inline-block h-2 w-2 rounded-full bg-slate-400"></span>
+          <span class="mr-3">暂停</span>
+          <span v-if="project.pausedDate" class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.pausedDate) }}</span>
+        </h3>
+        <div v-if="project.pauseReason" class="text-md">
+          <span class="text-slate-500 mr-2">暂停原因:</span>
+          <span class="text-slate-800">{{ project.pauseReason }}</span>
         </div>
-        <div v-if="project.improvementNote" class="flex flex-col gap-1">
-          <dt class="text-slate-500">复盘要点（下次改进）</dt>
-          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.improvementNote }}</dd>
-        </div>
-        <!-- 暂停 -->
-        <div v-if="project.pausedDate" class="flex flex-col gap-1">
-          <dt class="text-slate-500">暂停日期</dt>
-          <dd class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.pausedDate) }}</dd>
-        </div>
-        <div v-if="project.pauseReason" class="flex flex-col gap-1">
-          <dt class="text-slate-500">暂停原因</dt>
-          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.pauseReason }}</dd>
-        </div>
-      </dl>
+      </section>
     </article>
 
     <!-- 业务模块：左侧导航 + 右侧主区（占满剩余高度） -->
@@ -812,6 +821,18 @@ const hasStatusMetadata = computed(() => {
     p.pausedDate || p.pauseReason,
   );
 });
+
+/** 3 个小节各自独立守卫：避免出现「标题：无字段」的孤儿小节。 */
+const hasWonBlock = computed(() =>
+  Boolean(project.value?.wonDate || project.value?.bestPractice)
+);
+const hasLostBlock = computed(() =>
+  Boolean(project.value?.lostDate || project.value?.lostReason ||
+    project.value?.improvementNote)
+);
+const hasPausedBlock = computed(() =>
+  Boolean(project.value?.pausedDate || project.value?.pauseReason)
+);
 
 watch(
   () => route.params.id,

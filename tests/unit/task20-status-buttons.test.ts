@@ -333,6 +333,23 @@ Deno.test({
     // 守卫：hasStatusMetadata ——新建/提案中项目整卡不渲染
     assertStringIncludes(src, "hasStatusMetadata");
     assertStringIncludes(src, 'v-if="hasStatusMetadata"');
+    // 3 个小节守卫（中标 / 未中标 / 暂停独立显示，避免空小节）
+    assertStringIncludes(src, "hasWonBlock");
+    assertStringIncludes(src, "hasLostBlock");
+    assertStringIncludes(src, "hasPausedBlock");
+    // 3 个小节标题
+    assertStringIncludes(src, "中标");
+    assertStringIncludes(src, "未中标");
+    assertStringIncludes(src, "暂停");
+    // 不再截断长文（line-clamp-6 已移除）
+    assertFalse(src.includes('line-clamp-6" {{ project.bestPractice'),
+      "bestPractice 不再被 line-clamp-6 截断");
+    assertFalse(src.includes('line-clamp-6" {{ project.lostReason'),
+      "lostReason 不再被 line-clamp-6 截断");
+    assertFalse(src.includes('line-clamp-6" {{ project.improvementNote'),
+      "improvementNote 不再被 line-clamp-6 截断");
+    assertFalse(src.includes('line-clamp-6" {{ project.pauseReason'),
+      "pauseReason 不再被 line-clamp-6 截断");
     // 助手：日期+时间（与现有 formatDate 区分）
     assertStringIncludes(src, "formatDateTime");
   },
