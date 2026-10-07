@@ -303,3 +303,37 @@ Deno.test({
     assertFalse(src.includes('args.status === "中止"'));
   },
 });
+
+// ----- 13. 详情页状态摘要卡片：只读展示中标/未中标/暂停字段 -----
+
+Deno.test({
+  name: "t20 — ProjectDetailView 状态摘要区：7 字段绑定 + hasStatusMetadata + formatDateTime",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const src = await Deno.readTextFile(
+      "frontend/src/features/project/ProjectDetailView.vue",
+    );
+    // 7 个 DTO 字段绑定（详情页只读出口）
+    assertStringIncludes(src, "project.wonDate");
+    assertStringIncludes(src, "project.bestPractice");
+    assertStringIncludes(src, "project.lostDate");
+    assertStringIncludes(src, "project.lostReason");
+    assertStringIncludes(src, "project.improvementNote");
+    assertStringIncludes(src, "project.pausedDate");
+    assertStringIncludes(src, "project.pauseReason");
+    // 中文 label（与 ProjectStatusChangeDialog 词汇一致）
+    assertStringIncludes(src, "中标日期");
+    assertStringIncludes(src, "最佳实践（中标要点）");
+    assertStringIncludes(src, "未中标日期");
+    assertStringIncludes(src, "未中标原因");
+    assertStringIncludes(src, "复盘要点（下次改进）");
+    assertStringIncludes(src, "暂停日期");
+    assertStringIncludes(src, "暂停原因");
+    // 守卫：hasStatusMetadata ——新建/提案中项目整卡不渲染
+    assertStringIncludes(src, "hasStatusMetadata");
+    assertStringIncludes(src, 'v-if="hasStatusMetadata"');
+    // 助手：日期+时间（与现有 formatDate 区分）
+    assertStringIncludes(src, "formatDateTime");
+  },
+});

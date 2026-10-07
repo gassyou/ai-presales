@@ -153,7 +153,44 @@
           <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">
             {{ project.projectIntro || "未填" }}
           </dd>
-        </div>    
+        </div>
+      </dl>
+    </article>
+
+    <!-- 状态元数据（中标 / 未中标 / 暂停）：只展示有值的字段；新建/提案中无数据时整卡不渲染 -->
+    <article v-if="hasStatusMetadata" class="card flex flex-col gap-3">
+      <dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-xs md:grid-cols-2">
+        <!-- 中标 -->
+        <div v-if="project.wonDate" class="flex flex-col gap-1">
+          <dt class="text-slate-500">中标日期</dt>
+          <dd class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.wonDate) }}</dd>
+        </div>
+        <div v-if="project.bestPractice" class="flex flex-col gap-1">
+          <dt class="text-slate-500">最佳实践（中标要点）</dt>
+          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.bestPractice }}</dd>
+        </div>
+        <!-- 未中标 -->
+        <div v-if="project.lostDate" class="flex flex-col gap-1">
+          <dt class="text-slate-500">未中标日期</dt>
+          <dd class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.lostDate) }}</dd>
+        </div>
+        <div v-if="project.lostReason" class="flex flex-col gap-1">
+          <dt class="text-slate-500">未中标原因</dt>
+          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.lostReason }}</dd>
+        </div>
+        <div v-if="project.improvementNote" class="flex flex-col gap-1">
+          <dt class="text-slate-500">复盘要点（下次改进）</dt>
+          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.improvementNote }}</dd>
+        </div>
+        <!-- 暂停 -->
+        <div v-if="project.pausedDate" class="flex flex-col gap-1">
+          <dt class="text-slate-500">暂停日期</dt>
+          <dd class="whitespace-pre-wrap text-slate-800">{{ formatDateTime(project.pausedDate) }}</dd>
+        </div>
+        <div v-if="project.pauseReason" class="flex flex-col gap-1">
+          <dt class="text-slate-500">暂停原因</dt>
+          <dd class="whitespace-pre-wrap text-slate-800 line-clamp-6">{{ project.pauseReason }}</dd>
+        </div>
       </dl>
     </article>
 
@@ -749,6 +786,32 @@ function formatDate(iso: string): string {
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
+
+/** 中标日期 / 未中标日期 / 暂停日期用——比 formatDate 多带时分（24h）。 */
+function formatDateTime(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+/** 状态摘要卡片是否需要渲染——只要项目有任何中标/未中标/暂停字段就显示。 */
+const hasStatusMetadata = computed(() => {
+  const p = project.value;
+  if (!p) return false;
+  return Boolean(
+    p.wonDate || p.bestPractice ||
+    p.lostDate || p.lostReason || p.improvementNote ||
+    p.pausedDate || p.pauseReason,
+  );
+});
 
 watch(
   () => route.params.id,
