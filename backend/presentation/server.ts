@@ -250,9 +250,9 @@ export function createApp(deps: AppDeps): App {
     if (path === "/api/system/platform") {
       return handleSystemPlatform(req);
     }
-    // 阶段 13（PR #3）：触发桌面宿主打开原生 folder dialog（今日永远 501）
+    // 触发桌面宿主打开原生 folder dialog。
     if (path === "/api/system/open-folder-dialog") {
-      return handleOpenFolderDialog(req);
+      return await handleOpenFolderDialog(req);
     }
     if (path === "/api/projects" || path.startsWith("/api/projects/")) {
       // 阶段 7.4e：联系人 / 团队成员必须在 handleProjects 之前拦截，

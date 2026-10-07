@@ -435,7 +435,7 @@ function closeWorkspaceDialog(): void {
 
 /**
  * 阶段 13（PR #3）：「变更」按钮 → 三级 cascade：
- *   (1) 后端 `POST /api/system/open-folder-dialog`（桌面宿主未来接原生 folder dialog 时生效）
+ *   (1) 后端 `POST /api/system/open-folder-dialog`（操作系统原生 folder dialog）
  *   (2) 隐藏的 <input type="file" webkitdirectory>（浏览器 dev Chrome 可用）
  *   (3) 手动文本输入 `ProjectWorkspaceDialog`（桌面 webview 不暴露 File.path 时回退）
  */
@@ -443,8 +443,7 @@ async function openFolderPicker(): Promise<void> {
   if (!project.value) return;
   workspaceError.value = null;
 
-  // (1) 后端 binding 通道；今日永远 501 → 走下一级；将来 host 暴露原生 dialog
-  //     时这里就拿到绝对路径直接提交。
+  // (1) 原生系统对话框会返回绝对路径，可直接保存。
   try {
     const initialDir = platformInfo.value?.home || undefined;
     const res = await systemApi.openFolderDialog(initialDir);
@@ -454,10 +453,10 @@ async function openFolderPicker(): Promise<void> {
     }
     // cancelled / 空 path → 继续往下
   } catch (_e) {
-    // 501（浏览器 dev / 当前桌面 runtime）或其他错误 → 走下一级
+    // 例如运行在不支持系统对话框的浏览器调试环境 → 走下一级
   }
 
-  // (2) webkitdirectory。Chrome（浏览器 dev）暴露 File.path；Deno 桌面 webview 不暴露。
+  // (2) native dialog 不可用时再退回 webkitdirectory。
   if (folderInputRef.value) folderInputRef.value.value = "";
   folderInputRef.value?.click();
 }

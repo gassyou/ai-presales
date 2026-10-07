@@ -54,15 +54,9 @@ export function handleSystemPlatform(_req: Request): Response {
  *
  * 契约：
  *  - 200: { supported: true, path: string | null, cancelled: boolean }
- *  - 501: ErrorEnvelope { code: "NOT_IMPLEMENTED", ... } — 当前宿主没暴露原生 folder dialog
- *
- * 当前实现：永远返 501（host 没设 DENO_DESKTOP_FOLDER_PICKER=1）。
- * 桌面 webview 的 main.ts / dev.ts 注册了 `pickWorkspaceFolder` binding，
- * 但 Deno 桌面运行时目前没有 first-class folder picker API，binding 直接
- * 返回 cancelled 让前端 cascade 回退到 webkitdirectory + 手动文本输入。
- *
- * 未来扩展：当 Deno 运行时提供原生 folder dialog 时，只需在 main.ts / dev.ts
- * 让 binding 调用它，并 export `DENO_DESKTOP_FOLDER_PICKER=1`，本路由自动返 200。
+ * `webkitdirectory` 选择的 File 对象在大多数 WebView 中不会暴露绝对路径，
+ * 因而不能用它保存工作区。本端点由桌面后端调用操作系统文件夹对话框，直接
+ * 把选中的绝对路径返回给前端。
  */
 export interface OpenFolderDialogRequest {
   /** 初始打开的目录（可空）；当前实现忽略 */
@@ -76,32 +70,55 @@ export interface OpenFolderDialogResponse {
   cancelled: boolean;
 }
 
-export function handleOpenFolderDialog(req: Request): Response {
+export async function handleOpenFolderDialog(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
-  // 当前宿主没设 DENO_DESKTOP_FOLDER_PICKER → 永远返 501
-  if (Deno.env.get("DENO_DESKTOP_FOLDER_PICKER") !== "1") {
-    return new Response(
-      JSON.stringify({
-        code: "NOT_IMPLEMENTED",
-        message: "native folder dialog not available in this environment",
-        traceId: "",
-      }),
-      {
-        status: 501,
-        headers: { "content-type": "application/json; charset=utf-8" },
-      },
-    );
+  let path: string | null = null;
+  try {
+    const command = folderDialogCommand();
+    const result = await command.output();
+    // 用户取消时 macOS 的 osascript / Windows PowerShell 都会返回非 0；
+    // 它不是错误，前端会保持当前路径。
+    if (result.success) {
+      const selected = new TextDecoder().decode(result.stdout).trim();
+      path = selected || null;
+    }
+  } catch {
+    // 例如 Linux 缺少 zenity。保留前端的 web/manual 回退，避免“变更”按钮失效。
   }
 
-  // 占位：未来 host binding 真提供原生 dialog 时，由 binding 直接 resolve，
-  // 这条 200 路径只在 host 显式 export DENO_DESKTOP_FOLDER_PICKER=1 时走。
-  // 当下不会被触达，保守返 cancelled。
-  const dto: OpenFolderDialogResponse = { supported: true, path: null, cancelled: true };
+  const dto: OpenFolderDialogResponse = {
+    supported: true,
+    path,
+    cancelled: path === null,
+  };
   return new Response(JSON.stringify(dto), {
     status: 200,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
+}
+
+/** 以固定参数调用各平台的系统目录选择器；不拼接用户输入到脚本。 */
+function folderDialogCommand(): Deno.Command {
+  switch (Deno.build.os) {
+    case "darwin":
+      return new Deno.Command("osascript", {
+        args: ["-e", 'POSIX path of (choose folder with prompt "选择项目工作区")'],
+      });
+    case "windows":
+      return new Deno.Command("powershell.exe", {
+        args: [
+          "-NoProfile",
+          "-STA",
+          "-Command",
+          "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = '选择项目工作区'; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($d.SelectedPath) }",
+        ],
+      });
+    default:
+      return new Deno.Command("zenity", {
+        args: ["--file-selection", "--directory", "--title=选择项目工作区"],
+      });
+  }
 }

@@ -113,13 +113,13 @@ Deno.test("w10 — ProjectDetailView 错误回显", () => {
 
 /* ====== 阶段 13（PR #3）：folder picker 三级 cascade ====== */
 
-Deno.test("w11 — 后端 handleOpenFolderDialog 存在 + 未启用时返 501 NOT_IMPLEMENTED", () => {
+Deno.test("w11 — 后端 handleOpenFolderDialog 调用原生目录选择器", () => {
   const route = readText("backend/presentation/routes/system.route.ts");
   assertStringIncludes(route, "function handleOpenFolderDialog");
-  // 环境变量检查：未设 → 501
-  assert(/Deno\.env\.get\("DENO_DESKTOP_FOLDER_PICKER"\)/.test(route));
-  assertStringIncludes(route, '"NOT_IMPLEMENTED"');
-  // 200 响应 DTO
+  assertStringIncludes(route, "folderDialogCommand");
+  assertStringIncludes(route, 'new Deno.Command("osascript"');
+  assertStringIncludes(route, 'new Deno.Command("powershell.exe"');
+  // 200 响应 DTO（用户取消时 path 为 null）
   assertStringIncludes(route, "OpenFolderDialogResponse");
 });
 
@@ -127,7 +127,7 @@ Deno.test("w12 — server.ts 路由分支 /api/system/open-folder-dialog → han
   const s = readText("backend/presentation/server.ts");
   assertStringIncludes(s, "handleOpenFolderDialog");
   assert(/path === "\/api\/system\/open-folder-dialog"/.test(s));
-  assert(/handleOpenFolderDialog\(req\)/.test(s));
+  assert(/await handleOpenFolderDialog\(req\)/.test(s));
 });
 
 Deno.test("w13 — 前端 endpoint 常量 + systemApi.openFolderDialog 方法存在", () => {
