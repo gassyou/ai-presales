@@ -57,22 +57,21 @@ async function resolveProjectId(
 
 export interface WriteProjectStatusArgs {
   projectCodeOrName: string;
-  /** 6 态："新建" | "提案中" | "暂停" | "中标" | "未中标" | "中止"。
-   *  阶段 1：中标要求 bestPractice；未中标要求 lostReason + improvementNote；
-   *  暂停要求 reason；中止要求 pausedDate + stopReason。 */
-  status: "新建" | "提案中" | "暂停" | "中标" | "未中标" | "中止";
+  /** 5 态："新建" | "提案中" | "暂停" | "中标" | "未中标"。
+   *  中标要求 bestPractice；未中标要求 lostReason + improvementNote；
+   *  暂停要求 reason + pausedDate。
+   *  注："暂停"是单向流程——没有"恢复"动作。 */
+  status: "新建" | "提案中" | "暂停" | "中标" | "未中标";
   /** 仅当 dryRun=true 时不实际写入，仅返"将做什么"摘要 */
   dryRun?: boolean;
-  /** 状态切换原因（中标/未中标/暂停/中止时必填；其他选填） */
+  /** 状态切换原因（中标/未中标/暂停时必填；其他选填） */
   reason?: string;
-  /** 阶段 1：中标时必填（写项目经验） */
+  /** 中标时必填（写项目经验） */
   bestPractice?: string;
-  /** 阶段 1：未中标时必填（反省事项） */
+  /** 未中标时必填（反省事项） */
   improvementNote?: string;
-  /** 阶段 1：中止时必填（YYYY-MM-DD 或 ISO） */
+  /** 暂停时必填（YYYY-MM-DD 或 ISO 日期字符串） */
   pausedDate?: string;
-  /** 阶段 1：中止时必填（替代 reason 用） */
-  stopReason?: string;
 }
 
 export interface WriteProjectStatusResult {
@@ -93,21 +92,21 @@ export interface WriteProjectStatusToolDeps {
 export class WriteProjectStatusTool
   implements Tool<WriteProjectStatusArgs, WriteProjectStatusResult> {
   readonly name = "write_project_status";
-  readonly description = "修改一个项目的状态。可选值：新建 / 进行中 / 已完成 / 已搁置。" +
-    "通常用在项目推进阶段切换（开始 / 完成 / 搁置）。" +
+  readonly description = "修改一个项目的状态。可选值：新建 / 提案中 / 暂停 / 中标 / 未中标。" +
+    "通常用在项目推进阶段切换（开始 / 完成 / 暂停）。" +
+    "「暂停」是单向流程，没有恢复动作。" +
     "传 dryRun=true 时不实际写入，仅描述会做什么；默认 false。";
   readonly inputSchema = {
     type: "object",
     required: ["projectCodeOrName", "status"],
     properties: {
       projectCodeOrName: { type: "string", description: "项目编号（如 2026-00001）或项目名称" },
-      status: { type: "string", enum: ["新建", "提案中", "暂停", "中标", "未中标", "中止"] },
+      status: { type: "string", enum: ["新建", "提案中", "暂停", "中标", "未中标"] },
       dryRun: { type: "boolean", default: false },
-      reason: { type: "string", description: "状态切换原因（中标/未中标/暂停/中止时必填）" },
+      reason: { type: "string", description: "状态切换原因（中标/未中标/暂停时必填）" },
       bestPractice: { type: "string", description: "中标时必填：项目经验复盘" },
       improvementNote: { type: "string", description: "未中标时必填：反省事项" },
-      pausedDate: { type: "string", description: "中止时必填：YYYY-MM-DD 或 ISO 日期字符串" },
-      stopReason: { type: "string", description: "中止时必填：中止原因" },
+      pausedDate: { type: "string", description: "暂停时必填：YYYY-MM-DD 或 ISO 日期字符串" },
     },
     additionalProperties: false,
   };
@@ -137,16 +136,12 @@ export class WriteProjectStatusTool
         return fail(`improvementNote is required when transitioning to "未中标"`);
       }
     }
-    if (args.status === "暂停" && (!args.reason || !args.reason.trim())) {
-      return fail(`reason (pauseReason) is required when transitioning to "暂停"`);
-    }
-    if (args.status === "中止") {
-      if (!args.pausedDate) {
-        return fail(`pausedDate is required when transitioning to "中止"`);
+    if (args.status === "暂停") {
+      if (!args.reason || !args.reason.trim()) {
+        return fail(`reason (pauseReason) is required when transitioning to "暂停"`);
       }
-      const stopReason = args.stopReason ?? args.reason;
-      if (!stopReason || !stopReason.trim()) {
-        return fail(`stopReason is required when transitioning to "中止"`);
+      if (!args.pausedDate) {
+        return fail(`pausedDate is required when transitioning to "暂停"`);
       }
     }
     if (args.dryRun) {
@@ -159,21 +154,14 @@ export class WriteProjectStatusTool
         dryRun: true,
       });
     }
-    // 阶段 1：组装 payload（按目标状态映射字段名）
+    // 组装 payload（按目标状态映射字段名）
     let payload: Parameters<typeof this.deps.projectService.changeProjectStatus>[2] | undefined;
     if (args.status === "中标" && args.bestPractice) {
       payload = { bestPractice: args.bestPractice };
     } else if (args.status === "未中标" && args.reason && args.improvementNote) {
       payload = { lostReason: args.reason, improvementNote: args.improvementNote };
-    } else if (args.status === "暂停" && args.reason) {
-      payload = { reason: args.reason };
-    } else if (args.status === "中止") {
-      const stopReason = args.stopReason ?? args.reason;
-      if (!args.pausedDate || !stopReason) {
-        // 上方校验已挡，这里只是 narrow 类型
-        return fail("internal: missing pausedDate/stopReason for 中止");
-      }
-      payload = { pausedDate: new Date(args.pausedDate), stopReason };
+    } else if (args.status === "暂停" && args.reason && args.pausedDate) {
+      payload = { reason: args.reason, pausedDate: new Date(args.pausedDate) };
     } else if (args.reason) {
       payload = { reason: args.reason };
     }

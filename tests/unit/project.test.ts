@@ -117,16 +117,28 @@ Deno.test("Project.changeStatus —— 合法状态机", () => {
   assertEquals(events[1].eventName, "project.status-changed");
 });
 
-Deno.test("Project.changeStatus —— 非法跳转 → DomainError", () => {
+Deno.test("Project.changeStatus —— 新建→中标 直接合法（状态机放宽）", () => {
   const r = Project.create(validArgs());
   assert(r.ok);
   if (!r.ok) return;
   const p = r.value;
-  // 新建不能直接到中标
+  // 状态机放宽：新建可直接跳到 中标
   const r2 = p.changeStatus("中标", clock());
+  assert(r2.ok);
+  if (!r2.ok) return;
+  assertEquals(p.statusValue, "中标");
+});
+
+Deno.test("Project.changeStatus —— 非法跳转（中标 → 任意） → DomainError", () => {
+  const r = Project.create(validArgs());
+  assert(r.ok);
+  if (!r.ok) return;
+  const p = r.value;
+  // 中标是终态，任何出边都非法
+  p.changeStatus("中标", clock());
+  const r2 = p.changeStatus("新建", clock());
   assertFalse(r2.ok);
   assertEquals(r2.error.code, "ILLEGAL_STATE_TRANSITION");
-  assertMatch(r2.error.message, /cannot transition 新建 → 中标/);
 });
 
 Deno.test("Project.archive —— 未关闭项目可归档", () => {
@@ -203,15 +215,34 @@ Deno.test("Project.markWon —— 提案中→中标，写入 wonDate + bestPrac
   assertEquals(events[0].eventName, "project.status-changed");
 });
 
-Deno.test("Project.markWon —— 当前状态非'提案中' → ILLEGAL_STATE_TRANSITION", () => {
+Deno.test("Project.markWon —— 当前状态'中标' → ILLEGAL_STATE_TRANSITION", () => {
   const r = Project.create(validArgs());
   assert(r.ok);
   if (!r.ok) return;
   const p = r.value;
-  // 直接对新建调用 markWon
-  const r2 = p.markWon({ wonDate: new Date() }, clock());
+  // 新建→中标 是合法的；再次 markWon 应该被拒绝（中标是终态）
+  p.markWon(
+    { wonDate: new Date("2026-06-15"), bestPractice: "x" },
+    clock(),
+  );
+  const r2 = p.markWon({ wonDate: new Date(), bestPractice: "y" }, clock());
   assertFalse(r2.ok);
   assertEquals(r2.error.code, "ILLEGAL_STATE_TRANSITION");
+});
+
+Deno.test("Project.markWon —— 从'新建'直接 → 中标 合法（状态机放宽）", () => {
+  const r = Project.create(validArgs());
+  assert(r.ok);
+  if (!r.ok) return;
+  const p = r.value;
+  const r2 = p.markWon(
+    { wonDate: new Date("2026-06-15"), bestPractice: "客户高层支持" },
+    clock(),
+  );
+  assert(r2.ok);
+  if (!r2.ok) return;
+  assertEquals(p.statusValue, "中标");
+  assertEquals(p.snapshot().bestPractice, "客户高层支持");
 });
 
 Deno.test("Project.markLost —— 缺 lostReason → INVALID_INPUT", () => {
@@ -224,6 +255,7 @@ Deno.test("Project.markLost —— 缺 lostReason → INVALID_INPUT", () => {
   const r2 = p.markLost({
     lostDate: new Date("2026-07-01T00:00:00Z"),
     lostReason: "   ",
+    improvementNote: "x",
   }, clock());
   assertFalse(r2.ok);
   assertEquals(r2.error.code, "INVALID_INPUT");
@@ -256,20 +288,28 @@ Deno.test("Project.markPaused —— 缺 pauseReason → INVALID_INPUT", () => {
   const p = r.value;
   p.changeStatus("提案中", clock());
 
-  const r2 = p.markPaused({ pauseReason: "" }, clock());
+  const r2 = p.markPaused(
+    { pauseReason: "", pausedDate: new Date("2026-03-15") },
+    clock(),
+  );
   assertFalse(r2.ok);
   assertEquals(r2.error.code, "INVALID_INPUT");
 });
 
-Deno.test("Project.markPaused —— 合法 → 写入 pauseReason", () => {
+Deno.test("Project.markPaused —— 合法 → 写入 pauseReason + pausedDate", () => {
   const r = Project.create(validArgs());
   assert(r.ok);
   if (!r.ok) return;
   const p = r.value;
   p.changeStatus("提案中", clock());
 
-  const r2 = p.markPaused({ pauseReason: "客户组织架构调整" }, clock());
+  const pausedDate = new Date("2026-03-15T10:00:00Z");
+  const r2 = p.markPaused(
+    { pauseReason: "客户组织架构调整", pausedDate },
+    clock(),
+  );
   assert(r2.ok);
   assertEquals(p.statusValue, "暂停");
   assertEquals(p.snapshot().pauseReason, "客户组织架构调整");
+  assertEquals(p.snapshot().pausedDate?.toISOString(), pausedDate.toISOString());
 });

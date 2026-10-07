@@ -58,7 +58,7 @@ export const useProjectStore = defineStore("project", () => {
     return dto;
   }
 
-  /** 阶段 13（PR #1）：input 透传给后端，由 service 校验必填字段 */
+  /** 状态变更（中标/未中标/暂停/提案中等） */
   async function changeStatus(
     id: string,
     input: ChangeProjectStatusInput,

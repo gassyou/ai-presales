@@ -152,47 +152,15 @@ Deno.test("write_project_status — 中标必须带 bestPractice", async () => {
   assertStringIncludes(r.error, "bestPractice");
 });
 
-Deno.test("write_project_status — 中止必须带 pausedDate + stopReason", async () => {
-  const { deps, projectService } = await setup();
-  const toProposal = await projectService.changeProjectStatus(
-    (await deps.projectRepo.findByMentionToken("enrich-test"))!.id as never,
-    "提案中",
-  );
-  assert(toProposal.ok);
-  const tool = new WriteProjectStatusTool({
-    projectService: deps.projectService,
-    projectRepo: deps.projectRepo,
-    logger: deps.logger,
-  });
-  // 缺 pausedDate
-  const r1 = await tool.execute(
-    { projectCodeOrName: "enrich-test", status: "中止", stopReason: "客户撤回预算" },
-    fakeCtx(),
-  );
-  assert(!r1.ok);
-  if (r1.ok) return;
-  assertStringIncludes(r1.error, "pausedDate");
-  // 缺 stopReason
-  const r2 = await tool.execute(
-    { projectCodeOrName: "enrich-test", status: "中止", pausedDate: "2026-12-01" },
-    fakeCtx(),
-  );
-  assert(!r2.ok);
-  if (r2.ok) return;
-  assertStringIncludes(r2.error, "stopReason");
-  // 都齐全 → 写入成功
-  const r3 = await tool.execute(
-    { projectCodeOrName: "enrich-test", status: "中止", pausedDate: "2026-12-01", stopReason: "客户撤回预算" },
-    fakeCtx(),
-  );
-  assert(r3.ok);
-  if (!r3.ok) return;
-  const got = await projectService.getProject((r3.value.projectId as never));
-  assert(got.ok);
-  if (!got.ok) return;
-  assertEquals(got.value.status, "中止");
-  assertEquals(got.value.pausedDate?.toISOString(), new Date("2026-12-01").toISOString());
-  assertEquals(got.value.pauseReason, "客户撤回预算");
+Deno.test("write_project_status — 5 态 enum（不含中止）", async () => {
+  const schema = new WriteProjectStatusTool({
+    projectService: {} as never,
+    projectRepo: {} as never,
+    logger: {} as never,
+  }).inputSchema;
+  const statusProp = (schema.properties as unknown as Record<string, { enum: string[] }>).status;
+  assertEquals(statusProp.enum.length, 5);
+  assertEquals(statusProp.enum.includes("中止"), false);
 });
 
 Deno.test("write_project_status — 中标带 bestPractice 真实写入", async () => {
@@ -221,6 +189,55 @@ Deno.test("write_project_status — 中标带 bestPractice 真实写入", async 
   assertEquals(got.value.bestPractice, "决策层提前 1 月接触");
 });
 
+Deno.test("write_project_status — 暂停必填 pausedDate（缺失报错）", async () => {
+  const { deps, projectService } = await setup();
+  const proj = (await deps.projectRepo.findByMentionToken("enrich-test"))!;
+  await projectService.changeProjectStatus(proj.id as never, "提案中");
+  const tool = new WriteProjectStatusTool({
+    projectService,
+    projectRepo: deps.projectRepo,
+    logger: deps.logger,
+  });
+  const r = await tool.execute(
+    { projectCodeOrName: "enrich-test", status: "暂停", reason: "客户内审" },
+    fakeCtx(),
+  );
+  assert(!r.ok);
+  if (r.ok) return;
+  assertStringIncludes(r.error, "pausedDate");
+});
+
+Deno.test("write_project_status — 暂停带 pausedDate 真实写入", async () => {
+  const { deps, projectService } = await setup();
+  const proj = (await deps.projectRepo.findByMentionToken("enrich-test"))!;
+  await projectService.changeProjectStatus(proj.id as never, "提案中");
+  const tool = new WriteProjectStatusTool({
+    projectService,
+    projectRepo: deps.projectRepo,
+    logger: deps.logger,
+  });
+  const r = await tool.execute(
+    {
+      projectCodeOrName: "enrich-test",
+      status: "暂停",
+      reason: "客户内审",
+      pausedDate: "2026-05-15T10:00:00Z",
+    },
+    fakeCtx(),
+  );
+  assert(r.ok);
+  if (!r.ok) return;
+  const got = await projectService.getProject(proj.id as never);
+  assert(got.ok);
+  if (!got.ok) return;
+  assertEquals(got.value.status, "暂停");
+  assertEquals(got.value.pauseReason, "客户内审");
+  assertEquals(
+    (got.value.pausedDate as unknown as Date)?.toISOString?.(),
+    new Date("2026-05-15T10:00:00Z").toISOString(),
+  );
+});
+
 Deno.test("write_project_status — 项目不存在", async () => {
   const { deps } = await setup();
   const tool = new WriteProjectStatusTool({
@@ -246,6 +263,9 @@ Deno.test("write_project_status — 同状态转换失败", async () => {
   if (r.ok) return;
   assertStringIncludes(r.error, "already in status");
 });
+
+// 注："恢复"功能已移除——ResumeProjectTool 已撤回。
+// 原 resume_project 3 个集成测试（暂停→提案中 真实写入 / 非暂停失败 / dryRun）一并删除。
 
 // ========== CreateActivityTool ==========
 
@@ -597,7 +617,7 @@ Deno.test("buildWriteableTools — 10 个工具注册到 registry", async () => 
   const r = new ToolRegistry();
   const tools = buildWriteableTools(deps);
   for (const t of tools) r.register(t);
-  // 10 个写工具（7 原始 + SetProjectWorkspaceTool + ResolveProjectWorkspaceTool + ReadMarkdownModuleTool）
+  // 10 个写工具（"恢复" ResumeProjectTool 已撤回）
   assertEquals(tools.length, 10);
   assertEquals(r.names().length, 10);
   assert(r.has("write_project_status"));

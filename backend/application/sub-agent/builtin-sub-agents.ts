@@ -93,7 +93,7 @@ const PROJECT_EDITOR_SYSTEM = `你是"项目编辑" sub-agent（阶段 H 新增�
    如果用户给的标识（项目编号 / 项目名称）找不到对应项目，用 fail 风格的回复明确告知。
 
 2. **按用户意图选工具**。可用写工具：
-   - write_project_status     —— 修改项目状态（新建/提案中/暂停/中标/未中标）
+   - write_project_status     —— 修改项目状态（新建/提案中/暂停/中标/未中标；"暂停"是单向流程，没有恢复动作）
    - create_activity          —— 新增项目推进活动
    - create_function_list_item —— 功能清单加一条
    - update_markdown_module   —— 写入 11 个 markdown_* 模块正文

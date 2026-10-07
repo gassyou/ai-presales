@@ -50,8 +50,7 @@ export const projectApi = {
   update(id: string, input: UpdateProjectInput) {
     return http.patch<ProjectDTO>(Endpoints.project(id), input);
   },
-  /** 阶段 13（PR #1）：状态变更；input 透传给后端，由 service 校验必填字段 */
-/** 阶段 13（PR #2）：状态变更；input 透传给后端，由 service 校验必填字段 */
+  /** 阶段 13（PR #2）：状态变更；input 透传给后端，由 service 校验必填字段 */
   changeStatus(id: string, input: ChangeProjectStatusInput) {
     return http.post<ProjectDTO>(`${Endpoints.project(id)}/status`, input);
   },

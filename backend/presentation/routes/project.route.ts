@@ -4,6 +4,7 @@
  * GET    /api/projects/:id
  * PATCH  /api/projects/:id                body: { name?, ... }
  * POST   /api/projects/:id/status         body: { target, reason? }
+ * POST   /api/projects/:id/workspace     （设置工作区路径）
  * DELETE /api/projects/:id
  *
  * 错误统一 ErrorEnvelope（presentation 层做映射）。
@@ -366,26 +367,16 @@ async function changeStatus(
   const input = raw as {
     target?: string;
     reason?: string;
-    pausedDate?: string;
-    stopReason?: string;
     wonDate?: string;
     bestPractice?: string;
     lostDate?: string;
     lostReason?: string;
     improvementNote?: string;
+    pausedDate?: string;
   };
   if (typeof input.target !== "string") {
     return err(400, ErrorCode.VALIDATION_FAILED, "target is required");
   }
-  // 解析"中止"专用字段；其他 target 透传 reason 不变
-  const pausedDateParsed = parseIsoDate(input.pausedDate, "pausedDate");
-  if (pausedDateParsed.error) return pausedDateParsed.error;
-  const pausedDate = pausedDateParsed.value;
-  const stopReason = typeof input.stopReason === "string" && input.stopReason.trim().length > 0
-    ? input.stopReason.trim()
-    : (typeof input.reason === "string" && input.reason.trim().length > 0
-      ? input.reason.trim()
-      : undefined);
 
   // 解析"中标"日期
   const wonDateParsed = parseIsoDate(input.wonDate, "wonDate");
@@ -395,12 +386,15 @@ async function changeStatus(
   const lostDateParsed = parseIsoDate(input.lostDate, "lostDate");
   if (lostDateParsed.error) return lostDateParsed.error;
   const lostDate = lostDateParsed.value;
+  // 解析"暂停"日期
+  const pausedDateParsed = parseIsoDate(input.pausedDate, "pausedDate");
+  if (pausedDateParsed.error) return pausedDateParsed.error;
+  const pausedDate = pausedDateParsed.value;
 
   const payload: Record<string, unknown> = {};
-  if (pausedDate) payload.pausedDate = pausedDate;
-  if (stopReason) payload.stopReason = stopReason;
   if (wonDate) payload.wonDate = wonDate;
   if (lostDate) payload.lostDate = lostDate;
+  if (pausedDate) payload.pausedDate = pausedDate;
   if (typeof input.bestPractice === "string" && input.bestPractice.trim().length > 0) {
     payload.bestPractice = input.bestPractice.trim();
   }
@@ -410,10 +404,8 @@ async function changeStatus(
   if (typeof input.improvementNote === "string" && input.improvementNote.trim().length > 0) {
     payload.improvementNote = input.improvementNote.trim();
   }
-  // 兼容旧调用方：仅传了 reason 时透传（保证非"中止"分支行为不变）
-  if (
-    !pausedDate && !stopReason && typeof input.reason === "string" && input.reason.trim().length > 0
-  ) {
+  // 透传 reason（用于"暂停"/其他需 reason 的 target）
+  if (typeof input.reason === "string" && input.reason.trim().length > 0) {
     payload.reason = input.reason.trim();
   }
 

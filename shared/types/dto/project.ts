@@ -9,8 +9,7 @@ export type ProjectStatusValue =
   | "提案中"
   | "暂停"
   | "中标"
-  | "未中标"
-  | "中止";
+  | "未中标";
 
 export interface ProjectContactDTO {
   id: string;
@@ -40,6 +39,7 @@ export interface ProjectDTO {
   endDate?: IsoDateTime;
   status: ProjectStatusValue;
   pauseReason?: string;
+  pausedDate?: IsoDateTime;
   lostDate?: IsoDateTime;
   lostReason?: string;
   improvementNote?: string;
@@ -81,20 +81,17 @@ export interface UpdateProjectInput {
 }
 
 /**
- * 阶段 13（PR #1）：项目状态变更输入。
- *   - target = "中止" 时：pausedDate + stopReason 必填
- *   - target = "暂停" 时：reason 必填
+ * 项目状态变更输入。
+ *   - target = "暂停" 时：reason + pausedDate 必填
  *   - target = "中标" 时：bestPractice 必填
  *   - target = "未中标" 时：lostReason + improvementNote 必填
  *   - 其他：无 Reason 字段
+ *
+ * 注：本接口不提供"从暂停恢复到提案中"的转换——"暂停"是单向流程。
  */
 export interface ChangeProjectStatusInput {
   target: ProjectStatusValue;
   reason?: string;
-  /** 中止时必填 */
-  pausedDate?: IsoDateTime;
-  /** 中止时必填 */
-  stopReason?: string;
   /** 中标时必填（默认今天，后端兜底） */
   wonDate?: IsoDateTime;
   /** 中标时必填 */
@@ -105,4 +102,6 @@ export interface ChangeProjectStatusInput {
   lostReason?: string;
   /** 未中标时必填（复盘要点） */
   improvementNote?: string;
+  /** "暂停"时必填：暂停时间（YYYY-MM-DD 或 ISO 时间串） */
+  pausedDate?: IsoDateTime;
 }

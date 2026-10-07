@@ -85,12 +85,6 @@
             @click="openStatusDialog('暂停')"
           >暂停</button>
           <button
-            v-if="canAbort"
-            type="button"
-            class="text-xs text-slate-500 underline-offset-4 hover:text-red-700 hover:underline"
-            @click="openAbortDialog"
-          >中止</button>
-          <button
             type="button"
             class="text-xs text-slate-500 underline-offset-4 hover:text-accent hover:underline"
             @click="onOpenEmail"
@@ -202,7 +196,7 @@
       @submit="onSubmitEdit"
     />
 
-    <!-- 阶段 13（PR #1）：状态变更弹窗（当前仅"中止"，后续 PR 复用同一组件） -->
+    <!-- 状态变更弹窗（中标/未中标/暂停）。"恢复"走专用端点无需弹窗。 -->
     <ProjectStatusChangeDialog
       v-if="statusDialog"
       :project="project"
@@ -318,17 +312,15 @@ async function onSubmitEdit(input: UpdateProjectInput): Promise<void> {
   }
 }
 
-/* ===== 状态变更（PR #1 中止；task20 扩展 中标/未中标/暂停） ===== */
-// 4 个目标状态的可见性矩阵（基于状态机 TRANSITIONS）
-// - 中标/未中标：提案中 / 暂停 → 可达
-// - 暂停：仅提案中 → 暂停（已暂停不可重复）
-// - 中止：提案中 / 暂停 → 可达
-const DECIDABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中", "暂停"]);
-const PAUSABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["提案中"]);
+/* ===== 状态变更 ===== */
+// 目标状态的可见性矩阵（基于状态机 TRANSITIONS）
+// - 中标/未中标：新建 / 提案中 / 暂停 → 可达（"新建"是初始态，可直接跳过提案中）
+// - 暂停：新建 / 提案中 → 暂停（已暂停不可重复；"暂停"是单向流程，不能再"恢复"）
+const DECIDABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["新建", "提案中", "暂停"]);
+const PAUSABLE_STATUSES: ReadonlySet<ProjectStatusValue> = new Set<ProjectStatusValue>(["新建", "提案中"]);
 
 const canMarkWon = computed(() => project.value ? DECIDABLE_STATUSES.has(project.value.status) : false);
 const canMarkLost = computed(() => project.value ? DECIDABLE_STATUSES.has(project.value.status) : false);
-const canAbort = computed(() => project.value ? DECIDABLE_STATUSES.has(project.value.status) : false);
 const canPause = computed(() => project.value ? PAUSABLE_STATUSES.has(project.value.status) : false);
 const canDecideResult = computed(() => canMarkWon.value || canMarkLost.value);
 
@@ -340,10 +332,6 @@ function openStatusDialog(target: ProjectStatusValue): void {
   if (!project.value) return;
   statusError.value = null;
   statusDialog.value = { target };
-}
-
-function openAbortDialog(): void {
-  openStatusDialog("中止");
 }
 
 function closeStatusDialog(): void {
@@ -358,7 +346,6 @@ const STATUS_SUCCESS_LABEL: Record<ProjectStatusValue, string> = {
   "暂停": "项目已暂停",
   "中标": "项目已中标",
   "未中标": "项目已标记为未中标",
-  "中止": "项目已中止",
 };
 
 async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<void> {
@@ -377,6 +364,7 @@ async function onSubmitStatusChange(input: ChangeProjectStatusInput): Promise<vo
   }
 }
 
+/** 从"暂停"恢复到"提案中"专用 action */
 /* ===== 工作区路径（PR #2） ===== */
 // 阶段 13（PR #2）：跨平台元信息（OS + 用户主目录 + 分隔符）
 const platformInfo = ref<PlatformInfoDTO | null>(null);

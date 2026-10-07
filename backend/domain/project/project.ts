@@ -358,13 +358,13 @@ export class Project extends AggregateRoot<ProjectId> {
   // 旧有 changeStatus(target, clock, reason?) 仍保留以兼容旧调用方；
   // 新流程（ProjectService.changeProjectStatus）按 target 路由到这三个方法。
 
-  /** 标记为中标：要求当前状态为"提案中"，wonDate 必填，bestPractice（经验）必填 */
+  /** 标记为中标：要求当前状态为"提案中"或"新建"，wonDate 必填，bestPractice（经验）必填 */
   markWon(args: { wonDate: Date; bestPractice: string }, clock: Clock): DomainResult<void> {
-    if (this._status.value !== "提案中") {
+    if (this._status.value !== "提案中" && this._status.value !== "新建") {
       return domainErr(
         "ILLEGAL_STATE_TRANSITION",
         `cannot mark project as 中标 from status "${this._status.value}"`,
-        { current: this._status.value, allowed: ["提案中"] },
+        { current: this._status.value, allowed: ["提案中", "新建"] },
       );
     }
     if (!(args.wonDate instanceof Date) || isNaN(args.wonDate.getTime())) {
@@ -388,17 +388,21 @@ export class Project extends AggregateRoot<ProjectId> {
     return domainOk(undefined);
   }
 
-  /** 标记为未中标：接受"提案中"/"暂停"，要求 lostReason + lostDate + improvementNote（反省事项）均必填 */
+  /** 标记为未中标：接受"提案中"/"暂停"/"新建"，要求 lostReason + lostDate + improvementNote（反省事项）均必填 */
   markLost(args: {
     lostDate: Date;
     lostReason: string;
     improvementNote: string;
   }, clock: Clock): DomainResult<void> {
-    if (this._status.value !== "提案中" && this._status.value !== "暂停") {
+    if (
+      this._status.value !== "提案中" &&
+      this._status.value !== "暂停" &&
+      this._status.value !== "新建"
+    ) {
       return domainErr(
         "ILLEGAL_STATE_TRANSITION",
         `cannot mark project as 未中标 from status "${this._status.value}"`,
-        { current: this._status.value, allowed: ["提案中", "暂停"] },
+        { current: this._status.value, allowed: ["提案中", "暂停", "新建"] },
       );
     }
     const reason = args.lostReason.trim();
@@ -427,58 +431,32 @@ export class Project extends AggregateRoot<ProjectId> {
     return domainOk(undefined);
   }
 
-  /** 标记为暂停：要求当前状态为"提案中"，pauseReason 必填 */
-  markPaused(args: { pauseReason: string }, clock: Clock): DomainResult<void> {
-    if (this._status.value !== "提案中") {
+  /** 标记为暂停：要求当前状态为"提案中"或"新建"，pauseReason + pausedDate 均必填 */
+  markPaused(args: { pauseReason: string; pausedDate: Date }, clock: Clock): DomainResult<void> {
+    if (this._status.value !== "提案中" && this._status.value !== "新建") {
       return domainErr(
         "ILLEGAL_STATE_TRANSITION",
         `cannot mark project as 暂停 from status "${this._status.value}"`,
-        { current: this._status.value, allowed: ["提案中"] },
+        { current: this._status.value, allowed: ["提案中", "新建"] },
       );
     }
     const reason = args.pauseReason.trim();
     if (reason.length === 0) {
       return domainErr("INVALID_INPUT", "pauseReason is required");
     }
+    if (!(args.pausedDate instanceof Date) || isNaN(args.pausedDate.getTime())) {
+      return domainErr("INVALID_INPUT", "pausedDate is required and must be a valid Date");
+    }
     const tr = this._status.transition("暂停");
     if (!tr.ok) return tr;
     const from = this._status.value;
     this._status = tr.value;
     this._pauseReason = reason;
+    this._pausedDate = args.pausedDate;
     const now = clock.now();
     this._updatedAt = now;
     this.addDomainEvent(
       new ProjectStatusChangedEvent(this.id, from, "暂停", now, reason),
-    );
-    return domainOk(undefined);
-  }
-
-  /** 阶段 1：标记为中止（终态）；要求"提案中"/"暂停"，写日期+原因。 */
-  markStopped(args: { pausedDate: Date; stopReason: string }, clock: Clock): DomainResult<void> {
-    if (this._status.value !== "提案中" && this._status.value !== "暂停") {
-      return domainErr(
-        "ILLEGAL_STATE_TRANSITION",
-        `cannot mark project as 中止 from status "${this._status.value}"`,
-        { current: this._status.value, allowed: ["提案中", "暂停"] },
-      );
-    }
-    if (!(args.pausedDate instanceof Date) || isNaN(args.pausedDate.getTime())) {
-      return domainErr("INVALID_INPUT", "pausedDate must be a valid Date");
-    }
-    const reason = args.stopReason.trim();
-    if (reason.length === 0) {
-      return domainErr("INVALID_INPUT", "stopReason is required");
-    }
-    const tr = this._status.transition("中止");
-    if (!tr.ok) return tr;
-    const from = this._status.value;
-    this._status = tr.value;
-    this._pausedDate = args.pausedDate;
-    this._pauseReason = reason; // 复用 pauseReason 字段存"中止原因"
-    const now = clock.now();
-    this._updatedAt = now;
-    this.addDomainEvent(
-      new ProjectStatusChangedEvent(this.id, from, "中止", now, reason),
     );
     return domainOk(undefined);
   }
