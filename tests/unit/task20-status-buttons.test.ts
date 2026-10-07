@@ -337,3 +337,33 @@ Deno.test({
     assertStringIncludes(src, "formatDateTime");
   },
 });
+
+// ----- 14. 后端 snapshotToDTO 透传 7 个状态字段（修复"声明但不复制"陷阱）-----
+
+Deno.test({
+  name: "t20 — project.route.ts snapshotToDTO 把 7 个状态字段全部复制到 DTO",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const src = await Deno.readTextFile(
+      "backend/presentation/routes/project.route.ts",
+    );
+    // snapshotToDTO 必须显式复制这 7 个字段到 return 对象里（光声明类型注解没用）
+    // 用"s.wonDate"前缀匹配确认是从 snapshot 取值，而不是孤立字符串
+    assertStringIncludes(src, "s.wonDate");
+    assertStringIncludes(src, "s.bestPractice");
+    assertStringIncludes(src, "s.lostDate");
+    assertStringIncludes(src, "s.lostReason");
+    assertStringIncludes(src, "s.improvementNote");
+    assertStringIncludes(src, "s.pausedDate");
+    assertStringIncludes(src, "s.pauseReason");
+    // 类型注解也必须在（防御 future 维护者误删）
+    assertStringIncludes(src, "wonDate?: Date | null;");
+    assertStringIncludes(src, "bestPractice?: string | null;");
+    assertStringIncludes(src, "lostDate?: Date | null;");
+    assertStringIncludes(src, "lostReason?: string | null;");
+    assertStringIncludes(src, "improvementNote?: string | null;");
+    assertStringIncludes(src, "pauseReason?: string | null;");
+    assertStringIncludes(src, "pausedDate?: Date | null;");
+  },
+});

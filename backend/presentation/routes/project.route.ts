@@ -115,6 +115,13 @@ function snapshotToDTO(s: {
     startDate: s.startDate ? s.startDate.toISOString() : undefined,
     endDate: s.endDate ? s.endDate.toISOString() : undefined,
     status: s.status,
+    wonDate: s.wonDate ? s.wonDate.toISOString() : undefined,
+    bestPractice: s.bestPractice ?? undefined,
+    lostDate: s.lostDate ? s.lostDate.toISOString() : undefined,
+    lostReason: s.lostReason ?? undefined,
+    improvementNote: s.improvementNote ?? undefined,
+    pausedDate: s.pausedDate ? s.pausedDate.toISOString() : undefined,
+    pauseReason: s.pauseReason ?? undefined,
     contacts: contacts.map((c) => ({
       id: c.id,
       name: c.name,
