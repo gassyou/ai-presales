@@ -12,7 +12,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { readText } from "../helpers/read-source.ts";
+import { functionBody, readText } from "../helpers/read-source.ts";
 
 const projectRoot = Deno.cwd();
 
@@ -62,28 +62,21 @@ Deno.test("t5 — store 暴露 loadSessions / createSessionForProject / switchTo
 
 Deno.test("t5 — createSessionForProject 清空当前 messages（新会话起点）", () => {
   const src = readText("frontend/src/features/ai-chat/stores/ai-chat.store.ts");
-  // 在 createSessionForProject 体内找到 "messages.value = []"
-  const idx = src.indexOf("async function createSessionForProject(");
-  assert(idx >= 0);
-  // 取后续 ~500 字符
-  const body = src.slice(idx, idx + 500);
+  // 用大括号配平取函数体 —— 固定长度切片会因为函数变长而误判
+  const body = functionBody(src, "async function createSessionForProject(");
   assertStringIncludes(body, "messages.value = []");
 });
 
 Deno.test("t5 — switchToSession 加载消息并写入 store messages", () => {
   const src = readText("frontend/src/features/ai-chat/stores/ai-chat.store.ts");
-  const idx = src.indexOf("async function switchToSession(");
-  assert(idx >= 0);
-  const body = src.slice(idx, idx + 600);
+  const body = functionBody(src, "async function switchToSession(");
   assertStringIncludes(body, "messages.value =");
   assertStringIncludes(body, "listMessages");
 });
 
 Deno.test("t5 — deleteCurrentSession 清空当前 session + 从列表移除", () => {
   const src = readText("frontend/src/features/ai-chat/stores/ai-chat.store.ts");
-  const idx = src.indexOf("async function deleteCurrentSession(");
-  assert(idx >= 0);
-  const body = src.slice(idx, idx + 600);
+  const body = functionBody(src, "async function deleteCurrentSession(");
   assertStringIncludes(body, "sessions.value = sessions.value.filter");
   assertStringIncludes(body, "currentSessionId.value = null");
 });

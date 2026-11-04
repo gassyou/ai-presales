@@ -55,6 +55,14 @@ export const useAiChatStore = defineStore("aiChat", () => {
    */
   const autoRenamedSessions = ref<Set<string>>(new Set());
   let inflightAbort: AbortController | null = null;
+  /**
+   * 会话纪元（epoch）—— 只允许"最后一次会话操作"的结果写进 messages。
+   *
+   * 竞态场景：用户连点两个会话，listMessages 的响应可能乱序回来；
+   * 或者切会话的同时上一条 send 还在落盘。没有纪元的话，
+   * 迟到的响应会把旧会话的消息覆盖到新会话上。
+   */
+  let sessionEpoch = 0;
 
   function toRequestMessages(): Array<{ role: "system" | "user" | "assistant"; content: string }> {
     return messages.value
@@ -66,12 +74,30 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
   async function send(content: string): Promise<void> {
     if (content.trim().length === 0) return;
-    // 阶段 13（PR #4）：在有项目上下文且无当前 session 时，自动建一条（不阻塞 send）。
+
+    // 阶段 13（PR #4）：有项目上下文但还没有 session 时，先建一条再发。
+    // 必须 await —— 建 session 会重置 currentSessionId 与 messages：
+    // 不等待的话下面的 user 消息既不会被持久化（persistMessage 读到的还是
+    // 旧值），又会被建 session 里的 "messages.value = []" 抹掉。
     if (!currentSessionId.value && currentProject.value) {
-      void createSessionForProject(currentProject.value.id).catch((e) =>
-        console.warn("auto-create session failed", e)
-      );
+      try {
+        await createSessionForProject(currentProject.value.id);
+      } catch (e) {
+        // 建会话失败：降级成"不持久化的全局对话"，不阻塞发送
+        console.warn("auto-create session failed", e);
+      }
     }
+    // 本次发送归属的 session。后面落盘都用它 —— 会话中途被切走时，
+    // 不能把旧回复写进新会话。
+    const targetSessionId = currentSessionId.value;
+
+    // 上一次请求还没结束又发一条：先把它停掉。
+    // 否则 inflightAbort 会被覆盖，stop() 就再也停不下前一个请求。
+    if (inflightAbort) {
+      inflightAbort.abort();
+      inflightAbort = null;
+    }
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -81,8 +107,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
     messages.value = [...messages.value, userMsg];
     loading.value = true;
     error.value = null;
-    // 持久化 user 消息到当前 session（无 session / 全局对话时 helper 内空操作）
-    void persistMessage("user", userMsg.content);
+    // 持久化 user 消息到本次发送归属的 session（无 session / 全局对话时 helper 内空操作）
+    void persistMessage("user", userMsg.content, undefined, targetSessionId);
     // 首条 user 消息时自动把 session 标题改为该消息前 20 字
     void autoRenameFromFirstUserMessage(userMsg.content);
 
@@ -100,6 +126,12 @@ export const useAiChatStore = defineStore("aiChat", () => {
         toolCalls: [],
       },
     ];
+
+    // 本次回复的本地累加器 —— messages.value 只是它的 UI 投影。
+    // 落盘读这里，不读 messages.value：会话被切走时 messages.value 已被替换，
+    // 从里面 find 会找不到这条消息，回复就丢了。
+    let asstContent = "";
+    const asstToolCalls: ToolCallEntry[] = [];
 
     try {
       // 阶段 H+2：把 pending force 决策注入 body，并清空（一轮用完）
@@ -134,6 +166,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
       for await (const ev of source) {
         if (ev.type === "chunk") {
+          asstContent += ev.delta;
           messages.value = messages.value.map((m) =>
             m.id === asstId ? { ...m, content: m.content + ev.delta } : m
           );
@@ -144,46 +177,43 @@ export const useAiChatStore = defineStore("aiChat", () => {
             args: ev.args,
             durationMs: 0,
           };
+          asstToolCalls.push(entry);
           messages.value = messages.value.map((m) =>
             m.id === asstId ? { ...m, toolCalls: [...(m.toolCalls ?? []), entry] } : m
           );
         } else if (ev.type === "tool_result") {
           // 阶段 H+2：approval pending 推断（ok=false + error=APPROVAL_REQUIRED）
           const isAwaitingApproval = !ev.ok && ev.error === "APPROVAL_REQUIRED";
-          messages.value = messages.value.map((m) => {
-            if (m.id !== asstId) return m;
-            const updated = (m.toolCalls ?? []).map((tc) =>
-              tc.id === ev.toolCallId
-                ? {
-                  ...tc,
-                  ok: ev.ok,
-                  ...(ev.ok
-                    ? {
-                      result: typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result),
-                    }
-                    : {}),
-                  ...(ev.error !== undefined ? { error: ev.error } : {}),
-                  ...(isAwaitingApproval ? { awaitingApproval: true } : {}),
-                  durationMs: ev.durationMs,
-                }
-                : tc
-            );
-            return { ...m, toolCalls: updated };
-          });
+          const patch = (tc: ToolCallEntry): ToolCallEntry =>
+            tc.id === ev.toolCallId
+              ? {
+                ...tc,
+                ok: ev.ok,
+                ...(ev.ok
+                  ? {
+                    result: typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result),
+                  }
+                  : {}),
+                ...(ev.error !== undefined ? { error: ev.error } : {}),
+                ...(isAwaitingApproval ? { awaitingApproval: true } : {}),
+                durationMs: ev.durationMs,
+              }
+              : tc;
+          asstToolCalls.splice(0, asstToolCalls.length, ...asstToolCalls.map(patch));
+          messages.value = messages.value.map((m) =>
+            m.id === asstId ? { ...m, toolCalls: (m.toolCalls ?? []).map(patch) } : m
+          );
         } else if (ev.type === "error") {
           error.value = `${ev.code}: ${ev.message}`;
         }
       }
       // 阶段 13（PR #4）：流式结束后把完整 assistant 消息落盘（含 toolCalls）。
-      const asstMsg = messages.value.find((m) => m.id === asstId);
-      if (
-        asstMsg &&
-        (asstMsg.content.length > 0 || (asstMsg.toolCalls && asstMsg.toolCalls.length > 0))
-      ) {
+      if (asstContent.length > 0 || asstToolCalls.length > 0) {
         void persistMessage(
           "assistant",
-          asstMsg.content,
-          asstMsg.toolCalls,
+          asstContent,
+          asstToolCalls,
+          targetSessionId,
         );
       }
     } catch (e) {
@@ -198,8 +228,12 @@ export const useAiChatStore = defineStore("aiChat", () => {
           : (e instanceof Error ? e.message : String(e));
       }
     } finally {
-      loading.value = false;
-      if (inflightAbort === abort) inflightAbort = null;
+      // 只有还是当前这次请求时才清 loading —— 被顶掉的那次不能把
+      // 新请求的 loading 状态清成 false。
+      if (inflightAbort === abort) {
+        inflightAbort = null;
+        loading.value = false;
+      }
     }
   }
 
@@ -213,6 +247,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
   function clear(): void {
     stop();
+    sessionEpoch += 1; // 作废在途的会话加载响应
     messages.value = [];
     error.value = null;
   }
@@ -261,8 +296,13 @@ export const useAiChatStore = defineStore("aiChat", () => {
     projectId: string | null,
     title?: string,
   ): Promise<string> {
+    // 换会话前先停掉正在跑的流：旧流的 chunk 不能写进新会话
+    stop();
+    const epoch = ++sessionEpoch;
     const titleText = title?.trim() || `新会话 ${new Date().toLocaleString("zh-CN")}`;
     const sess = await chatSessionApi.create({ projectId, title: titleText });
+    // 期间用户又切/建了别的会话 → 这次结果作废
+    if (epoch !== sessionEpoch) return sess.id;
     sessions.value = [sess, ...sessions.value];
     currentSessionId.value = sess.id;
     messages.value = [];
@@ -271,8 +311,13 @@ export const useAiChatStore = defineStore("aiChat", () => {
     return sess.id;
   }
   async function switchToSession(id: string): Promise<void> {
+    // 换会话前先停掉正在跑的流：否则旧流的 chunk / 落盘会写进新会话
+    stop();
+    const epoch = ++sessionEpoch;
     currentSessionId.value = id;
     const list = await chatSessionApi.listMessages(id);
+    // 连续切换时只认最后一次的结果（迟到的响应不能覆盖新会话）
+    if (epoch !== sessionEpoch) return;
     // 阶段 13（PR #4）：把 ChatMessageDTO 直接映射成本地 ChatMessage；role 是联合类型；
     // toolCalls 也按持久化形状回填（前端不再 `as never`）。
     messages.value = list.map((m) => ({
@@ -309,7 +354,10 @@ export const useAiChatStore = defineStore("aiChat", () => {
   /** 阶段 13（PR #7）：附件上传后端已自动 appendMessage；调此方法刷前端列表 */
   async function refreshMessages(sessionId: string): Promise<void> {
     if (currentSessionId.value !== sessionId) return;
+    const epoch = sessionEpoch;
     const list = await chatSessionApi.listMessages(sessionId);
+    // 期间会话又变了 → 这次刷新作废
+    if (epoch !== sessionEpoch) return;
     messages.value = list.map((m) => ({
       id: m.id,
       role: m.role,
@@ -323,22 +371,35 @@ export const useAiChatStore = defineStore("aiChat", () => {
   async function deleteCurrentSession(): Promise<void> {
     if (!currentSessionId.value) return;
     const id = currentSessionId.value;
+    // 删会话前停掉正在跑的流（它的回复不该再落进任何会话）
+    stop();
+    const epoch = ++sessionEpoch;
     try {
       await chatSessionApi.remove(id);
     } catch (e) {
       console.warn("delete session failed", e);
     }
+    // 期间用户又切/建了别的会话 → 这次删除结果不再改动当前状态
+    if (epoch !== sessionEpoch) return;
     sessions.value = sessions.value.filter((s) => s.id !== id);
     currentSessionId.value = null;
     messages.value = [];
   }
-  /** 阶段 13（PR #4）：把一条消息持久化到当前 session（user / assistant 皆可）。失败仅 warn 不抛。 */
+  /**
+   * 阶段 13（PR #4）：把一条消息持久化到指定 session（user / assistant 皆可）。失败仅 warn 不抛。
+   *
+   * sessionId 显式传入：send() 开始时把归属的 session 固定下来，
+   * 避免会话中途被切换时把旧回复写进新会话。
+   */
   async function persistMessage(
     role: "user" | "assistant" | "tool" | "system",
     content: string,
     toolCalls?: ReadonlyArray<ToolCallEntry>,
+    sessionId?: string | null,
   ): Promise<void> {
-    const sid = currentSessionId.value;
+    // 注意用 !== undefined 而不是 ??：显式传 null 表示"这次发送本来就没有会话"，
+    // 不能回退到 currentSessionId（那时它可能已经指向别的会话了）。
+    const sid = sessionId !== undefined ? sessionId : currentSessionId.value;
     if (!sid) return; // 全局对话（无 projectId）暂不持久化
     try {
       await chatSessionApi.appendMessage({
@@ -404,6 +465,8 @@ export const useAiChatStore = defineStore("aiChat", () => {
 
   /** 删除指定 session（供下拉框列表行内删除按钮使用，不影响当前选中）。 */
   async function deleteSessionById(id: string): Promise<void> {
+    // 删的是当前会话时才需要停流
+    if (currentSessionId.value === id) stop();
     try {
       await chatSessionApi.remove(id);
     } catch (e) {
@@ -412,6 +475,7 @@ export const useAiChatStore = defineStore("aiChat", () => {
     }
     sessions.value = sessions.value.filter((s: ChatSessionDTO) => s.id !== id);
     if (currentSessionId.value === id) {
+      sessionEpoch += 1; // 作废在途的会话加载响应
       currentSessionId.value = null;
       messages.value = [];
     }

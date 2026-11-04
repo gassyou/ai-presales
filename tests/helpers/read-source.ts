@@ -16,3 +16,28 @@ import { join } from "@std/path";
 export function readText(rel: string): string {
   return Deno.readTextFileSync(join(Deno.cwd(), rel)).replace(/\r\n/g, "\n");
 }
+
+/**
+ * 截取源码里某个函数的完整片段（从函数头到配平的大括号结束）。
+ *
+ * 用途：源码扫描类测试要断言"某个函数里有/没有某段代码"，
+ * 用固定长度切片会因为函数变长而误判，按大括号配平取才准。
+ *
+ * 注意切片**从函数头开始**（含参数列表）：只切函数体会把签名丢掉，
+ * 断言形参类型就得回退到整份源码去匹配，既不精确也不安全。
+ */
+export function functionBody(src: string, header: string): string {
+  const idx = src.indexOf(header);
+  if (idx < 0) throw new Error(`源码里找不到：${header}`);
+  const start = src.indexOf("{", idx);
+  if (start < 0) throw new Error(`找不到 ${header} 的函数体起点`);
+  let depth = 0;
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") {
+      depth--;
+      if (depth === 0) return src.slice(idx, i + 1);
+    }
+  }
+  throw new Error(`函数体大括号未配平：${header}`);
+}
