@@ -6,13 +6,16 @@
  *   - main.ts: 注入 autoModeOrchestrator + autoModeRoute 到 createApp
  *   - main.ts: 构造 DefaultAutoModeContextProvider + SubAgentAutoModeWorker + SubAgentReviewer ×2
  *   - server.ts: /api/ai/auto-mode 路由分发（集成测试，老 task11 已覆盖；本文件做源码断言）
- *   - frontend AutoModeApi: POST /api/ai/auto-mode
- *   - frontend AutoModeStore: run/running/lastResult
- *   - frontend AutoModePanel: 渲染 + 启动按钮 + 任务结果
- *   - AIChatDock 挂载 AutoModePanel（仅绑定项目时）
+ *   - 前端 auto-mode UI（面板 / store / api）已整体删除，AIChatDock 不再挂载
  */
 
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertStringIncludes,
+} from "@std/assert";
+import { existsSync } from "node:fs";
 import { AutoModeRunnerAdapter } from "@backend/ai/auto-mode/invoke-sub-agent-runner.adapter.ts";
 import type { SubAgentRunInput } from "@backend/ai/sub-agent/sub-agent-runner.ts";
 import type { StreamEvent } from "@backend/ai/message/canonical-message.ts";
@@ -193,71 +196,42 @@ Deno.test({
 
 // ---- frontend ----
 
+// 阶段 11：前端 auto-mode UI（面板 / store / api）已整体移除 ——
+// AIChatDock 在 583fe5c 起不再挂载 AutoModePanel，这三份文件成了没人引用的死代码。
+// 后端 /api/ai/auto-mode 路由与 sub-agent 保留，供 API 调用方 / auto-mode sub-agent 使用。
 Deno.test({
-  name: "t19 — AutoModeApi.run 调 POST /api/ai/auto-mode",
+  name: "t19 — 前端 auto-mode 死代码已删除（面板 / store / api）",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    const src = await Deno.readTextFile(
-      "frontend/src/features/auto-mode/api/auto-mode.api.ts",
-    );
-    assertStringIncludes(src, '"/api/ai/auto-mode"');
-    assertStringIncludes(src, "AutoModeResultDTO");
-    assertStringIncludes(src, "TaskPlanDTO");
+    for (
+      const rel of [
+        "frontend/src/features/auto-mode/stores/auto-mode.store.ts",
+        "frontend/src/features/auto-mode/components/AutoModePanel.vue",
+        "frontend/src/features/auto-mode/api/auto-mode.api.ts",
+      ]
+    ) {
+      assertEquals(
+        existsSync(`${Deno.cwd()}/${rel}`),
+        false,
+        `${rel} 应已删除`,
+      );
+    }
   },
 });
 
 Deno.test({
-  name: "t19 — AutoModeStore 暴露 run/running/lastResult",
-  sanitizeOps: false,
-  sanitizeResources: false,
-  fn: async () => {
-    const src = await Deno.readTextFile(
-      "frontend/src/features/auto-mode/stores/auto-mode.store.ts",
-    );
-    assertStringIncludes(src, "defineStore");
-    assertStringIncludes(src, "running");
-    assertStringIncludes(src, "lastResult");
-    assertStringIncludes(src, "lastError");
-    assertStringIncludes(src, "autoModeApi.run");
-    assertStringIncludes(src, "ElMessage");
-  },
-});
-
-Deno.test({
-  name: "t19 — AutoModePanel 渲染 + 启动按钮 + 任务结果",
-  sanitizeOps: false,
-  sanitizeResources: false,
-  fn: async () => {
-    const src = await Deno.readTextFile(
-      "frontend/src/features/auto-mode/components/AutoModePanel.vue",
-    );
-    // 中文 label
-    assertStringIncludes(src, "启动 auto-mode");
-    assertStringIncludes(src, "auto-mode 全流水线");
-    // store 调用
-    assertStringIncludes(src, "store.run");
-    assertStringIncludes(src, "store.lastResult");
-    // 状态徽章
-    assertStringIncludes(src, "全部通过");
-    assertStringIncludes(src, "部分失败");
-    // 任务名映射
-    assertStringIncludes(src, "env_init");
-    assertStringIncludes(src, "business_requirements");
-  },
-});
-
-Deno.test({
-  name: "t19 — AIChatDock 挂载 AutoModePanel + 仅项目绑定时显示",
+  name: "t19 — AIChatDock 不再挂载 AutoModePanel",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
     const src = await Deno.readTextFile(
       "frontend/src/app/shell/AIChatDock.vue",
     );
-    assertStringIncludes(src, "AutoModePanel");
-    assertStringIncludes(src, 'v-if="store.currentProject"');
-    assertStringIncludes(src, ':project-id="store.currentProject.id"');
+    assertFalse(
+      src.includes("AutoModePanel"),
+      "AIChatDock 不应再引用 AutoModePanel（前端 auto-mode UI 已移除）",
+    );
   },
 });
 
