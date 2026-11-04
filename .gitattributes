@@ -1,0 +1,21 @@
+# 统一行尾：仓库内一律 LF。
+#
+# 为什么需要：
+#   1. `deno fmt --check` 对 CRLF 文件一律判为 not formatted（"Text differed by line endings"），
+#      没有 .gitattributes 时开发者本机的 core.autocrlf 会决定工作区行尾，导致同一个提交在
+#      不同机器上 fmt 结果不一致。
+#   2. 扫描源码文本的单元测试（如 tests/unit/task-markdown-module-tools.test.ts 用
+#      /\n  \}\n\}/ 匹配实现）在 CRLF 工作区下匹配不到，测试结果取决于开发者的 git 配置。
+#
+# text=auto 让 git 自行识别文本/二进制；eol=lf 强制工作区使用 LF（覆盖 core.autocrlf）。
+* text=auto eol=lf
+
+# 二进制资源不做行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
