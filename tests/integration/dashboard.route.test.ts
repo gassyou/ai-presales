@@ -83,6 +83,7 @@ async function seedProject(
     bestPractice?: string;
     lostDate?: Date;
     lostReason?: string;
+    pausedDate?: Date;
   },
 ): Promise<ProjectId> {
   // 直接 save repo（不走 ProjectService.createProject，因为我们想控制状态 + 状态字段）

@@ -24,6 +24,7 @@ import {
   handleChatSession,
 } from "@backend/presentation/routes/chat-session.route.ts";
 import type { Logger } from "@backend/infrastructure/logging/logger.ts";
+import { ProjectId } from "@shared/types/ids.ts";
 
 function newDb(): Database {
   return new Database({
@@ -100,7 +101,7 @@ Deno.test({
     const { deps } = await setupRoute();
     const req = await jsonReq("/api/chat/sessions", {
       method: "POST",
-      body: { projectId: "p1", title: "需求评审" },
+      body: { projectId: ProjectId("p1"), title: "需求评审" },
     });
     const resp = await handleChatSession(req, deps, new URL(req.url));
     assertEquals(resp.status, 201);
@@ -118,8 +119,8 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     const { deps } = await setupRoute();
-    await deps.useCase.createSession({ projectId: "p1", title: "A" });
-    await deps.useCase.createSession({ projectId: "p2", title: "B" });
+    await deps.useCase.createSession({ projectId: ProjectId("p1"), title: "A" });
+    await deps.useCase.createSession({ projectId: ProjectId("p2"), title: "B" });
     const req = await jsonReq("/api/chat/sessions?projectId=p1");
     const resp = await handleChatSession(req, deps, new URL(req.url));
     assertEquals(resp.status, 200);
@@ -135,7 +136,7 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     const { deps } = await setupRoute();
-    const r = deps.useCase.createSession({ projectId: "p1", title: "old" });
+    const r = deps.useCase.createSession({ projectId: ProjectId("p1"), title: "old" });
     assert(r.ok);
     const req = await jsonReq(`/api/chat/sessions/${r.value.id}`, {
       method: "PATCH",
@@ -154,7 +155,7 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     const { deps, db } = await setupRoute();
-    const r = deps.useCase.createSession({ projectId: "p1", title: "x" });
+    const r = deps.useCase.createSession({ projectId: ProjectId("p1"), title: "x" });
     assert(r.ok);
     const sid = r.value.id;
     const mr = deps.useCase.appendMessage({ sessionId: sid, role: "user", content: "hi" });
@@ -187,7 +188,7 @@ Deno.test({
       repo: new SqliteChatSessionRepository(db2),
       clock: cl,
     });
-    const r = useCase.createSession({ projectId: "p1", title: "x" });
+    const r = useCase.createSession({ projectId: ProjectId("p1"), title: "x" });
     assert(r.ok);
     const sid = r.value.id;
 
@@ -217,7 +218,7 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     const { deps } = await setupRoute();
-    const r = deps.useCase.createSession({ projectId: "p1", title: "x" });
+    const r = deps.useCase.createSession({ projectId: ProjectId("p1"), title: "x" });
     assert(r.ok);
     const req = await jsonReq(`/api/chat/sessions/${r.value.id}/messages`, {
       method: "POST",
@@ -249,7 +250,7 @@ Deno.test({
   sanitizeResources: false,
   fn: async () => {
     const { deps } = await setupRoute();
-    const r = deps.useCase.createSession({ projectId: "p1", title: "x" });
+    const r = deps.useCase.createSession({ projectId: ProjectId("p1"), title: "x" });
     assert(r.ok);
     const sid = r.value.id;
 
@@ -294,7 +295,7 @@ Deno.test({
       repo: new SqliteChatSessionRepository(db),
       clock: cl,
     });
-    const r = useCase.createSession({ projectId: "p1", title: "x" });
+    const r = useCase.createSession({ projectId: ProjectId("p1"), title: "x" });
     assert(r.ok);
     const sid = r.value.id;
 

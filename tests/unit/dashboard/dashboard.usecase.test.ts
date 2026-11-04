@@ -199,6 +199,8 @@ function makeSnap(args: {
     bestPractice: null,
     improvementNote: null,
     pauseReason: null,
+    pausedDate: null,
+    workspacePath: null,
     clientWebsite: null,
     clientIntro: null,
     projectIntro: null,

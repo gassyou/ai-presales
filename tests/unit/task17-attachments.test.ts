@@ -23,7 +23,7 @@ import {
   handleChatAttachmentRoute,
 } from "@backend/presentation/routes/chat-attachment.route.ts";
 import type { Logger } from "@backend/infrastructure/logging/logger.ts";
-import type { ChatRequest, ChatResult, ILLMClient } from "@backend/ai/client/llm-client.ts";
+import type { ChatRequest, ChatResult, ILLMClient, StreamEvent } from "@backend/ai/client/llm-client.ts";
 
 function newDb(): Database {
   return new Database({
@@ -61,12 +61,16 @@ function fakeLlmClient(answer = "AI 摘要"): ILLMClient {
           content: [{ type: "text", text: answer }],
           stopReason: "end_turn",
           model: "fake",
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
         },
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       };
     },
-    async *stream() {
-      yield { type: "done" };
+    async *stream(_req: ChatRequest): AsyncIterable<StreamEvent> {
+      yield {
+        type: "done",
+        messageId: "m1",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      };
     },
     capabilities() {
       return {

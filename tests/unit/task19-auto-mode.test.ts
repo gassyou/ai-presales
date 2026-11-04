@@ -21,7 +21,7 @@ import type { SubAgentRunInput } from "@backend/ai/sub-agent/sub-agent-runner.ts
 import type { StreamEvent } from "@backend/ai/message/canonical-message.ts";
 import type { InvokeSubAgentUseCase } from "@backend/application/sub-agent/invoke-sub-agent.usecase.ts";
 import type { ToolRegistry } from "@backend/ai/tool/tool-registry.ts";
-import type { SubAgentSpecVO } from "@backend/domain/sub-agent/sub-agent-spec.ts";
+import { SubAgentSpecVO } from "@backend/domain/sub-agent/sub-agent-spec.ts";
 
 function makeFakeTool(name: string): {
   name: string;
@@ -47,7 +47,7 @@ function fakeInvokeUseCase(opts: {
           yield {
             type: "done",
             messageId: "m1",
-            usage: { inputTokens: 1, completionTokens: 1, totalTokens: 2 },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
           };
         }
         return defaultGen();
@@ -69,14 +69,18 @@ function fakeToolRegistry(): ToolRegistry {
 }
 
 function fakeSpec(name: string, toolNames: string[] = []): SubAgentSpecVO {
-  return {
+  // 用领域工厂造真 VO（SubAgentSpecVO 私有构造，不能拿普通对象冒充）
+  const r = SubAgentSpecVO.create({
     name,
     displayName: name,
     description: name,
     systemPrompt: "spec-prompt",
     toolNames,
     type: "system",
-  } as SubAgentSpecVO;
+  });
+  assert(r.ok, `fake spec "${name}" 应合法`);
+  if (!r.ok) throw new Error("fake spec");
+  return r.value;
 }
 
 Deno.test({
@@ -95,7 +99,7 @@ Deno.test({
           yield {
             type: "done",
             messageId: "m",
-            usage: { inputTokens: 1, completionTokens: 1, totalTokens: 2 },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
           };
         }
         return Promise.resolve(gen());
@@ -134,7 +138,7 @@ Deno.test({
           yield {
             type: "done",
             messageId: "m",
-            usage: { inputTokens: 0, completionTokens: 0, totalTokens: 0 },
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
           };
         }
         return Promise.resolve(gen());
@@ -203,7 +207,7 @@ Deno.test({
   name: "t19 — 前端 auto-mode 死代码已删除（面板 / store / api）",
   sanitizeOps: false,
   sanitizeResources: false,
-  fn: async () => {
+  fn: () => {
     for (
       const rel of [
         "frontend/src/features/auto-mode/stores/auto-mode.store.ts",

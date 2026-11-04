@@ -28,6 +28,7 @@ import { ChatSessionUseCase } from "@backend/application/chat-session/chat-sessi
 import { FixedClock } from "@backend/domain/shared/clock.ts";
 import { ChatSession } from "@backend/domain/chat-session/chat-session.ts";
 import type { ProjectId } from "@shared/types/ids.ts";
+import { ToolCallId } from "@shared/types/ids.ts";
 import {
   type ChatSessionRouteDeps,
   handleChatSession,
@@ -333,7 +334,7 @@ Deno.test({
       allowedPaths: [],
     });
     const r = await exec.executeOne({
-      toolCallId: "tc-1",
+      toolCallId: ToolCallId("tc-1"),
       name: "write_x",
       args: {},
     });
@@ -366,7 +367,7 @@ Deno.test({
       forceApproveAll: true,
     });
     const r = await exec.executeOne({
-      toolCallId: "tc-1",
+      toolCallId: ToolCallId("tc-1"),
       name: "write_x",
       args: {},
     });
@@ -395,7 +396,7 @@ Deno.test({
       forceRejectNames: ["write_x"],
     });
     const r = await exec.executeOne({
-      toolCallId: "tc-1",
+      toolCallId: ToolCallId("tc-1"),
       name: "write_x",
       args: {},
     });

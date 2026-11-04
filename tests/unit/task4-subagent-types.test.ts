@@ -20,9 +20,13 @@ import { SettingsUseCase } from "@backend/application/settings/settings.usecase.
 import { SqliteSystemSettingRepository } from "@backend/persistence/sqlite/sqlite-system-setting.repository.ts";
 import { Database } from "@backend/persistence/database/database.ts";
 import { ToolRegistry } from "@backend/ai/tool/tool-registry.ts";
+import { ConfigurableToolRegistry } from "@backend/application/settings/configurable-tool-registry.ts";
+import { LLMClientResolver } from "@backend/application/settings/llm-client-resolver.ts";
+import { SqliteBackedSubAgentRegistry } from "@backend/persistence/sqlite/sqlite-sub-agent-registry.ts";
 import { currentDatetimeTool } from "@backend/ai/tool/builtin/current-datetime.tool.ts";
 import { FixedClock } from "@backend/domain/shared/clock.ts";
 import type { SubAgentSpecData } from "@backend/domain/sub-agent/sub-agent-spec.ts";
+import type { Logger } from "@backend/infrastructure/logging/logger.ts";
 
 function newDb(): Database {
   return new Database({
@@ -42,7 +46,7 @@ function clock(): FixedClock {
   return new FixedClock(new Date("2026-02-01T00:00:00Z"));
 }
 
-function makeLogger() {
+function makeLogger(): Logger {
   const sink = () => {};
   return {
     level: "info",
@@ -62,6 +66,11 @@ async function setupUseCase(): Promise<SettingsUseCase> {
     settings: repo,
     clock: clock(),
     toolRegistry: reg,
+    configurableTools: new ConfigurableToolRegistry(reg, repo),
+    subAgentRegistry: new SqliteBackedSubAgentRegistry(repo),
+    llmClientResolver: new LLMClientResolver(() => {
+      throw new Error("llm client not available in unit test");
+    }),
     logger: makeLogger(),
   });
   return uc;
@@ -153,10 +162,30 @@ async function setupRoute(): Promise<{ deps: SettingsRouteDeps; call: (req: Requ
   const { readFileTool } = await import("@backend/ai/tool/builtin/read-file.tool.ts");
   const { ReadModuleTool } = await import("@backend/ai/tool/builtin/read-module.tool.ts");
   const { searchKnowledgeTool } = await import("@backend/ai/tool/builtin/search-knowledge.tool.ts");
+  const { SqliteProjectRepository } = await import(
+    "@backend/persistence/sqlite/sqlite-project.repository.ts"
+  );
+  const { SqliteKnowledgeChunkRepository } = await import(
+    "@backend/persistence/sqlite/sqlite-knowledge-chunk.repository.ts"
+  );
+  const { SnapshotRegistry } = await import("@backend/ai/context/snapshot-registry.ts");
+  const { CharacterBasedTokenCounter } = await import(
+    "@backend/ai/context/token-counter.ts"
+  );
   reg.register(currentDatetimeTool);
   reg.register(listFilesTool);
   reg.register(readFileTool);
-  reg.register(new ReadModuleTool());
+  // builtin sub-agent spec 里引用了 read_module，注册表必须含这个名字
+  // （SettingsUseCase.updateAgentSpecs 校验 toolNames ⊆ registry.names()）。
+  // 本组用例只测 settings CRUD，不会真的调用 read_module。
+  reg.register(
+    new ReadModuleTool({
+      projectRepo: new SqliteProjectRepository(db),
+      chunkRepo: new SqliteKnowledgeChunkRepository(db),
+      registry: new SnapshotRegistry(),
+      tokenCounter: new CharacterBasedTokenCounter(),
+    }),
+  );
   reg.register(searchKnowledgeTool);
   const { SqliteBackedSubAgentRegistry } = await import(
     "@backend/persistence/sqlite/sqlite-sub-agent-registry.ts"
@@ -166,7 +195,11 @@ async function setupRoute(): Promise<{ deps: SettingsRouteDeps; call: (req: Requ
     settings: repo,
     clock: clock(),
     toolRegistry: reg,
+    configurableTools: new ConfigurableToolRegistry(reg, repo),
     subAgentRegistry,
+    llmClientResolver: new LLMClientResolver(() => {
+      throw new Error("llm client not available in unit test");
+    }),
     logger: makeLogger(),
   });
   await useCase.seedBuiltinAgentSpecsIfMissing();

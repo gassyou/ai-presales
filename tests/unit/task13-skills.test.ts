@@ -34,6 +34,7 @@ import type {
   StreamEvent,
 } from "@backend/ai/client/llm-client.ts";
 import type { ProjectService } from "@backend/application/project/project.service.ts";
+import type { ProjectSnapshot } from "@backend/domain/project/project.ts";
 import type { BusinessModuleService } from "@backend/application/business-module/business-module.service.ts";
 import type { ChatSessionUseCase } from "@backend/application/chat-session/chat-session.usecase.ts";
 import type { ProfileConfig } from "@backend/infrastructure/config/types.ts";
@@ -108,17 +109,27 @@ function fakeLlmClient(answer: string): ILLMClient & { called: number } {
           content: [{ type: "text", text: answer }],
           stopReason: "end_turn",
           model: "fake-model",
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
         },
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
       };
     },
     async *stream(_req: ChatRequest): AsyncIterable<StreamEvent> {
       obj.called += 1;
-      yield { type: "chunk", delta: answer };
-      yield { type: "done" };
+      yield { type: "chunk", delta: answer, messageId: "m1" };
+      yield {
+        type: "done",
+        messageId: "m1",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      };
     },
     capabilities(): ProviderCapabilities {
-      return { provider: "openai", supportsTools: false, supportsStreaming: true };
+      return {
+        provider: "openai",
+        supportsTools: false,
+        supportsStructuredOutput: false,
+        supportsStreaming: true,
+        contextWindow: 128000,
+      };
     },
   };
   return obj;
@@ -399,7 +410,7 @@ function fakeBuiltinDeps(overrides: Partial<BuiltinSkillsDeps> = {}): BuiltinSki
         name: "测试项目",
         clientName: "客户 A",
         clientWebsite: "https://a.example",
-      } as unknown as Awaited<ReturnType<ProjectService["getProject"]>>["value"],
+      } as unknown as ProjectSnapshot,
     }),
     listProjects: async () => ({
       items: [],
