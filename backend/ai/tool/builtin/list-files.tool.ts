@@ -1,16 +1,16 @@
 /**
  * list_files —— 列出 cwd 或子目录下的文件
  *
- * sideEffect = "read"；受 allowedPaths 约束（运行时由 executor 决定，本工具不重复校验）。
- *
- * 注意：本工具**只**拼接 ctx.cwd 与入参 path；防止 path traversal 由 executor 在 cwd 校验中兜底。
+ * sideEffect = "read"；路径必须落在沙箱（cwd / allowedPaths）内，
+ * 判定规则统一由 resolveSandboxPath 负责（见 ../path-sandbox.ts）。
  *
  * 阶段 7.4h：const → class 以支持运行时配置（defaultMax / defaultRecursive）。
  */
 
 import type { Tool } from "../tool.ts";
 import { fail, ok } from "../tool.ts";
-import { join, normalize } from "@std/path";
+import { join } from "@std/path";
+import { resolveSandboxPath } from "../path-sandbox.ts";
 
 export interface ListFilesArgs {
   /** 相对路径（相对 ctx.cwd）；缺省为 cwd */
@@ -62,7 +62,9 @@ export class ListFilesTool implements Tool<ListFilesArgs, ListFilesResult> {
 
   async execute(args: ListFilesArgs, ctx: import("../tool.ts").ToolContext): Promise<import("../tool.ts").ToolResult<ListFilesResult>> {
     const rel = (args?.path ?? "").trim();
-    const target = rel.length === 0 ? ctx.cwd : join(ctx.cwd, normalize(rel));
+    const resolved = await resolveSandboxPath(ctx.cwd, ctx.allowedPaths, rel);
+    if (!resolved.ok) return fail(resolved.error);
+    const target = resolved.path;
     const recursive = (args && (args as ListFilesArgs).recursive === true) || this.defaultRecursive;
     const max = (args && (args as ListFilesArgs).max) ?? this.defaultMax;
 

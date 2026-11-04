@@ -4,10 +4,13 @@
  * 流程：
  *   1. 从 ToolRegistry 取 tool（缺 → 抛 TOOL_NOT_FOUND）
  *   2. requiresApproval → 本期 stub 直接通过（阶段 6+ 接审批流）
- *   3. allowedPaths 校验（仅 read/write 工具）
- *   4. 设超时 + AbortSignal
- *   5. tool.execute(args, ctx)
- *   6. 异常 → 包成 ToolOutcome.ok=false
+ *   3. 设超时 + AbortSignal
+ *   4. tool.execute(args, ctx)
+ *   5. 异常 → 包成 ToolOutcome.ok=false
+ *
+ * 注意：路径越界（path traversal / 符号链接逃出）**不在这里校验** —— executor
+ * 并不知道每个工具的路径参数叫什么。统一由工具自己调用
+ * resolveSandboxPath（backend/ai/tool/path-sandbox.ts）在入参落地处判定。
  *
  * 输出 ToolOutcome，由调用方回灌给 LLM。
  */

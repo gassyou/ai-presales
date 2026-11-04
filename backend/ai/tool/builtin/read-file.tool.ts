@@ -1,16 +1,17 @@
 /**
  * read_file —— 读取文本文件
  *
- * sideEffect = "read"；受 allowedPaths 约束（运行时由 executor 决定）。
+ * sideEffect = "read"；路径必须落在沙箱（cwd / allowedPaths）内，
+ * 判定规则统一由 resolveSandboxPath 负责（见 ../path-sandbox.ts）。
  *
- * 安全：拒绝路径含 `..`；只读常规文本（≤2MB）。
+ * 只读常规文本（≤2MB）。
  *
  * 阶段 7.4h：const → class 以支持运行时配置（defaultMaxBytes / hardMaxBytes）。
  */
 
 import type { Tool } from "../tool.ts";
 import { fail, ok } from "../tool.ts";
-import { join, normalize } from "@std/path";
+import { resolveSandboxPath } from "../path-sandbox.ts";
 
 export interface ReadFileArgs {
   /** 相对 cwd 的文件路径 */
@@ -61,11 +62,9 @@ export class ReadFileTool implements Tool<ReadFileArgs, ReadFileResult> {
     if (typeof p !== "string" || p.length === 0) {
       return fail("path is required");
     }
-    const norm = normalize(p);
-    if (norm.startsWith("..") || norm.includes("/../") || norm.includes("\\..")) {
-      return fail("path traversal not allowed");
-    }
-    const fullPath = join(ctx.cwd, norm);
+    const resolved = await resolveSandboxPath(ctx.cwd, ctx.allowedPaths, p);
+    if (!resolved.ok) return fail(resolved.error);
+    const fullPath = resolved.path;
     const max = Math.min(args?.maxBytes ?? this.defaultMax, this.hardMax);
 
     try {
