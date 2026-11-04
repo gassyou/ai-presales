@@ -4,7 +4,8 @@
  * 覆盖：
  *   - MarkdownEditor.vue 定义 fillHeight prop（默认 true）
  *   - MarkdownEditor.vue 模板根据 fillHeight 切换 wrapper class
- *   - MarkdownEditor.vue 在 fillHeight=true 时给 .md-editor-wrapper 设置 height: 100%
+ *   - MarkdownEditor.vue 在 fillHeight=true 时给 .md-editor-wrapper 走 flex 撑满机制
+ *     （wrapper flex:1 1 0 + min-height:0 + relative，bytemd absolute + inset:0）
  *   - MarkdownEditor.vue 在 fillHeight=false 时不给 wrapper 设置 height: 100%
  *   - 弹框/抽屉场景下的调用方显式传 :fill-height="false"
  *     · SurveyTaskListView.vue（el-drawer）
@@ -51,7 +52,7 @@ Deno.test({
     assertStringIncludes(
       text,
       "md-editor-wrapper--fill",
-      "模板应使用 fill 类名以便 CSS 按需启用 height: 100%",
+      "模板应使用 fill 类名以便 CSS 按需启用撑满机制",
     );
     // wrapper 元素上应绑定 fillHeight
     assertStringIncludes(
@@ -63,7 +64,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "MarkdownEditor —— fillHeight=true 时 wrapper 高度 100%",
+  name: "MarkdownEditor —— fillHeight=true 时 wrapper 用 flex 撑满，bytemd 绝对定位填满",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -79,9 +80,28 @@ Deno.test({
     const cssBody = cssMatch![0];
     assertStringIncludes(
       cssBody,
-      "height: 100%",
-      "fill 状态下 wrapper 应设 height: 100%",
+      "flex: 1 1 0",
+      "fill 状态下 wrapper 应 flex: 1 1 0（拿父容器剩余空间）",
     );
+    assertStringIncludes(
+      cssBody,
+      "min-height: 0",
+      "fill 状态下 wrapper 应 min-height: 0（否则不收缩）",
+    );
+    assertStringIncludes(
+      cssBody,
+      "position: relative",
+      "fill 状态下 wrapper 应 position: relative（供 bytemd 绝对定位参照）",
+    );
+    // bytemd 绝对定位填满包装层（覆盖 bytemd 自带的 height:300px）
+    const bytemdMatch = text.match(
+      /\.md-editor-wrapper--fill :deep\(\.bytemd\)\s*\{[^}]*\}/,
+    );
+    assert(bytemdMatch !== null, "应存在 .md-editor-wrapper--fill :deep(.bytemd) 规则");
+    const bytemdBody = bytemdMatch![0];
+    assertStringIncludes(bytemdBody, "position: absolute", "bytemd 应绝对定位");
+    assertStringIncludes(bytemdBody, "inset: 0", "bytemd 应 inset: 0 填满包装层");
+    assertStringIncludes(bytemdBody, "height: auto", "bytemd 应覆盖默认高度");
   },
 });
 

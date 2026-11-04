@@ -322,14 +322,14 @@ Deno.test({
     assertStringIncludes(src, "project.improvementNote");
     assertStringIncludes(src, "project.pausedDate");
     assertStringIncludes(src, "project.pauseReason");
-    // 中文 label（与 ProjectStatusChangeDialog 词汇一致）
-    assertStringIncludes(src, "中标日期");
-    assertStringIncludes(src, "最佳实践（中标要点）");
-    assertStringIncludes(src, "未中标日期");
-    assertStringIncludes(src, "未中标原因");
-    assertStringIncludes(src, "复盘要点（下次改进）");
-    assertStringIncludes(src, "暂停日期");
-    assertStringIncludes(src, "暂停原因");
+    // 中文 label：详情卡片用短标签；日期跟在小节标题后（由 formatDateTime 渲染）
+    assertStringIncludes(src, "中标要点:");
+    assertStringIncludes(src, "落标原因:");
+    assertStringIncludes(src, "复盘要点:");
+    assertStringIncludes(src, "暂停原因:");
+    assertStringIncludes(src, "formatDateTime(project.wonDate)");
+    assertStringIncludes(src, "formatDateTime(project.lostDate)");
+    assertStringIncludes(src, "formatDateTime(project.pausedDate)");
     // 守卫：hasStatusMetadata ——新建/提案中项目整卡不渲染
     assertStringIncludes(src, "hasStatusMetadata");
     assertStringIncludes(src, 'v-if="hasStatusMetadata"');

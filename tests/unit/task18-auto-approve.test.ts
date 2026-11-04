@@ -15,7 +15,13 @@
  *   - ToolExecutor forceApproveAll=true 但有 forceReject → 仍拒绝
  */
 
-import { assert, assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertFalse,
+  assertStringIncludes,
+} from "@std/assert";
 import { Database } from "@backend/persistence/database/database.ts";
 import { SqliteChatSessionRepository } from "@backend/persistence/sqlite/sqlite-chat-session.repository.ts";
 import { ChatSessionUseCase } from "@backend/application/chat-session/chat-session.usecase.ts";
@@ -435,7 +441,9 @@ Deno.test({
       "frontend/src/features/ai-chat/ChatComposer.vue",
     );
     assertStringIncludes(src, "el-switch");
-    assertStringIncludes(src, "全自动");
+    // 阶段 13 起开关文案是 "Auto:"（不再是"全自动"）
+    assertStringIncludes(src, "Auto:");
+    assertFalse(src.includes("全自动"), "开关文案不再是「全自动」");
     assertStringIncludes(src, "onAutoApproveChange");
     // 真正绑定到 store.autoApprove
     assertStringIncludes(src, "store.autoApprove");
