@@ -9,10 +9,7 @@
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b2 — BusinessModuleKind 含 markdown_deliverable", () => {
   const src = readText("backend/domain/business-module/business-module.ts");

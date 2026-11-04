@@ -14,13 +14,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { readText } from "../helpers/read-source.ts";
 
 // 测试根：deno test 在仓库根执行，CWD 即仓库根
 const projectRoot = Deno.cwd();
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(join(projectRoot, rel));
-}
 
 function fileExists(rel: string): boolean {
   return existsSync(join(projectRoot, rel));

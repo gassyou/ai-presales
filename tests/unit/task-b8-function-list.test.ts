@@ -11,10 +11,7 @@
  */
 
 import { assert, assertStringIncludes, assertEquals } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b8 — 视图模式切换：el-radio-button 用 :value 绑定", () => {
   const src = readText("frontend/src/features/business-module/components/FunctionListView.vue");

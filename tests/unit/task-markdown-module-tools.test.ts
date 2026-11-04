@@ -15,10 +15,7 @@
  */
 
 import { assert, assertStringIncludes, assertEquals } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("tm1 — ALLOWED_MARKDOWN_KINDS 含 markdown_project_plan + markdown_deliverable", () => {
   const src = readText("backend/ai/tool/builtin/writeable-tools.ts");

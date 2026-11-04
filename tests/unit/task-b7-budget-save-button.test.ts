@@ -10,10 +10,7 @@
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b7 — BudgetSettingsView 顶部 header 含「保存」按钮", () => {
   const src = readText("frontend/src/features/business-module/components/BudgetSettingsView.vue");

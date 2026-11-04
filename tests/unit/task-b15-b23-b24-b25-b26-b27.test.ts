@@ -25,10 +25,7 @@
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b17-23/26 — MarkdownModuleView 不再有「AI 生成」按钮", () => {
   const src = readText("frontend/src/features/business-module/components/MarkdownModuleView.vue");

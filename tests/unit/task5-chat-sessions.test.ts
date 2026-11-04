@@ -12,12 +12,9 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { readText } from "../helpers/read-source.ts";
 
 const projectRoot = Deno.cwd();
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(join(projectRoot, rel));
-}
 
 // ====== chatSessionApi ======
 

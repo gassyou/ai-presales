@@ -11,10 +11,7 @@
  */
 
 import { assert, assertStringIncludes, assertEquals } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("os1 — 后端 Project.computeDefaultWorkspacePath 按 Deno.build.os 区分", () => {
   const src = readText("backend/domain/project/project.ts");

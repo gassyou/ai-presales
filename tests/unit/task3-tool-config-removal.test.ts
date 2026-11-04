@@ -20,10 +20,6 @@ import { join } from "node:path";
 
 const projectRoot = Deno.cwd();
 
-function readText(rel: string): string {
-  return Deno.readTextFileSync(join(projectRoot, rel));
-}
-
 // ===== UI 已删除 =====
 
 Deno.test("t3 — SettingsView 不再有 label='工具配置' 的 tab-pane", () => {
@@ -100,6 +96,7 @@ Deno.test("t3 — 后端 ConfigurableToolRegistry 默认行为是'全开'", () =
 import { ToolRegistry } from "@backend/ai/tool/tool-registry.ts";
 import { currentDatetimeTool } from "@backend/ai/tool/builtin/current-datetime.tool.ts";
 import { listFilesTool } from "@backend/ai/tool/builtin/list-files.tool.ts";
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("t3 — ToolRegistry 默认暴露所有注册的工具（不依赖 toolConfig 启用）", () => {
   const reg = new ToolRegistry();

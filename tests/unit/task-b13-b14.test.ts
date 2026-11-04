@@ -12,10 +12,7 @@
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b13 — 硬件清单新增表单 label / input 各占一行（flex-col + div label）", () => {
   const src = readText("frontend/src/features/business-module/components/HardwareItemsView.vue");

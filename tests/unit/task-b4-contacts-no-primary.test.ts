@@ -10,10 +10,7 @@
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b4 — ContactsView 表头不再有「主联系人」列", () => {
   const src = readText("frontend/src/features/business-module/components/ContactsView.vue");

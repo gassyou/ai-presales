@@ -9,10 +9,7 @@
  */
 
 import { assert, assertStringIncludes } from "@std/assert";
-
-function readText(rel: string): string {
-  return Deno.readTextFileSync(`${Deno.cwd()}/${rel}`);
-}
+import { readText } from "../helpers/read-source.ts";
 
 Deno.test("b6 — includePrecondition / Deliverables / Functions 默认 true", () => {
   const src = readText("frontend/src/features/quote/components/QuoteView.vue");
