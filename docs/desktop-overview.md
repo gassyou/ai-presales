@@ -12,6 +12,8 @@
 
 我们 `main.ts` 和 `dev.ts` 都做了**自动检测**：通过 `DENO_SERVE_ADDRESS` 环境变量判断是否在 desktop 模式。
 
+> 依赖装配只有一份：`backend/bootstrap/runtime.ts` 的 `buildRuntime()`，`main.ts`（生产 / 桌面）与 `dev.ts`（开发）都调它，只差 `devMode` / `staticRoot` / 日志组件名。窗口与 `pickWorkspaceFolder` binding 在 `backend/bootstrap/desktop.ts`。
+
 ## Backend 选择
 
 ```jsonc

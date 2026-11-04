@@ -161,17 +161,22 @@ Deno.test("w14 — ProjectDetailView openFolderPicker cascade（binding → webk
   );
 });
 
-Deno.test("w15 — main.ts / dev.ts 注册 pickWorkspaceFolder binding（防御性 bind 检查）", () => {
+Deno.test("w15 — 两个入口都通过共享的 desktop 窗口助手注册 pickWorkspaceFolder binding", () => {
+  // binding 只写一份（backend/bootstrap/desktop.ts），两个入口都调它 —— 不会再改一处漏一处
+  const desktop = readText("backend/bootstrap/desktop.ts");
+  assertStringIncludes(desktop, "pickWorkspaceFolder");
+  // 防御性 typeof win.bind === "function" 检查（旧 runtime 缺 bind 时跳过）
+  assert(
+    /typeof win\.bind === "function"/.test(desktop),
+    "desktop.ts 应有 typeof win.bind === \"function\" 防御",
+  );
+  // 当前实现返 cancelled 让前端 cascade
+  assert(/cancelled:\s*true/.test(desktop), "desktop.ts binding 应返 cancelled: true");
+
   for (const f of ["main.ts", "dev.ts"]) {
     const src = readText(f);
-    assertStringIncludes(src, "pickWorkspaceFolder");
-    // 防御性 typeof win.bind === "function" 检查（旧 runtime 缺 bind 时跳过）
-    assert(
-      /typeof win\.bind === "function"/.test(src),
-      `${f} 应有 typeof win.bind === "function" 防御`,
-    );
-    // 当前实现返 cancelled 让前端 cascade
-    assert(/cancelled:\s*true/.test(src), `${f} binding 应返 cancelled: true`);
+    assertStringIncludes(src, 'from "@backend/bootstrap/desktop.ts"');
+    assertStringIncludes(src, "openDesktopWindow({");
   }
 });
 

@@ -11,7 +11,7 @@
  *       - 调用 service.get(projectId, kind) 拿全模块正文
  *       - 未找到返 found=false
  *   - buildWriteableTools 返回含 read_markdown_module
- *   - main.ts 装配了 markdownModuleServiceForWrites
+ *   - 装配（backend/bootstrap/runtime.ts）里 markdownModuleServiceForWrites 已注入
  */
 
 import { assert, assertStringIncludes, assertEquals } from "@std/assert";
@@ -81,8 +81,9 @@ Deno.test("tm6 — WriteableToolsDeps + buildWriteableTools 注册 ReadMarkdownM
   assert(/buildWriteableTools[\s\S]*?new ReadMarkdownModuleTool\(\{[\s\S]*?markdownModuleService: deps\.markdownModuleService/.test(src));
 });
 
-Deno.test("tm7 — main.ts 装配 markdownModuleServiceForWrites 并注入 deps", () => {
-  const src = readText("main.ts");
+Deno.test("tm7 — 装配里 markdownModuleServiceForWrites 已注入 deps", () => {
+  // 装配只有一份，在 backend/bootstrap/runtime.ts（main.ts / dev.ts 共用）
+  const src = readText("backend/bootstrap/runtime.ts");
   assertStringIncludes(src, "markdownModuleServiceForWrites");
   // MarkdownModuleService 实例化（用 businessModuleServiceForWrites）
   assert(

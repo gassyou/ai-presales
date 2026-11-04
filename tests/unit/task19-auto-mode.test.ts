@@ -3,8 +3,8 @@
  *
  * 覆盖：
  *   - AutoModeRunnerAdapter: 同步返回 AsyncIterable，延迟 client 解析
- *   - main.ts: 注入 autoModeOrchestrator + autoModeRoute 到 createApp
- *   - main.ts: 构造 DefaultAutoModeContextProvider + SubAgentAutoModeWorker + SubAgentReviewer ×2
+ *   - 装配（backend/bootstrap/runtime.ts）: 注入 autoModeOrchestrator + autoModeRoute 到 createApp
+ *   - 装配: 构造 DefaultAutoModeContextProvider + SubAgentAutoModeWorker + SubAgentReviewer ×2
  *   - server.ts: /api/ai/auto-mode 路由分发（集成测试，老 task11 已覆盖；本文件做源码断言）
  *   - 前端 auto-mode UI（面板 / store / api）已整体删除，AIChatDock 不再挂载
  */
@@ -167,11 +167,12 @@ Deno.test({
 // ---- main.ts wiring ----
 
 Deno.test({
-  name: "t19 — main.ts 引入 auto-mode 模块 + 构造 orchestrator + 注入 server",
+  name: "t19 — 装配引入 auto-mode 模块 + 构造 orchestrator + 注入 server",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    const src = await Deno.readTextFile("main.ts");
+    // 装配只有一份，在 backend/bootstrap/runtime.ts（main.ts / dev.ts 共用）
+    const src = await Deno.readTextFile("backend/bootstrap/runtime.ts");
     assertStringIncludes(src, "AutoModeOrchestrator");
     assertStringIncludes(src, "DefaultAutoModeContextProvider");
     assertStringIncludes(src, "SubAgentAutoModeWorker");
