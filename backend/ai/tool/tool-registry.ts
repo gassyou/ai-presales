@@ -12,6 +12,12 @@ export interface IToolRegistry {
   has(name: string): boolean;
   list(): readonly Tool[];
   names(): readonly string[];
+  /** 把注册表内的工具转成 LLM `tools` 参数（OpenAI / Anthropic mapper 都吃这个） */
+  toLLMTools(): Array<{
+    readonly name: string;
+    readonly description: string;
+    readonly inputSchema: Record<string, unknown>;
+  }>;
 }
 
 export class ToolRegistry implements IToolRegistry {

@@ -15,7 +15,7 @@ import type {
   ContextFragment,
   ProjectSnapshotProvider,
   RagProvider,
-} from "./snapshot-registry.ts";
+} from "../snapshot-registry.ts";
 
 export class NotImplementedProviderError extends Error {
   constructor(provider: string, method: string) {

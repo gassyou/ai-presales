@@ -17,6 +17,20 @@ import type {
   StreamEvent,
 } from "../message/canonical-message.ts";
 
+/**
+ * 契约类型统一从本模块入口再导出 —— 调用方（route / adapter / 测试）只认
+ * "LLM 客户端契约"这一个入口，不必知道 canonical-message.ts 的物理位置。
+ * 类型定义仍然只有一份（在 canonical-message.ts）。
+ */
+export type {
+  ChatRequest,
+  ChatResult,
+  ChatUsage,
+  ProviderCapabilities,
+  StreamEvent,
+  ToolSpec,
+} from "../message/canonical-message.ts";
+
 export interface ILLMClient {
   readonly provider: "openai" | "anthropic";
   chat(req: ChatRequest): Promise<ChatResult>;

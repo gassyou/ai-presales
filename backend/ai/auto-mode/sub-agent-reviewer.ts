@@ -13,7 +13,7 @@ import type { ProjectId } from "@shared/types/ids.ts";
 import type { SubAgentName, SubAgentSpecVO } from "@backend/domain/sub-agent/sub-agent-spec.ts";
 import type { ISubAgentRegistry } from "@backend/domain/sub-agent/sub-agent.registry.ts";
 import type { SubAgentRunner } from "@backend/ai/sub-agent/sub-agent-runner.ts";
-import type { ToolRegistry } from "@backend/ai/tool/tool-registry.ts";
+import type { IToolRegistry } from "@backend/ai/tool/tool-registry.ts";
 import type {
   Reviewer,
   ReviewScore,
@@ -27,7 +27,7 @@ export interface SubAgentReviewerDeps {
   readonly subAgentName: SubAgentName;
   readonly registry: ISubAgentRegistry;
   readonly runner: SubAgentRunner;
-  readonly toolRegistry: ToolRegistry;
+  readonly toolRegistry: IToolRegistry;
 }
 
 /** 解析 sub-agent 输出的 JSON 块（容错） */
@@ -156,7 +156,7 @@ export function makeSubAgentReviewer(opts: {
   role: "customer" | "director";
   registry: ISubAgentRegistry;
   runner: SubAgentRunner;
-  toolRegistry: ToolRegistry;
+  toolRegistry: IToolRegistry;
 }): SubAgentReviewer {
   const subAgentName = opts.role === "customer"
     ? "auto_customer_review"

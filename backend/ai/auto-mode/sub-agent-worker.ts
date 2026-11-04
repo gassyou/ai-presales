@@ -13,7 +13,7 @@ import type { ProjectId } from "@shared/types/ids.ts";
 import type { SubAgentName, SubAgentSpecVO } from "@backend/domain/sub-agent/sub-agent-spec.ts";
 import type { ISubAgentRegistry } from "@backend/domain/sub-agent/sub-agent.registry.ts";
 import type { SubAgentRunner } from "@backend/ai/sub-agent/sub-agent-runner.ts";
-import type { ToolRegistry } from "@backend/ai/tool/tool-registry.ts";
+import type { IToolRegistry } from "@backend/ai/tool/tool-registry.ts";
 import type {
   AutoModeWorker,
   ContextInputKind,
@@ -22,7 +22,7 @@ import type {
 export interface SubAgentAutoModeWorkerDeps {
   readonly registry: ISubAgentRegistry;
   readonly runner: SubAgentRunner;
-  readonly toolRegistry: ToolRegistry;
+  readonly toolRegistry: IToolRegistry;
 }
 
 export class SubAgentAutoModeWorker implements AutoModeWorker {
